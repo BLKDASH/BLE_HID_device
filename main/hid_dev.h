@@ -207,9 +207,9 @@ typedef uint8_t consumer_cmd_t;
 #define HID_CC_RPT_SET_CHANNEL(s, x)    (s)[0] &= HID_CC_RPT_CHANNEL_BITS;   \
                                         (s)[0] |= ((x) & 0x03) << 4
 #define HID_CC_RPT_SET_VOLUME_UP(s)     (s)[0] &= HID_CC_RPT_VOLUME_BITS;    \
-                                        (s)[0] |= 0x40
+                                        (s)[0] |= HID_CC_RPT_VOLUME_UP
 #define HID_CC_RPT_SET_VOLUME_DOWN(s)   (s)[0] &= HID_CC_RPT_VOLUME_BITS;    \
-                                        (s)[0] |= 0x80
+                                        (s)[0] |= HID_CC_RPT_VOLUME_DOWN
 #define HID_CC_RPT_SET_BUTTON(s, x)     (s)[1] &= HID_CC_RPT_BUTTON_BITS;    \
                                         (s)[1] |= (x)
 #define HID_CC_RPT_SET_SELECTION(s, x)  (s)[1] &= HID_CC_RPT_SELECTION_BITS; \

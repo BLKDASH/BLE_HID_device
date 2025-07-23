@@ -21,7 +21,7 @@
 #define HID_MOUSE_IN_RPT_LEN        5
 
 // HID输入报文长度
-#define HID_CC_IN_RPT_LEN           2
+#define HID_CC_IN_RPT_LEN           3
 
 /**
  * @brief 注册HID设备的回调函数并初始化GATT服务应用。
@@ -161,4 +161,9 @@ void esp_hidd_send_mouse_value(uint16_t conn_id, uint8_t mouse_button, int8_t mi
     hid_dev_send_report(hidd_le_env.gatt_if, conn_id,
                         HID_RPT_ID_MOUSE_IN, HID_REPORT_TYPE_INPUT, HID_MOUSE_IN_RPT_LEN, buffer);
     return;
+}
+
+void esp_hidd_send_custom_report(uint16_t conn_id, uint8_t report_id, uint8_t report_type, uint8_t *data, uint8_t length)
+{
+    hid_dev_send_report(hidd_le_env.gatt_if, conn_id, report_id, report_type, length, data);
 }

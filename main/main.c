@@ -242,7 +242,30 @@ void mouse_move_task(void *pvParameters)
 }
 
 
+/**
+ * @brief 模拟手柄按键任务函数
+ * 
+ * 该任务负责定时发送HID特性值以模拟手柄按键按下。
+ * 只有在安全连接状态下才会发送指令。
+ * 
+ * @param pvParameters 任务参数（未使用）
+ */
+void gamepad_button_task(void *pvParameters)
+{
+    // 示例输入报告
+    uint8_t feature_value[11] = {4, 128, 128, 128, 128, 255, 0, 0, 0, 1, 0};
 
+    while (1) {
+        if (sec_conn) {
+            ESP_LOGI(HID_BLE_TAG, "Simulating gamepad button press");
+            // 使用自定义函数发送输入报告
+            esp_hidd_send_custom_report(hid_conn_id, HID_RPT_ID_MOUSE_IN, HID_REPORT_TYPE_INPUT, feature_value, sizeof(feature_value));
+        }
+
+        // 每5秒发送一次
+        vTaskDelay(pdMS_TO_TICKS(5000));
+    }
+}
 
 
 
@@ -344,7 +367,9 @@ void app_main(void)
         ble_sec_config();
     }
     // 创建调整音量任务
-    // xTaskCreate(&hid_demo_task, "hid_task", 2048, NULL, 5, NULL);
+    xTaskCreate(&hid_demo_task, "hid_task", 2048, NULL, 5, NULL);
     // 创建鼠标移动任务
-    xTaskCreate(&mouse_move_task, "mouse_move_task", 2048, NULL, 5, NULL);
+    // xTaskCreate(&mouse_move_task, "mouse_move_task", 2048, NULL, 5, NULL);
+    // 模拟手柄任务
+    // xTaskCreate(&gamepad_button_task, "gamepad_button_task", 4096, NULL, 5, NULL);
 }

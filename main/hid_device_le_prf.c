@@ -8,7 +8,24 @@
 #include <string.h>
 #include "esp_log.h"
 
-/// characteristic presentation information
+
+/// @brief Characteristic Presentation Format 结构体
+/// 用于描述 BLE HID 设备中某个 Characteristic 的数据表示格式信息
+/// 
+/// 该结构体定义了 BLE GATT Characteristic 的 Presentation Format Descriptor 的格式，
+/// 主要用于在 BLE 连接中向对端设备表明该 Characteristic 的数据格式信息。
+/// 
+/// @field unit Unit (The Unit is a UUID)
+///        类型为 uint16_t，表示数据的单位，通常为一个 UUID 值。
+/// @field description Description
+///        类型为 uint16_t，表示描述字段，用于提供额外的说明信息。
+/// @field format Format
+///        类型为 uint8_t，表示数据的格式类型，如布尔值、整数、浮点数等。
+/// @field exponent Exponent
+///        类型为 uint8_t，表示指数因子，用于定义小数点的位置。
+/// @field name_space Name space
+///        类型为 uint8_t，表示命名空间，用于定义描述字段的含义范围。
+///
 struct prf_char_pres_fmt
 {
     /// Unit (The Unit is a UUID)
@@ -23,11 +40,14 @@ struct prf_char_pres_fmt
     uint8_t name_space;
 };
 
-// HID report mapping table
+// 存储 HID报告的映射信息
 static hid_report_map_t hid_rpt_map[HID_NUM_REPORTS];
 
-// HID Report Map characteristic value
-// Keyboard report descriptor (using format for Boot interface descriptor)
+// HID报告描述符
+// 鼠标：支持3个按钮、X/Y坐标移动、滚轮。
+// 键盘：支持修饰键（如Shift）、6个普通按键、LED输出（如Caps Lock）。
+// 消费者设备：支持音量加减、静音、播放控制等多媒体按键。
+// 厂商自定义：可选支持厂商自定义数据传输。
 static const uint8_t hidReportMap[] = {
     0x05, 0x01,  // Usage Page (Generic Desktop)
     0x09, 0x02,  // Usage (Mouse)
@@ -177,6 +197,142 @@ static const uint8_t hidReportMap[] = {
 
 };
 
+//网上找的
+static const uint8_t hidReportMapNetJoystick[] = {
+    0x15, 0x00,        // LOGICAL_MINIMUM (0)
+    0x05, 0x01,        // USAGE_PAGE (Generic Desktop)
+    0x09, 0x04,        // USAGE (Joystick)
+    0xA1, 0x01,        // COLLECTION (Application)
+
+    0x05, 0x02,        //   USAGE_PAGE (Simulation Controls)
+    0x09, 0xBB,        //   USAGE (Throttle)
+    0x15, 0x81,        //   LOGICAL_MINIMUM (-127)
+    0x25, 0x7F,        //   LOGICAL_MAXIMUM (127)
+    0x75, 0x08,        //   REPORT_SIZE (8)
+    0x95, 0x01,        //   REPORT_COUNT (1)
+    0x81, 0x02,        //   INPUT (Data, Variable, Absolute)
+
+    0xA9, 0x01,        //   DELIMITER (Open)
+    0x09, 0x20,        //     USAGE (Flight Control Stick)
+    0x0B, 0x01, 0x00, 0x01, 0x00, //   USAGE (Generic Desktop:Pointer)
+
+    0xA9, 0x00,        //   DELIMITER (Close)
+    0xA1, 0x00,        //   COLLECTION (Physical)
+    0x0B, 0x30, 0x00, 0x01, 0x00, //   USAGE (Generic Desktop:X)
+    0x0B, 0x31, 0x00, 0x01, 0x00, //   USAGE (Generic Desktop:Y)
+    0x95, 0x02,        //   REPORT_COUNT (2)
+    0x81, 0x02,        //   INPUT (Data, Variable, Absolute)
+    0xC0,              //   END_COLLECTION
+
+    0xA9, 0x01,        //   DELIMITER (Open)
+    0x0B, 0x20, 0x00, 0x05, 0x00, //   USAGE (Gaming Controls:Point of View)
+    0x0B, 0x39, 0x00, 0x01, 0x00, //   USAGE (Generic Desktop:Hat switch)
+
+    0xA9, 0x00,        //   DELIMITER (Close)
+    0x15, 0x00,        //   LOGICAL_MINIMUM (0)
+    0x25, 0x03,        //   LOGICAL_MAXIMUM (3)
+    0x35, 0x00,        //   PHYSICAL_MINIMUM (0)
+    0x46, 0x0E, 0x01,  //   PHYSICAL_MAXIMUM (270)
+    0x65, 0x14,        //   UNIT (Eng Rot:Angular Pos)
+    0x55, 0x00,        //   UNIT_EXPONENT (0)
+    0x75, 0x04,        //   REPORT_SIZE (4)
+    0x95, 0x01,        //   REPORT_COUNT (1)
+    0x81, 0x02,        //   INPUT (Data, Variable, Absolute)
+
+    0xA9, 0x01,        //   DELIMITER (Open)
+    0x0B, 0x01, 0x00, 0x09, 0x00, //   USAGE (Button:Button 1)
+    0x09, 0xC0,        //   USAGE (Trigger)
+
+    0xA9, 0x00,        //   DELIMITER (Close)
+    0xA9, 0x01,        //   DELIMITER (Open)
+    0x0B, 0x02, 0x00, 0x09, 0x00, //   USAGE (Button:Button 2)
+    0x09, 0xC2,        //   USAGE (Weapons Select)
+
+    0xA9, 0x00,        //   DELIMITER (Close)
+    0xA9, 0x01,        //   DELIMITER (Open)
+    0x0B, 0x03, 0x00, 0x09, 0x00, //   USAGE (Button:Button 3)
+    0x09, 0xB7,        //   USAGE (Electronic Counter Measures)
+    0x09, 0xBD,        //   USAGE (Flare Release)
+
+    0xA9, 0x00,        //   DELIMITER (Close)
+    0xA9, 0x01,        //   DELIMITER (Open)
+    0x0B, 0x04, 0x00, 0x09, 0x00, //   USAGE (Button:Button 4)
+    0x09, 0xBE,        //   USAGE (Landing Gear)
+    0x09, 0xB4,        //   USAGE (Chaff Release)
+
+    0xA9, 0x00,        //   DELIMITER (Close)
+    0x15, 0x00,        //   LOGICAL_MINIMUM (0)
+    0x25, 0x01,        //   LOGICAL_MAXIMUM (1)
+    0x35, 0x00,        //   PHYSICAL_MINIMUM (0)
+    0x45, 0x01,        //   PHYSICAL_MAXIMUM (1)
+    0x75, 0x01,        //   REPORT_SIZE (1)
+    0x95, 0x04,        //   REPORT_COUNT (4)
+    0x65, 0x00,        //   UNIT (None)
+    0x81, 0x02,        //   INPUT (Data, Variable, Absolute)
+
+    0xC0               // END_COLLECTION
+};
+
+
+// MYGT 格式：定义游戏手柄的 HID 报告描述符
+static const uint8_t hidReportMapMYGTJoystick[] = {
+    0x05, 0x01,        // Usage Page (Generic Desktop)
+    0x09, 0x05,        // Usage (Game Pad) - 指定设备为游戏手柄
+    0xA1, 0x01,        // Collection (Application) - 开始一个应用集合
+
+    0x09, 0x01,        //   Usage (Pointer) - 指明接下来的轴数据是用于指针的
+    0xA1, 0x00,        //   Collection (Physical) - 开始物理集合
+    0x85, 0x04,        //     Report ID (4) - 报告 ID 为 4，用于区分多个报告
+    0x09, 0x30,        //     Usage (X) - X 轴
+    0x09, 0x31,        //     Usage (Y) - Y 轴
+    0x09, 0x32,        //     Usage (Z) - Z 轴（通常为油门或第三轴）
+    0x09, 0x35,        //     Usage (Rz) - Rz 轴（通常为第四轴）
+    0x15, 0x00,        //     Logical Minimum (0) - 逻辑最小值 0
+    0x26, 0xFF, 0x00,  //     Logical Maximum (255) - 逻辑最大值 255
+    0x75, 0x08,        //     Report Size (8) - 每个轴使用 8 位
+    0x95, 0x04,        //     Report Count (4) - 共 4 个轴
+    0x81, 0x02,        //     Input (Data, Variable, Absolute) - 输入数据，绝对值模式
+    0xC0,              //   End Collection - 结束物理集合
+
+    0x09, 0x39,        //   Usage (Hat switch) - 方向帽
+    0x15, 0x00,        //   Logical Minimum (0) - 逻辑最小值 0
+    0x25, 0x07,        //   Logical Maximum (7) - 支持 0~7 的方向选择
+    0x35, 0x00,        //   Physical Minimum (0) - 物理最小值 0
+    0x46, 0x3B, 0x01,  //   Physical Maximum (299) - 物理最大值 299（单位：角度）
+    0x65, 0x14,        //   Unit (Eng Rot: Angular Pos) - 单位为角度
+    // 0x55, 0x00,        //   Unit Exponent (0) - 单位指数为 0
+    0x75, 0x04,        //   Report Size (4) - 方向帽使用 4 位
+    0x95, 0x01,        //   Report Count (1) - 1 个方向帽
+    0x81, 0x42,        //   Input (Data, Variable, Absolute, Null State) - 输入，支持空状态
+    0x75, 0x04,        //   Report Size (4) - 填充位
+    0x95, 0x01,        //   Report Count (1) - 1 个填充位
+    0x81, 0x03,        //   Input (Constant, Absolute) - 常量输入，用于对齐
+
+    0x05, 0x09,        //   Usage Page (Button) - 按钮使用页
+    0x19, 0x01,        //   Usage Minimum (Button 1) - 按钮最小值
+    0x29, 0x0F,        //   Usage Maximum (Button 15) - 按钮最大值
+    0x15, 0x00,        //   Logical Minimum (0) - 按钮最小逻辑值
+    0x25, 0x01,        //   Logical Maximum (1) - 按钮最大逻辑值
+    0x75, 0x01,        //   Report Size (1) - 每个按钮占 1 位
+    0x95, 0x10,        //   Report Count (16) - 共 16 个按钮
+    0x45, 0x00,        //   Physical Maximum (0) - 物理最大值 0（无单位）
+    0x65, 0x00,        //   Unit (None) - 无单位
+    0x81, 0x02,        //   Input (Data, Variable, Absolute) - 输入数据，绝对值模式
+
+    0x05, 0x02,        //   Usage Page (Simulation Controls) - 模拟控制使用页
+    0x09, 0xC4,        //   Usage (Aileron) - 副翼（模拟飞行器控制）
+    0x09, 0xC5,        //   Usage (Rudder) - 方向舵
+    0x15, 0x00,        //   Logical Minimum (0) - 逻辑最小值 0
+    0x26, 0xFF, 0x00,  //   Logical Maximum (255) - 逻辑最大值 255
+    0x35, 0x00,        //   Physical Minimum (0) - 物理最小值 0
+    0x46, 0x3B, 0x01,  //   Physical Maximum (299) - 物理最大值 299（单位：角度）
+    0x65, 0x14,        //   Unit (Eng Rot: Angular Pos) - 单位为角度
+    0x75, 0x08,        //   Report Size (8) - 每个模拟轴使用 8 位
+    0x95, 0x02,        //   Report Count (2) - 2 个模拟轴（副翼和方向舵）
+    0x81, 0x02,        //   Input (Data, Variable, Absolute) - 输入数据，绝对值模式
+    0xC0               // End Collection - 结束应用集合
+};
+
 /// Battery Service Attributes Indexes
 enum
 {
@@ -318,7 +474,15 @@ static const esp_gatts_attr_db_t bas_att_db[BAS_IDX_NB] =
 };
 
 
-/// Full Hid device Database Description - Used to add attributes into the database
+///
+/// \brief 定义HID设备的GATT数据库结构
+///
+/// 该数组定义了HID设备在GATT服务中的各个属性描述符。
+/// 每个条目对应一个特定的GATT属性，包括服务声明、特征值声明、特征值内容等。
+/// 这些属性用于实现HID服务的蓝牙低功耗（BLE）通信。
+///
+/// \note 该数组大小为 HIDD_LE_IDX_NB，每个元素对应一个特定的GATT属性描述符。
+///
 static esp_gatts_attr_db_t hidd_le_gatt_db[HIDD_LE_IDX_NB] =
 {
             // HID Service Declaration
