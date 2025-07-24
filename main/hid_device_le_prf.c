@@ -276,61 +276,56 @@ static const uint8_t hidReportMapNetJoystick[] = {
 
 // MYGT 格式：定义游戏手柄的 HID 报告描述符
 static const uint8_t hidReportMapMYGTJoystick[] = {
-    0x05, 0x01,        // Usage Page (Generic Desktop)
-    0x09, 0x05,        // Usage (Game Pad) - 指定设备为游戏手柄
-    0xA1, 0x01,        // Collection (Application) - 开始一个应用集合
-
-    0x09, 0x01,        //   Usage (Pointer) - 指明接下来的轴数据是用于指针的
-    0xA1, 0x00,        //   Collection (Physical) - 开始物理集合
-    0x85, 0x04,        //     Report ID (4) - 报告 ID 为 4，用于区分多个报告
-    0x09, 0x30,        //     Usage (X) - X 轴
-    0x09, 0x31,        //     Usage (Y) - Y 轴
-    0x09, 0x32,        //     Usage (Z) - Z 轴（通常为油门或第三轴）
-    0x09, 0x35,        //     Usage (Rz) - Rz 轴（通常为第四轴）
-    0x15, 0x00,        //     Logical Minimum (0) - 逻辑最小值 0
-    0x26, 0xFF, 0x00,  //     Logical Maximum (255) - 逻辑最大值 255
-    0x75, 0x08,        //     Report Size (8) - 每个轴使用 8 位
-    0x95, 0x04,        //     Report Count (4) - 共 4 个轴
-    0x81, 0x02,        //     Input (Data, Variable, Absolute) - 输入数据，绝对值模式
-    0xC0,              //   End Collection - 结束物理集合
-
-    0x09, 0x39,        //   Usage (Hat switch) - 方向帽
-    0x15, 0x00,        //   Logical Minimum (0) - 逻辑最小值 0
-    0x25, 0x07,        //   Logical Maximum (7) - 支持 0~7 的方向选择
-    0x35, 0x00,        //   Physical Minimum (0) - 物理最小值 0
-    0x46, 0x3B, 0x01,  //   Physical Maximum (299) - 物理最大值 299（单位：角度）
-    0x65, 0x14,        //   Unit (Eng Rot: Angular Pos) - 单位为角度
-    // 0x55, 0x00,        //   Unit Exponent (0) - 单位指数为 0
-    0x75, 0x04,        //   Report Size (4) - 方向帽使用 4 位
-    0x95, 0x01,        //   Report Count (1) - 1 个方向帽
-    0x81, 0x42,        //   Input (Data, Variable, Absolute, Null State) - 输入，支持空状态
-    0x75, 0x04,        //   Report Size (4) - 填充位
-    0x95, 0x01,        //   Report Count (1) - 1 个填充位
-    0x81, 0x03,        //   Input (Constant, Absolute) - 常量输入，用于对齐
-
-    0x05, 0x09,        //   Usage Page (Button) - 按钮使用页
-    0x19, 0x01,        //   Usage Minimum (Button 1) - 按钮最小值
-    0x29, 0x0F,        //   Usage Maximum (Button 15) - 按钮最大值
-    0x15, 0x00,        //   Logical Minimum (0) - 按钮最小逻辑值
-    0x25, 0x01,        //   Logical Maximum (1) - 按钮最大逻辑值
-    0x75, 0x01,        //   Report Size (1) - 每个按钮占 1 位
-    0x95, 0x10,        //   Report Count (16) - 共 16 个按钮
-    0x45, 0x00,        //   Physical Maximum (0) - 物理最大值 0（无单位）
-    0x65, 0x00,        //   Unit (None) - 无单位
-    0x81, 0x02,        //   Input (Data, Variable, Absolute) - 输入数据，绝对值模式
-
-    0x05, 0x02,        //   Usage Page (Simulation Controls) - 模拟控制使用页
-    0x09, 0xC4,        //   Usage (Aileron) - 副翼（模拟飞行器控制）
-    0x09, 0xC5,        //   Usage (Rudder) - 方向舵
-    0x15, 0x00,        //   Logical Minimum (0) - 逻辑最小值 0
-    0x26, 0xFF, 0x00,  //   Logical Maximum (255) - 逻辑最大值 255
-    0x35, 0x00,        //   Physical Minimum (0) - 物理最小值 0
-    0x46, 0x3B, 0x01,  //   Physical Maximum (299) - 物理最大值 299（单位：角度）
-    0x65, 0x14,        //   Unit (Eng Rot: Angular Pos) - 单位为角度
-    0x75, 0x08,        //   Report Size (8) - 每个模拟轴使用 8 位
-    0x95, 0x02,        //   Report Count (2) - 2 个模拟轴（副翼和方向舵）
-    0x81, 0x02,        //   Input (Data, Variable, Absolute) - 输入数据，绝对值模式
-    0xC0               // End Collection - 结束应用集合
+    0x05, 0x01,        // Usage Page (Generic Desktop Ctrls)
+    0x09, 0x05,        // Usage (Game Pad)
+    0xA1, 0x01,        // Collection (Application)
+    0x09, 0x01,        //   Usage (Pointer)
+    0xA1, 0x00,        //   Collection (Physical)
+    0x85, 0x04,        //     Report ID (4)
+    0x09, 0x30,        //     Usage (X)
+    0x09, 0x31,        //     Usage (Y)
+    0x09, 0x32,        //     Usage (Z)
+    0x09, 0x35,        //     Usage (Rz)
+    0x15, 0x00,        //     Logical Minimum (0)
+    0x26, 0xFF, 0x00,  //     Logical Maximum (255)
+    0x75, 0x08,        //     Report Size (8)
+    0x95, 0x04,        //     Report Count (4)
+    0x81, 0x02,        //     Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
+    0xC0,              //   End Collection
+    0x09, 0x39,        //   Usage (Hat switch)
+    0x15, 0x00,        //   Logical Minimum (0)
+    0x25, 0x07,        //   Logical Maximum (7)
+    0x35, 0x00,        //   Physical Minimum (0)
+    0x46, 0x3B, 0x01,  //   Physical Maximum (315)
+    0x65, 0x14,        //   Unit (System: English Rotation, Length: Centimeter)
+    0x75, 0x04,        //   Report Size (4)
+    0x95, 0x01,        //   Report Count (1)
+    0x81, 0x42,        //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,Null State)
+    0x75, 0x04,        //   Report Size (4)
+    0x95, 0x01,        //   Report Count (1)
+    0x81, 0x03,        //   Input (Const,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
+    0x05, 0x09,        //   Usage Page (Button)
+    0x19, 0x01,        //   Usage Minimum (0x01)
+    0x29, 0x0F,        //   Usage Maximum (0x0F)
+    0x15, 0x00,        //   Logical Minimum (0)
+    0x25, 0x01,        //   Logical Maximum (1)
+    0x75, 0x01,        //   Report Size (1)
+    0x95, 0x10,        //   Report Count (16)
+    0x45, 0x00,        //   Physical Maximum (0)
+    0x65, 0x00,        //   Unit (None)
+    0x81, 0x02,        //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
+    0x05, 0x02,        //   Usage Page (Sim Ctrls)
+    0x09, 0xC4,        //   Usage (Accelerator)
+    0x09, 0xC5,        //   Usage (Brake)
+    0x15, 0x00,        //   Logical Minimum (0)
+    0x26, 0xFF, 0x00,  //   Logical Maximum (255)
+    0x35, 0x00,        //   Physical Minimum (0)
+    0x46, 0x3B, 0x01,  //   Physical Maximum (315)
+    0x65, 0x14,        //   Unit (System: English Rotation, Length: Centimeter)
+    0x75, 0x08,        //   Report Size (8)
+    0x95, 0x02,        //   Report Count (2)
+    0x81, 0x02,        //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
+    0xC0,              // End Collection
 };
 
 /// Battery Service Attributes Indexes
@@ -441,7 +436,7 @@ static const uint8_t char_prop_read_notify = ESP_GATT_CHAR_PROP_BIT_READ|ESP_GAT
 static const uint8_t char_prop_read_write_notify = ESP_GATT_CHAR_PROP_BIT_READ|ESP_GATT_CHAR_PROP_BIT_WRITE|ESP_GATT_CHAR_PROP_BIT_NOTIFY;
 static const uint8_t char_prop_read_write_write_nr = ESP_GATT_CHAR_PROP_BIT_READ|ESP_GATT_CHAR_PROP_BIT_WRITE|ESP_GATT_CHAR_PROP_BIT_WRITE_NR;
 
-/// battary Service
+/// 电池服务
 static const uint16_t battary_svc = ESP_GATT_UUID_BATTERY_SERVICE_SVC;
 
 static const uint16_t bat_lev_uuid = ESP_GATT_UUID_BATTERY_LEVEL;
@@ -449,26 +444,26 @@ static const uint8_t   bat_lev_ccc[2] ={ 0x00, 0x00};
 static const uint16_t char_format_uuid = ESP_GATT_UUID_CHAR_PRESENT_FORMAT;
 
 static uint8_t battary_lev = 50;
-/// Full HRS Database Description - Used to add attributes into the database
+/// 完整的HRS数据库描述-用于向数据库中添加属性
 static const esp_gatts_attr_db_t bas_att_db[BAS_IDX_NB] =
 {
-    // Battary Service Declaration
+    // 电池使用声明
     [BAS_IDX_SVC]               =  {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&primary_service_uuid, ESP_GATT_PERM_READ,
                                             sizeof(uint16_t), sizeof(battary_svc), (uint8_t *)&battary_svc}},
 
-    // Battary level Characteristic Declaration
+    // 电池电量声明
     [BAS_IDX_BATT_LVL_CHAR]    = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&character_declaration_uuid, ESP_GATT_PERM_READ,
                                                    CHAR_DECLARATION_SIZE,CHAR_DECLARATION_SIZE, (uint8_t *)&char_prop_read_notify}},
 
-    // Battary level Characteristic Value
+    // 电池电量值
     [BAS_IDX_BATT_LVL_VAL]             	= {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&bat_lev_uuid, ESP_GATT_PERM_READ,
                                                                 sizeof(uint8_t),sizeof(uint8_t), &battary_lev}},
 
-    // Battary level Characteristic - Client Characteristic Configuration Descriptor
+    // 电池电量特性-客户端特性配置描述符
     [BAS_IDX_BATT_LVL_NTF_CFG]     	=  {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&character_client_config_uuid, ESP_GATT_PERM_READ|ESP_GATT_PERM_WRITE,
                                                           sizeof(uint16_t),sizeof(bat_lev_ccc), (uint8_t *)bat_lev_ccc}},
 
-    // Battary level report Characteristic Declaration
+    // 电池电量报告描述符
     [BAS_IDX_BATT_LVL_PRES_FMT]  = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&char_format_uuid, ESP_GATT_PERM_READ,
                                                         sizeof(struct prf_char_pres_fmt), 0, NULL}},
 };

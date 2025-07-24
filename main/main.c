@@ -38,6 +38,8 @@ Windows 10 不支持厂商自定义报告（Vendor Report），因此 SUPPORT_RE
 
 #define HID_BLE_TAG "BLEinfo"
 
+//128，API不允许16位
+#define UUID_MOD 128
 
 static uint16_t hid_conn_id = 0;
 static bool sec_conn = false;
@@ -47,12 +49,24 @@ static bool send_volum_up = false;
 static void hidd_event_callback(esp_hidd_cb_event_t event, esp_hidd_cb_param_t *param);
 
 #define HIDD_DEVICE_NAME            "ESP32GamePad"
-// UUID为0x1812，即注册为HID设备
-static uint8_t hidd_service_uuid128[] = {
-    /* LSB <--------------------------------------------------------------------------------> MSB */
-    //first uuid, 16bit, [12],[13] is the value
-    0xfb, 0x34, 0x9b, 0x5f, 0x80, 0x00, 0x00, 0x80, 0x00, 0x10, 0x00, 0x00, 0x12, 0x18, 0x00, 0x00,
+//#define HIDD_DEVICE_NAME            "MYGT Controller"
+// UUID为0x1812，注册为HID设备
+#if (UUID_MOD==128)
+    static uint8_t hidd_service_uuid[] = {
+        /* LSB <--------------------------------------------------------------------------------> MSB */
+        //first uuid, 16bit, [12],[13] is the value
+        0xfb, 0x34, 0x9b, 0x5f, 0x80, 0x00, 0x00, 0x80, 0x00, 0x10, 0x00, 0x00, 0x12, 0x18, 0x00, 0x00,
+    };
+#endif
+
+#if (UUID_MOD==16)
+static uint8_t hidd_service_uuid[] = {
+    /* LSB <------> MSB */
+    0x12, 0x18,
 };
+//static uint16_t hidd_service_uuid16 = 0x1812;
+#endif
+
 
 // GATT 广播数据
 static esp_ble_adv_data_t hidd_adv_data = {
@@ -66,13 +80,90 @@ static esp_ble_adv_data_t hidd_adv_data = {
     .p_manufacturer_data =  NULL,//指向厂商数据的指针，NULL 表示无厂商数据。
     .service_data_len = 0,//服务数据长度，0 表示没有服务数据。
     .p_service_data = NULL,//指向服务数据的指针，NULL 表示无服务数据。
-    .service_uuid_len = sizeof(hidd_service_uuid128),//服务数据长度，16 位 UUID
-    .p_service_uuid = hidd_service_uuid128,//uuid指针
+    .service_uuid_len = sizeof(hidd_service_uuid),//服务数据长度UUID
+    .p_service_uuid = (uint8_t*)hidd_service_uuid,//uuid指针
     .flag = 0x7, // 0b00000111
                     //bit 0: 使用 Undirected Advertising（无限广播模式）
                     //bit 1: LE General Discoverable Mode（设备可被发现）
                     //bit 2: BR/EDR Not Supported（不支持普通蓝牙）
 };
+
+// 广播数据RAW
+// static uint8_t hidd_adv_data_raw[] = {
+//     // 设备名称（0x09 = Complete Local Name）
+//     sizeof(HIDD_DEVICE_NAME) - 1 + 1,  // length = 字符串长度 + AD Type 长度
+//     0x09,                               // AD Type = Complete Local Name
+//     'M', 'Y', 'G', 'T', ' ', 'C', 'o', 'n', 't', 'r', 'o', 'l', 'l', 'e', 'r', // 设备名称
+
+//     // 服务UUID（0x03 = Complete List of 16-bit Service UUIDs）
+//     sizeof(hidd_service_uuid) + 1, // length = UUID长度 + AD Type 长度
+//     0x03,                         // AD Type = Complete List of 16-bit Service UUIDs
+//     0x12, 0x18,                   // 16位服务UUID（小端序）
+
+//     // 外观（0x19 = Appearance）
+//     3,                   // length = 2 + AD Type 长度
+//     0x19,                // AD Type = Appearance
+//     0xC4, 0x03,          // Appearance = 0x03C4 (HID游戏手柄)
+
+//     // 信号强度（0x0A = TX Power Level）
+//     2,                   // length = 1 + AD Type 长度
+//     0x0A,                // AD Type = TX Power Level
+//     0x00,                // TX Power Level = 0dBm
+// };
+
+#define HID_SERVICE_UUID_16 0x1812
+
+// 原始广播数据缓冲区
+static uint8_t hidd_adv_data_raw[31] = {0}; // 蓝牙广播最大31字节
+static uint8_t hidd_adv_data_raw_len = 0;
+
+// 构建符合AD规范的原始广播数据
+void build_hidd_adv_data_raw() {
+    uint8_t idx = 0;
+    
+    // 1.  Flags (0x01) - 0x07表示LE General Discoverable Mode且不支持BR/EDR
+    hidd_adv_data_raw[idx++] = 0x02;          // 长度: 2字节(类型+数据)
+    hidd_adv_data_raw[idx++] = 0x01;          // 类型: Flags
+    hidd_adv_data_raw[idx++] = 0x07;          // 数据: 0b00000111
+    
+    // 2. 完整本地名称 (0x09)
+    const char* device_name = "ESP32-HID";    // 替换为你的设备名
+    hidd_adv_data_raw[idx++] = strlen(device_name) + 1; // 长度: 名称长度+1(类型)
+    hidd_adv_data_raw[idx++] = 0x09;          // 类型: 完整本地名称
+    memcpy(&hidd_adv_data_raw[idx], device_name, strlen(device_name));
+    idx += strlen(device_name);
+    
+    // 3. 发射功率 (0x0A)
+    hidd_adv_data_raw[idx++] = 0x02;          // 长度: 2字节
+    hidd_adv_data_raw[idx++] = 0x0A;          // 类型: 发射功率
+    hidd_adv_data_raw[idx++] = 0x00;          // 功率值(0dBm，可根据实际调整)
+    
+    // 4. 16位服务UUID列表 (0x03)
+    hidd_adv_data_raw[idx++] = 0x03;          // 长度: 3字节(类型+2字节UUID)
+    hidd_adv_data_raw[idx++] = 0x03;          // 类型: 完整16位服务UUID列表
+    hidd_adv_data_raw[idx++] = HID_SERVICE_UUID_16 & 0xFF; // UUID低8位
+    hidd_adv_data_raw[idx++] = (HID_SERVICE_UUID_16 >> 8) & 0xFF; // UUID高8位
+    
+    // 5. 连接间隔范围 (0x12)
+    hidd_adv_data_raw[idx++] = 0x05;          // 长度: 5字节(类型+4字节数据)
+    hidd_adv_data_raw[idx++] = 0x12;          // 类型: 连接间隔范围
+    // 最小间隔(0x0006) - 小端模式
+    hidd_adv_data_raw[idx++] = 0x06;
+    hidd_adv_data_raw[idx++] = 0x00;
+    // 最大间隔(0x0010) - 小端模式
+    hidd_adv_data_raw[idx++] = 0x10;
+    hidd_adv_data_raw[idx++] = 0x00;
+    
+    // 6. 外观特征 (0x19)
+    hidd_adv_data_raw[idx++] = 0x03;          // 长度: 3字节
+    hidd_adv_data_raw[idx++] = 0x19;          // 类型: 外观
+    hidd_adv_data_raw[idx++] = 0xc4;          // 外观值0x03c4低8位
+    hidd_adv_data_raw[idx++] = 0x03;          // 外观值0x03c4高8位
+    
+    // 确认总长度不超过31字节
+    hidd_adv_data_raw_len = idx;
+    assert(hidd_adv_data_raw_len <= 31);
+}
 
 //广播参数
 static esp_ble_adv_params_t hidd_adv_params = {
@@ -94,12 +185,25 @@ static esp_ble_adv_params_t hidd_adv_params = {
 // 5. **ESP_HIDD_EVENT_BLE_LED_REPORT_WRITE_EVT**：接收到LED报告数据时打印日志。
 static void hidd_event_callback(esp_hidd_cb_event_t event, esp_hidd_cb_param_t *param)
 {
+    //build_hidd_adv_data_raw();//构建自己的广播包raw
     switch(event) {
         case ESP_HIDD_EVENT_REG_FINISH: {
             if (param->init_finish.state == ESP_HIDD_INIT_OK) {
                 //esp_bd_addr_t rand_addr = {0x04,0x11,0x11,0x11,0x11,0x05};
                 esp_ble_gap_set_device_name(HIDD_DEVICE_NAME);
-                esp_ble_gap_config_adv_data(&hidd_adv_data);
+                // 该API不支持16位UUID
+                if(ESP_OK==esp_ble_gap_config_adv_data(&hidd_adv_data))
+                {
+                    ESP_LOGI("HIDD_CALLBACK","GAP Config Adv Data OK");
+                }
+                // if(ESP_OK==esp_ble_gap_config_adv_data_raw(hidd_adv_data_raw, hidd_adv_data_raw_len))
+                // {
+                //     ESP_LOGI("HIDD_CALLBACK","GAP Config Adv Data OK");
+                // }
+                else 
+                {
+                    ESP_LOGI("HIDD_CALLBACK","GAP Config Adv Data Failed");
+                }
             }
             break;
         }
@@ -366,10 +470,16 @@ void app_main(void)
     {
         ble_sec_config();
     }
+    ESP_LOGI("Main", "BLE HID Init OK");
     // 创建调整音量任务
     xTaskCreate(&hid_demo_task, "hid_task", 2048, NULL, 5, NULL);
     // 创建鼠标移动任务
     // xTaskCreate(&mouse_move_task, "mouse_move_task", 2048, NULL, 5, NULL);
     // 模拟手柄任务
     // xTaskCreate(&gamepad_button_task, "gamepad_button_task", 4096, NULL, 5, NULL);
+    while (1)
+    {
+        vTaskDelay(pdMS_TO_TICKS(1000));
+    }
+    
 }

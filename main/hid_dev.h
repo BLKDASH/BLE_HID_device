@@ -20,7 +20,7 @@ extern "C" {
 #define HID_TYPE_OUTPUT      2
 #define HID_TYPE_FEATURE     3
 
-// HID Keyboard/Keypad Usage IDs (subset of the codes available in the USB HID Usage Tables spec)
+// HID键盘/键盘使用id （USB HID使用表规范中可用的代号的部分）
 #define HID_KEY_RESERVED       0    // No event inidicated
 #define HID_KEY_A              4    // Keyboard a and A
 #define HID_KEY_B              5    // Keyboard b and B
@@ -135,7 +135,7 @@ typedef uint8_t keyboard_cmd_t;
 #define HID_MOUSE_RIGHT      255
 typedef uint8_t mouse_cmd_t;
 
-// HID Consumer Usage IDs (subset of the codes available in the USB HID Usage Tables spec)
+// HID消费类设备的键值
 #define HID_CONSUMER_POWER          48  // Power
 #define HID_CONSUMER_RESET          49  // Reset
 #define HID_CONSUMER_SLEEP          50  // Sleep
@@ -193,15 +193,15 @@ typedef uint8_t consumer_cmd_t;
 #define HID_CC_RPT_VOLUME_UP            0x40
 #define HID_CC_RPT_VOLUME_DOWN          0x80
 
-// HID Consumer Control report bitmasks
+
+// HID消费类报告位掩码
 #define HID_CC_RPT_NUMERIC_BITS         0xF0
 #define HID_CC_RPT_CHANNEL_BITS         0xCF
 #define HID_CC_RPT_VOLUME_BITS          0x3F
 #define HID_CC_RPT_BUTTON_BITS          0xF0
 #define HID_CC_RPT_SELECTION_BITS       0xCF
 
-
-// Macros for the HID Consumer Control 2-byte report
+// 用于HID消费者控制2字节报告的宏
 #define HID_CC_RPT_SET_NUMERIC(s, x)    (s)[0] &= HID_CC_RPT_NUMERIC_BITS;   \
                                         (s)[0] = (x)
 #define HID_CC_RPT_SET_CHANNEL(s, x)    (s)[0] &= HID_CC_RPT_CHANNEL_BITS;   \
@@ -216,23 +216,31 @@ typedef uint8_t consumer_cmd_t;
                                         (s)[1] |= ((x) & 0x03) << 4
 
 
-// HID report mapping table
+/// \brief HID报告映射结构体
+///
+/// 该结构体定义了HID报告特征的映射信息，用于管理HID设备的报告特征。
+
 typedef struct
 {
-  uint16_t    handle;           // Handle of report characteristic
-  uint16_t    cccdHandle;       // Handle of CCCD for report characteristic
-  uint8_t     id;               // Report ID
-  uint8_t     type;             // Report type
-  uint8_t     mode;             // Protocol mode (report or boot)
+    uint16_t handle;           ///< 报告特征的句柄
+    uint16_t cccdHandle;       ///< 报告特征的CCCD（客户端特征配置描述符）句柄
+    uint8_t  id;               ///< 报告ID
+    uint8_t  type;             ///< 报告类型
+    uint8_t  mode;             ///< 协议模式（report或boot）
 } hid_report_map_t;
 
-// HID dev configuration structure
+
+/// \brief HID设备配置结构体
+///
+/// 该结构体定义了HID设备的配置参数，用于初始化和配置HID设备的行为。
 typedef struct
 {
-  uint32_t    idleTimeout;      // Idle timeout in milliseconds
-  uint8_t     hidFlags;         // HID feature flags
+    uint32_t idleTimeout;      ///< 空闲超时时间（毫秒）
+    uint8_t  hidFlags;         ///< HID功能标志
 
 } hid_dev_cfg_t;
+
+
 
 void hid_dev_register_reports(uint8_t num_reports, hid_report_map_t *p_report);
 
