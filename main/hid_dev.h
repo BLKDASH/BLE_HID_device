@@ -216,10 +216,12 @@ typedef uint8_t consumer_cmd_t;
                                         (s)[1] |= ((x) & 0x03) << 4
 
 
-/// \brief HID报告映射结构体
-///
-/// 该结构体定义了HID报告特征的映射信息，用于管理HID设备的报告特征。
-
+// \brief HID报告映射结构体，定义了HID报告特征的映射信息，用于管理HID设备的报告特征。
+// uint16_t handle;           ///< 报告特征的句柄
+// uint16_t cccdHandle;       ///< 报告特征的CCCD（客户端特征配置描述符）句柄
+// uint8_t  id;               ///< 报告ID
+// uint8_t  type;             ///< 报告类型
+// uint8_t  mode;             ///< 协议模式（report或boot）
 typedef struct
 {
     uint16_t handle;           ///< 报告特征的句柄

@@ -32,7 +32,8 @@ static hid_report_map_t *hid_dev_rpt_by_id(uint8_t id, uint8_t type)
      * 遍历HID报告项表，查找匹配的报告项：
      * - ID匹配
      * - 类型匹配
-     * - 当前协议模式匹配
+     * - HID协议模式匹配
+     * - 三者都匹配则返回rpt指针，后续要用到该项的handle
      */
     for (uint8_t i = hid_dev_rpt_tbl_Len; i > 0; i--, rpt++) {
         if (rpt->id == id && rpt->type == type && rpt->mode == hidProtocolMode) {
@@ -70,12 +71,14 @@ void hid_dev_register_reports(uint8_t num_reports, hid_report_map_t *p_report)
 void hid_dev_send_report(esp_gatt_if_t gatts_if, uint16_t conn_id,
                                     uint8_t id, uint8_t type, uint8_t length, uint8_t *data)
 {
+    //主要看参数：id、length、*data
     hid_report_map_t *p_rpt;
 
     // 获取报告的属性句柄
     if ((p_rpt = hid_dev_rpt_by_id(id, type)) != NULL) {
         // 发送报告数据
         ESP_LOGD(HID_LE_PRF_TAG, "%s(), send the report, handle = %d", __func__, p_rpt->handle);
+        // esp gatt自带库，
         esp_ble_gatts_send_indicate(gatts_if, conn_id, p_rpt->handle, length, data, false);
     }
 
@@ -115,10 +118,14 @@ void hid_consumer_build_report(uint8_t *buffer, consumer_cmd_t cmd)
             break;
 
         case HID_CONSUMER_VOLUME_UP:
+            // (buffer)[0] &= 0x3F 00111111 
+            // (buffer)[0] |= 0x40 01000000
+            // 保留低六位，清零6、7位。并将第六位置1
             HID_CC_RPT_SET_VOLUME_UP(buffer);
             break;
 
         case HID_CONSUMER_VOLUME_DOWN:
+            // (buffer)[0] &= 0x3F; (buffer)[0] |= 0x80
             HID_CC_RPT_SET_VOLUME_DOWN(buffer);
             break;
 

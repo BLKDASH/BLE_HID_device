@@ -42,6 +42,8 @@ struct prf_char_pres_fmt
 
 // 存储 HID报告的映射信息
 static hid_report_map_t hid_rpt_map[HID_NUM_REPORTS];
+// static hid_report_map_t hid_rpt_map_gamepad[HID_NUM_REPORTS];
+
 
 // HID报告描述符
 // 鼠标：支持3个按钮、X/Y坐标移动、滚轮。
@@ -49,138 +51,145 @@ static hid_report_map_t hid_rpt_map[HID_NUM_REPORTS];
 // 消费者设备：支持音量加减、静音、播放控制等多媒体按键。
 // 厂商自定义：可选支持厂商自定义数据传输。
 static const uint8_t hidReportMap[] = {
-    0x05, 0x01,  // Usage Page (Generic Desktop)
-    0x09, 0x02,  // Usage (Mouse)
-    0xA1, 0x01,  // Collection (Application)
-    0x85, 0x01,  // Report Id (1)
-    0x09, 0x01,  //   Usage (Pointer)
-    0xA1, 0x00,  //   Collection (Physical)
-    0x05, 0x09,  //     Usage Page (Buttons)
-    0x19, 0x01,  //     Usage Minimum (01) - Button 1
-    0x29, 0x03,  //     Usage Maximum (03) - Button 3
-    0x15, 0x00,  //     Logical Minimum (0)
-    0x25, 0x01,  //     Logical Maximum (1)
-    0x75, 0x01,  //     Report Size (1)
-    0x95, 0x03,  //     Report Count (3)
-    0x81, 0x02,  //     Input (Data, Variable, Absolute) - Button states
-    0x75, 0x05,  //     Report Size (5)
-    0x95, 0x01,  //     Report Count (1)
-    0x81, 0x01,  //     Input (Constant) - Padding or Reserved bits
-    0x05, 0x01,  //     Usage Page (Generic Desktop)
-    0x09, 0x30,  //     Usage (X)
-    0x09, 0x31,  //     Usage (Y)
-    0x09, 0x38,  //     Usage (Wheel)
-    0x15, 0x81,  //     Logical Minimum (-127)
-    0x25, 0x7F,  //     Logical Maximum (127)
-    0x75, 0x08,  //     Report Size (8)
-    0x95, 0x03,  //     Report Count (3)
-    0x81, 0x06,  //     Input (Data, Variable, Relative) - X & Y coordinate
-    0xC0,        //   End Collection
-    0xC0,        // End Collection
+    //////////////////////////鼠标：ID1
+    0x05, 0x01,  // Usage Page (Generic Desktop) - 指定设备类型所属的通用类别
+    0x09, 0x02,  // Usage (Mouse) - 具体设备为鼠标
+    0xA1, 0x01,  // Collection (Application) - 开始"应用级"集合（整个鼠标设备）
+    0x85, 0x01,  // Report Id (1) - 此报告的ID为1（用于区分不同设备的报告）
+    0x09, 0x01,  //   Usage (Pointer) - 子功能为"指针"（鼠标的核心功能）
+    0xA1, 0x00,  //   Collection (Physical) - 开始"物理级"集合（指针的物理组件）
+    // 鼠标按键（左键、右键、中键）
+    0x05, 0x09,  //     Usage Page (Buttons) - 功能类别为"按键"
+    0x19, 0x01,  //     Usage Minimum (01) - 最小按键编号（1号键，左键）
+    0x29, 0x03,  //     Usage Maximum (03) - 最大按键编号（3号键，中键）
+    0x15, 0x00,  //     Logical Minimum (0) - 逻辑最小值（0表示未按下）
+    0x25, 0x01,  //     Logical Maximum (1) - 逻辑最大值（1表示按下）
+    0x75, 0x01,  //     Report Size (1) - 每个按键状态占1位
+    0x95, 0x03,  //     Report Count (3) - 共3个按键（3位）
+    0x81, 0x02,  //     Input (Data, Variable, Absolute) - 输入项：存储3个按键的状态（0/1）
+    // 填充位（凑齐1字节）
+    0x75, 0x05,  //     Report Size (5) - 5位
+    0x95, 0x01,  //     Report Count (1) - 1组
+    0x81, 0x01,  //     Input (Constant) - 输入项：常量（填充位，无实际意义）
+    // X/Y位移和滚轮
+    0x05, 0x01,  //     Usage Page (Generic Desktop) - 回到通用类别
+    0x09, 0x30,  //     Usage (X) - X轴位移
+    0x09, 0x31,  //     Usage (Y) - Y轴位移
+    0x09, 0x38,  //     Usage (Wheel) - 滚轮
+    0x15, 0x81,  //     Logical Minimum (-127) - 位移最小值（有符号数，0x81 = -127）
+    0x25, 0x7F,  //     Logical Maximum (127) - 位移最大值（有符号数，0x7F = 127）
+    0x75, 0x08,  //     Report Size (8) - 每个轴/滚轮占8位（1字节）
+    0x95, 0x03,  //     Report Count (3) - 共3个（X、Y、滚轮各1字节）
+    0x81, 0x06,  //     Input (Data, Variable, Relative) - 输入项：存储相对位移（相对于上一次的变化量）
+    0xC0,        //   End Collection - 结束"物理级"集合（指针）
+    0xC0,        // End Collection - 结束"应用级"集合（鼠标）
 
-    0x05, 0x01,  // Usage Pg (Generic Desktop)
-    0x09, 0x06,  // Usage (Keyboard)
-    0xA1, 0x01,  // Collection: (Application)
-    0x85, 0x02,  // Report Id (2)
-    //
-    0x05, 0x07,  //   Usage Pg (Key Codes)
-    0x19, 0xE0,  //   Usage Min (224)
-    0x29, 0xE7,  //   Usage Max (231)
-    0x15, 0x00,  //   Log Min (0)
-    0x25, 0x01,  //   Log Max (1)
-    //
-    //   Modifier byte
-    0x75, 0x01,  //   Report Size (1)
-    0x95, 0x08,  //   Report Count (8)
-    0x81, 0x02,  //   Input: (Data, Variable, Absolute)
-    //
-    //   Reserved byte
-    0x95, 0x01,  //   Report Count (1)
-    0x75, 0x08,  //   Report Size (8)
-    0x81, 0x01,  //   Input: (Constant)
-    //
-    //   LED report
-    0x05, 0x08,  //   Usage Pg (LEDs)
-    0x19, 0x01,  //   Usage Min (1)
-    0x29, 0x05,  //   Usage Max (5)
-    0x95, 0x05,  //   Report Count (5)
-    0x75, 0x01,  //   Report Size (1)
-    0x91, 0x02,  //   Output: (Data, Variable, Absolute)
-    //
-    //   LED report padding
-    0x95, 0x01,  //   Report Count (1)
-    0x75, 0x03,  //   Report Size (3)
-    0x91, 0x01,  //   Output: (Constant)
-    //
-    //   Key arrays (6 bytes)
-    0x95, 0x06,  //   Report Count (6)
-    0x75, 0x08,  //   Report Size (8)
-    0x15, 0x00,  //   Log Min (0)
-    0x25, 0x65,  //   Log Max (101)
-    0x05, 0x07,  //   Usage Pg (Key Codes)
-    0x19, 0x00,  //   Usage Min (0)
-    0x29, 0x65,  //   Usage Max (101)
-    0x81, 0x00,  //   Input: (Data, Array)
-    //
-    0xC0,        // End Collection
-    //
-    0x05, 0x0C,   // Usage Pg (Consumer Devices)
-    0x09, 0x01,   // Usage (Consumer Control)
-    0xA1, 0x01,   // Collection (Application)
-    0x85, 0x03,   // Report Id (3)
-    0x09, 0x02,   //   Usage (Numeric Key Pad)
-    0xA1, 0x02,   //   Collection (Logical)
-    0x05, 0x09,   //     Usage Pg (Button)
-    0x19, 0x01,   //     Usage Min (Button 1)
-    0x29, 0x0A,   //     Usage Max (Button 10)
-    0x15, 0x01,   //     Logical Min (1)
-    0x25, 0x0A,   //     Logical Max (10)
-    0x75, 0x04,   //     Report Size (4)
-    0x95, 0x01,   //     Report Count (1)
-    0x81, 0x00,   //     Input (Data, Ary, Abs)
-    0xC0,         //   End Collection
-    0x05, 0x0C,   //   Usage Pg (Consumer Devices)
-    0x09, 0x86,   //   Usage (Channel)
-    0x15, 0xFF,   //   Logical Min (-1)
-    0x25, 0x01,   //   Logical Max (1)
-    0x75, 0x02,   //   Report Size (2)
-    0x95, 0x01,   //   Report Count (1)
-    0x81, 0x46,   //   Input (Data, Var, Rel, Null)
-    0x09, 0xE9,   //   Usage (Volume Up)
-    0x09, 0xEA,   //   Usage (Volume Down)
-    0x15, 0x00,   //   Logical Min (0)
-    0x75, 0x01,   //   Report Size (1)
-    0x95, 0x02,   //   Report Count (2)
-    0x81, 0x02,   //   Input (Data, Var, Abs)
-    0x09, 0xE2,   //   Usage (Mute)
-    0x09, 0x30,   //   Usage (Power)
-    0x09, 0x83,   //   Usage (Recall Last)
-    0x09, 0x81,   //   Usage (Assign Selection)
-    0x09, 0xB0,   //   Usage (Play)
-    0x09, 0xB1,   //   Usage (Pause)
-    0x09, 0xB2,   //   Usage (Record)
-    0x09, 0xB3,   //   Usage (Fast Forward)
-    0x09, 0xB4,   //   Usage (Rewind)
-    0x09, 0xB5,   //   Usage (Scan Next)
-    0x09, 0xB6,   //   Usage (Scan Prev)
-    0x09, 0xB7,   //   Usage (Stop)
-    0x15, 0x01,   //   Logical Min (1)
-    0x25, 0x0C,   //   Logical Max (12)
-    0x75, 0x04,   //   Report Size (4)
-    0x95, 0x01,   //   Report Count (1)
-    0x81, 0x00,   //   Input (Data, Ary, Abs)
-    0x09, 0x80,   //   Usage (Selection)
-    0xA1, 0x02,   //   Collection (Logical)
-    0x05, 0x09,   //     Usage Pg (Button)
-    0x19, 0x01,   //     Usage Min (Button 1)
-    0x29, 0x03,   //     Usage Max (Button 3)
-    0x15, 0x01,   //     Logical Min (1)
-    0x25, 0x03,   //     Logical Max (3)
-    0x75, 0x02,   //     Report Size (2)
-    0x81, 0x00,   //     Input (Data, Ary, Abs)
-    0xC0,           //   End Collection
-    0x81, 0x03,   //   Input (Const, Var, Abs)
-    0xC0,            // End Collectionq
+
+    ////////////////////////////////键盘：ID2
+    0x05, 0x01,  // Usage Page (Generic Desktop) - 通用类别
+    0x09, 0x06,  // Usage (Keyboard) - 具体设备为键盘
+    0xA1, 0x01,  // Collection (Application) - 开始"应用级"集合（整个键盘）
+    0x85, 0x02,  // Report Id (2) - 此报告的ID为2
+    // 修饰键（Ctrl/Shift/Alt等）
+    0x05, 0x07,  //   Usage Page (Key Codes) - 功能类别为"按键码"
+    0x19, 0xE0,  //   Usage Minimum (224) - 修饰键起始码（左Ctrl=224）
+    0x29, 0xE7,  //   Usage Maximum (231) - 修饰键结束码（右GUI=231，共8个）
+    0x15, 0x00,  //   Logical Minimum (0) - 0表示未按下
+    0x25, 0x01,  //   Logical Maximum (1) - 1表示按下
+    0x75, 0x01,  //   Report Size (1) - 每个修饰键占1位
+    0x95, 0x08,  //   Report Count (8) - 共8个修饰键（8位=1字节）
+    0x81, 0x02,  //   Input (Data, Variable, Absolute) - 输入项：存储修饰键状态
+    // 保留字节（无实际功能）
+    0x95, 0x01,  //   Report Count (1) - 1个
+    0x75, 0x08,  //   Report Size (8) - 8位（1字节）
+    0x81, 0x01,  //   Input (Constant) - 输入项：常量（保留，固定值）
+    // LED指示灯（Num Lock/Caps Lock等）
+    0x05, 0x08,  //   Usage Page (LEDs) - 功能类别为"LED"
+    0x19, 0x01,  //   Usage Minimum (1) - 最小LED（Num Lock=1）
+    0x29, 0x05,  //   Usage Maximum (5) - 最大LED（Kana=5，共5个）
+    0x95, 0x05,  //   Report Count (5) - 5个LED
+    0x75, 0x01,  //   Report Size (1) - 每个LED占1位
+    0x91, 0x02,  //   Output (Data, Variable, Absolute) - 输出项：控制LED亮灭（主机→设备）
+    // LED填充位（凑齐1字节）
+    0x95, 0x01,  //   Report Count (1) - 1组
+    0x75, 0x03,  //   Report Size (3) - 3位
+    0x91, 0x01,  //   Output (Constant) - 输出项：常量（填充位）
+    // 按键数组（同时按下的最多6个键）
+    0x95, 0x06,  //   Report Count (6) - 6个字节（支持6键无冲）
+    0x75, 0x08,  //   Report Size (8) - 每个键占8位（1字节）
+    0x15, 0x00,  //   Logical Minimum (0) - 最小按键码
+    0x25, 0x65,  //   Logical Maximum (101) - 最大按键码（对应HID标准按键码范围）
+    0x05, 0x07,  //   Usage Page (Key Codes) - 回到按键码类别
+    0x19, 0x00,  //   Usage Minimum (0) - 最小按键码
+    0x29, 0x65,  //   Usage Maximum (101) - 最大按键码
+    0x81, 0x00,  //   Input (Data, Array) - 输入项：存储同时按下的键码（数组形式）
+    0xC0,        // End Collection - 结束"应用级"集合（键盘）
+    
+    
+    /////////////////////////消费类：ID3
+    0x05, 0x0C,   // Usage Page (Consumer Devices) - 功能类别为"消费类设备"（多媒体控制）
+    0x09, 0x01,   // Usage (Consumer Control) - 具体功能为"消费控制"
+    0xA1, 0x01,   // Collection (Application) - 开始"应用级"集合
+    0x85, 0x03,   // Report Id (3) - 此报告的ID为3
+    // 数字小键盘按钮（10个）
+    0x09, 0x02,   //   Usage (Numeric Key Pad) - 子功能为"数字小键盘"
+    0xA1, 0x02,   //   Collection (Logical) - 开始"逻辑级"集合
+    0x05, 0x09,   //     Usage Page (Button) - 功能类别为"按钮"
+    0x19, 0x01,   //     Usage Minimum (Button 1) - 最小按钮编号（1）
+    0x29, 0x0A,   //     Usage Maximum (Button 10) - 最大按钮编号（10）
+    0x15, 0x01,   //     Logical Minimum (1) - 逻辑最小值
+    0x25, 0x0A,   //     Logical Maximum (10) - 逻辑最大值
+    0x75, 0x04,   //     Report Size (4) - 4位（可表示1-10）
+    0x95, 0x01,   //     Report Count (1) - 1组
+    0x81, 0x00,   //     Input (Data, Array, Absolute) - 输入项：存储小键盘按钮状态
+    0xC0,         //   End Collection - 结束"逻辑级"集合
+    // 频道控制（频道+/频道-）
+    0x05, 0x0C,   //   Usage Page (Consumer Devices) - 回到消费类设备类别
+    0x09, 0x86,   //   Usage (Channel) - 功能为"频道控制"
+    0x15, 0xFF,   //   Logical Minimum (-1) - -1表示频道减
+    0x25, 0x01,   //   Logical Maximum (1) - 1表示频道加
+    0x75, 0x02,   //   Report Size (2) - 2位（可表示-1/0/1）
+    0x95, 0x01,   //   Report Count (1) - 1组
+    0x81, 0x46,   //   Input (Data, Variable, Relative, Null) - 输入项：相对值（0表示无操作）
+    // 音量控制（音量+/音量-）
+    0x09, 0xE9,   //   Usage (Volume Up) - 音量加
+    0x09, 0xEA,   //   Usage (Volume Down) - 音量减
+    0x15, 0x00,   //   Logical Minimum (0) - 0表示未操作
+    0x75, 0x01,   //   Report Size (1) - 每个功能占1位
+    0x95, 0x02,   //   Report Count (2) - 2个功能（音量+/减）
+    0x81, 0x02,   //   Input (Data, Variable, Absolute) - 输入项：存储音量控制状态
+    // 多媒体功能键（播放/暂停/停止等）
+    0x09, 0xE2,   //   Usage (Mute) - 静音
+    0x09, 0x30,   //   Usage (Power) - 电源
+    0x09, 0x83,   //   Usage (Recall Last) - 召回上次
+    0x09, 0x81,   //   Usage (Assign Selection) - 分配选择
+    0x09, 0xB0,   //   Usage (Play) - 播放
+    0x09, 0xB1,   //   Usage (Pause) - 暂停
+    0x09, 0xB2,   //   Usage (Record) - 录音
+    0x09, 0xB3,   //   Usage (Fast Forward) - 快进
+    0x09, 0xB4,   //   Usage (Rewind) - 倒带
+    0x09, 0xB5,   //   Usage (Scan Next) - 下一曲
+    0x09, 0xB6,   //   Usage (Scan Prev) - 上一曲
+    0x09, 0xB7,   //   Usage (Stop) - 停止（共12个功能）
+    0x15, 0x01,   //   Logical Minimum (1) - 最小功能编号
+    0x25, 0x0C,   //   Logical Maximum (12) - 最大功能编号（12对应Stop）
+    0x75, 0x04,   //   Report Size (4) - 4位（可表示1-12）
+    0x95, 0x01,   //   Report Count (1) - 1组
+    0x81, 0x00,   //   Input (Data, Array, Absolute) - 输入项：存储多媒体键状态
+    // 选择功能按钮（3个）
+    0x09, 0x80,   //   Usage (Selection) - 功能为"选择"
+    0xA1, 0x02,   //   Collection (Logical) - 开始"逻辑级"集合
+    0x05, 0x09,   //     Usage Page (Button) - 功能类别为"按钮"
+    0x19, 0x01,   //     Usage Minimum (Button 1) - 最小按钮编号（1）
+    0x29, 0x03,   //     Usage Maximum (Button 3) - 最大按钮编号（3）
+    0x15, 0x01,   //     Logical Minimum (1)
+    0x25, 0x03,   //     Logical Maximum (3)
+    0x75, 0x02,   //     Report Size (2) - 2位（可表示1-3）
+    0x81, 0x00,   //     Input (Data, Array, Absolute) - 输入项：存储选择按钮状态
+    0xC0,           //   End Collection - 结束"逻辑级"集合
+
+    0x81, 0x03,   //   Input (Const, Var, Abs) - 输入项：常量填充（补齐报告长度）
+    0xC0,            // End Collection - 结束"应用级"集合（消费类设备）
 
 #if (SUPPORT_REPORT_VENDOR == true)
     0x06, 0xFF, 0xFF, // Usage Page(Vendor defined)
@@ -275,57 +284,107 @@ static const uint8_t hidReportMapNetJoystick[] = {
 
 
 // MYGT 格式：定义游戏手柄的 HID 报告描述符
-static const uint8_t hidReportMapMYGTJoystick[] = {
+static const uint8_t hidReportMapMYGTGamePad[] = {
+    // ID 1
     0x05, 0x01,        // Usage Page (Generic Desktop Ctrls)
-    0x09, 0x05,        // Usage (Game Pad)
+    0x09, 0x02,        // Usage (Mouse)
     0xA1, 0x01,        // Collection (Application)
     0x09, 0x01,        //   Usage (Pointer)
     0xA1, 0x00,        //   Collection (Physical)
-    0x85, 0x04,        //     Report ID (4)
+    0x85, 0x01,        //     Report ID (1)
+    0x05, 0x09,        //     Usage Page (Button)
+    0x19, 0x01,        //     Usage Minimum (0x01)
+    0x29, 0x03,        //     Usage Maximum (0x03)
+    0x15, 0x00,        //     Logical Minimum (0)
+    0x25, 0x01,        //     Logical Maximum (1)
+    0x75, 0x01,        //     Report Size (1)
+    0x95, 0x03,        //     Report Count (3)
+    0x81, 0x02,        //     Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
+    0x75, 0x05,        //     Report Size (5)
+    0x95, 0x01,        //     Report Count (1)
+    0x81, 0x03,        //     Input (Const,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
+    0x05, 0x01,        //     Usage Page (Generic Desktop Ctrls)
     0x09, 0x30,        //     Usage (X)
     0x09, 0x31,        //     Usage (Y)
-    0x09, 0x32,        //     Usage (Z)
-    0x09, 0x35,        //     Usage (Rz)
-    0x15, 0x00,        //     Logical Minimum (0)
-    0x26, 0xFF, 0x00,  //     Logical Maximum (255)
+    0x09, 0x38,        //     Usage (Wheel)
+    0x15, 0x81,        //     Logical Minimum (-127)
+    0x25, 0x7F,        //     Logical Maximum (127)
     0x75, 0x08,        //     Report Size (8)
-    0x95, 0x04,        //     Report Count (4)
-    0x81, 0x02,        //     Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
+    0x95, 0x03,        //     Report Count (3)
+    0x81, 0x06,        //     Input (Data,Var,Rel,No Wrap,Linear,Preferred State,No Null Position)
     0xC0,              //   End Collection
-    0x09, 0x39,        //   Usage (Hat switch)
-    0x15, 0x00,        //   Logical Minimum (0)
-    0x25, 0x07,        //   Logical Maximum (7)
-    0x35, 0x00,        //   Physical Minimum (0)
-    0x46, 0x3B, 0x01,  //   Physical Maximum (315)
-    0x65, 0x14,        //   Unit (System: English Rotation, Length: Centimeter)
-    0x75, 0x04,        //   Report Size (4)
-    0x95, 0x01,        //   Report Count (1)
-    0x81, 0x42,        //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,Null State)
-    0x75, 0x04,        //   Report Size (4)
-    0x95, 0x01,        //   Report Count (1)
-    0x81, 0x03,        //   Input (Const,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
-    0x05, 0x09,        //   Usage Page (Button)
-    0x19, 0x01,        //   Usage Minimum (0x01)
-    0x29, 0x0F,        //   Usage Maximum (0x0F)
-    0x15, 0x00,        //   Logical Minimum (0)
-    0x25, 0x01,        //   Logical Maximum (1)
-    0x75, 0x01,        //   Report Size (1)
-    0x95, 0x10,        //   Report Count (16)
-    0x45, 0x00,        //   Physical Maximum (0)
-    0x65, 0x00,        //   Unit (None)
-    0x81, 0x02,        //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
-    0x05, 0x02,        //   Usage Page (Sim Ctrls)
-    0x09, 0xC4,        //   Usage (Accelerator)
-    0x09, 0xC5,        //   Usage (Brake)
-    0x15, 0x00,        //   Logical Minimum (0)
-    0x26, 0xFF, 0x00,  //   Logical Maximum (255)
-    0x35, 0x00,        //   Physical Minimum (0)
-    0x46, 0x3B, 0x01,  //   Physical Maximum (315)
-    0x65, 0x14,        //   Unit (System: English Rotation, Length: Centimeter)
-    0x75, 0x08,        //   Report Size (8)
-    0x95, 0x02,        //   Report Count (2)
-    0x81, 0x02,        //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
     0xC0,              // End Collection
+
+
+    // ID3
+    0x05, 0x0C,        // Usage Page (Consumer)
+    0x09, 0x01,        // Usage (Consumer Control)
+    0xA1, 0x01,        // Collection (Application)
+    0x85, 0x03,        //   Report ID (3)
+    0x19, 0x01,        //   Usage Minimum (Consumer Control)
+    0x2A, 0x9C, 0x02,  //   Usage Maximum (AC Distribute Vertically)
+    0x15, 0x01,        //   Logical Minimum (1)
+    0x26, 0x9C, 0x02,  //   Logical Maximum (668)
+    0x75, 0x10,        //   Report Size (16)
+    0x95, 0x01,        //   Report Count (1)
+    0x81, 0x00,        //   Input (Data,Array,Abs,No Wrap,Linear,Preferred State,No Null Position)
+    0xC0,              // End Collection
+
+    // ID4
+    0x05, 0x01,        // 使用页面 (通用桌面控制)
+    0x09, 0x05,        // 使用 (游戏手柄)
+    0xA1, 0x01,        // 集合 (应用层) - 开始定义游戏手柄设备
+    
+    0x09, 0x01,        //   使用 (指针) - 定义指针控制组件
+    0xA1, 0x00,        //   集合 (物理层) - 开始定义物理控制组件
+    0x85, 0x04,        //     报告ID (4) - 此报告的标识符为4
+    0x09, 0x30,        //     使用 (X轴) - X轴控制
+    0x09, 0x31,        //     使用 (Y轴) - Y轴控制
+    0x09, 0x32,        //     使用 (Z轴) - Z轴控制
+    0x09, 0x35,        //     使用 (Rz轴) - 旋转Z轴控制
+    0x15, 0x00,        //     逻辑最小值 (0) - 轴值范围起始
+    0x26, 0xFF, 0x00,  //     逻辑最大值 (255) - 轴值范围结束
+    0x75, 0x08,        //     报告大小 (8位) - 每个轴值占8位
+    0x95, 0x04,        //     报告数量 (4) - 共4个轴(X,Y,Z,Rz)
+    0x81, 0x02,        //     输入 (数据,变量,绝对值) - 轴数据以绝对值形式输入
+    0xC0,              //   结束集合 - 结束物理层集合
+    
+    0x09, 0x39,        //   使用 (方向键) - 定义方向键
+    0x15, 0x00,        //   逻辑最小值 (0) - 方向键最小值
+    0x25, 0x07,        //   逻辑最大值 (7) - 方向键最大值(8个方向)
+    0x35, 0x00,        //   物理最小值 (0) - 物理最小值(角度)
+    0x46, 0x3B, 0x01,  //   物理最大值 (315) - 物理最大值(角度，315度)
+    0x65, 0x14,        //   单位 (角度单位:度)
+    0x75, 0x04,        //   报告大小 (4位) - 方向键占4位
+    0x95, 0x01,        //   报告数量 (1) - 1个方向键
+    0x81, 0x42,        //   输入 (数据,变量,绝对值,包含空状态) - 方向键数据
+    0x75, 0x04,        //   报告大小 (4位) - 填充位大小
+    0x95, 0x01,        //   报告数量 (1) - 1组填充位
+    0x81, 0x03,        //   输入 (常量,变量,绝对值) - 填充位(无实际意义)
+    
+    0x05, 0x09,        //   使用页面 (按钮) - 定义按钮
+    0x19, 0x01,        //   使用最小值 (0x01) - 按钮起始编号
+    0x29, 0x0F,        //   使用最大值 (0x0F) - 按钮结束编号(共16个按钮)
+    0x15, 0x00,        //   逻辑最小值 (0) - 按钮状态:0=未按下
+    0x25, 0x01,        //   逻辑最大值 (1) - 按钮状态:1=按下
+    0x75, 0x01,        //   报告大小 (1位) - 每个按钮占1位
+    0x95, 0x10,        //   报告数量 (16) - 共16个按钮
+    0x45, 0x00,        //   物理最大值 (0) - 物理最大值
+    0x65, 0x00,        //   单位 (无) - 无单位
+    0x81, 0x02,        //   输入 (数据,变量,绝对值) - 按钮状态数据
+    
+    0x05, 0x02,        //   使用页面 (模拟控制) - 定义模拟控制
+    0x09, 0xC4,        //   使用 (加速踏板) - 加速控制
+    0x09, 0xC5,        //   使用 (制动踏板) - 制动控制
+    0x15, 0x00,        //   逻辑最小值 (0) - 踏板值范围起始
+    0x26, 0xFF, 0x00,  //   逻辑最大值 (255) - 踏板值范围结束
+    0x35, 0x00,        //   物理最小值 (0) - 物理最小值
+    0x46, 0x3B, 0x01,  //   物理最大值 (315) - 物理最大值
+    0x65, 0x14,        //   单位 (角度单位:度)
+    0x75, 0x08,        //   报告大小 (8位) - 每个踏板值占8位
+    0x95, 0x02,        //   报告数量 (2) - 共2个踏板(加速和制动)
+    0x81, 0x02,        //   输入 (数据,变量,绝对值) - 踏板数据
+    0xC0,              // 结束集合 - 结束应用层集合
 };
 
 /// Battery Service Attributes Indexes
@@ -518,7 +577,7 @@ static esp_gatts_attr_db_t hidd_le_gatt_db[HIDD_LE_IDX_NB] =
                                                               ESP_GATT_PERM_READ,
                                                               CHAR_DECLARATION_SIZE, CHAR_DECLARATION_SIZE,
                                                               (uint8_t *)&char_prop_read}},
-    // Report Map Characteristic Value
+    // 报告报文描述符
     [HIDD_LE_IDX_REPORT_MAP_VAL]     = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&hid_report_map_uuid,
                                                               ESP_GATT_PERM_READ,
                                                               HIDD_LE_REPORT_MAP_MAX_LEN, sizeof(hidReportMap),
@@ -693,11 +752,23 @@ static esp_gatts_attr_db_t hidd_le_gatt_db[HIDD_LE_IDX_NB] =
 
 static void hid_add_id_tbl(void);
 
+
+/**
+ * @brief HID设备GATT服务回调处理函数
+ * 
+ * 处理来自GATT服务器的各种事件，包括注册、连接、断开连接、写入等事件
+ * 根据不同的事件类型执行相应的操作，如创建服务、处理连接、处理写入请求等
+ * 
+ * @param[in] event GATT服务器事件类型
+ * @param[in] gatts_if GATT服务接口标识符
+ * @param[in] param 指向事件参数结构体的指针
+ */
 void esp_hidd_prf_cb_hdl(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if,
 									esp_ble_gatts_cb_param_t *param)
 {
     switch(event) {
         case ESP_GATTS_REG_EVT: {
+            // 配置本地蓝牙图标为通用HID设备
             esp_ble_gap_config_local_icon (ESP_BLE_APPEARANCE_GENERIC_HID);
             esp_hidd_cb_param_t hidd_param;
             hidd_param.init_finish.state = param->reg.status;
@@ -724,6 +795,7 @@ void esp_hidd_prf_cb_hdl(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if,
         case ESP_GATTS_CREATE_EVT:
             break;
         case ESP_GATTS_CONNECT_EVT: {
+            // 处理HID设备连接事件
             esp_hidd_cb_param_t cb_param = {0};
 			ESP_LOGI(HID_LE_PRF_TAG, "HID connection establish, conn_id = %x",param->connect.conn_id);
 			memcpy(cb_param.connect.remote_bda, param->connect.remote_bda, sizeof(esp_bd_addr_t));
@@ -736,6 +808,7 @@ void esp_hidd_prf_cb_hdl(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if,
             break;
         }
         case ESP_GATTS_DISCONNECT_EVT: {
+             // 处理HID设备断开连接事件
 			 if(hidd_le_env.hidd_cb != NULL) {
                     (hidd_le_env.hidd_cb)(ESP_HIDD_EVENT_BLE_DISCONNECT, NULL);
              }
@@ -745,6 +818,7 @@ void esp_hidd_prf_cb_hdl(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if,
         case ESP_GATTS_CLOSE_EVT:
             break;
         case ESP_GATTS_WRITE_EVT: {
+            // 处理客户端写入特征值事件
             esp_hidd_cb_param_t cb_param = {0};
             if (param->write.handle == hidd_le_env.hidd_inst.att_tbl[HIDD_LE_IDX_REPORT_LED_OUT_VAL]) {
                 cb_param.led_write.conn_id = param->write.conn_id;
@@ -766,6 +840,7 @@ void esp_hidd_prf_cb_hdl(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if,
             break;
         }
         case ESP_GATTS_CREAT_ATTR_TAB_EVT: {
+            // 处理属性表创建事件，初始化电池服务和HID服务
             if (param->add_attr_tab.num_handle == BAS_IDX_NB &&
                 param->add_attr_tab.svc_uuid.uuid.uuid16 == ESP_GATT_UUID_BATTERY_SERVICE_SVC &&
                 param->add_attr_tab.status == ESP_GATT_OK) {
@@ -773,6 +848,7 @@ void esp_hidd_prf_cb_hdl(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if,
                 incl_svc.end_hdl = incl_svc.start_hdl + BAS_IDX_NB -1;
                 ESP_LOGI(HID_LE_PRF_TAG, "%s(), start added the hid service to the stack database. incl_handle = %d",
                            __func__, incl_svc.start_hdl);
+                // 创建HID服务，
                 esp_ble_gatts_create_attr_tab(hidd_le_gatt_db, gatts_if, HIDD_LE_IDX_NB, 0);
             }
             if (param->add_attr_tab.num_handle == HIDD_LE_IDX_NB &&
@@ -792,6 +868,7 @@ void esp_hidd_prf_cb_hdl(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if,
             break;
     }
 }
+
 
 void hidd_le_create_service(esp_gatt_if_t gatts_if)
 {
@@ -972,3 +1049,17 @@ static void hid_add_id_tbl(void)
   // Setup report ID map
   hid_dev_register_reports(HID_NUM_REPORTS, hid_rpt_map);
 }
+
+
+// static void hid_add_id_tbl_gamepad(void)
+// {
+//     // GamePad input report with Report ID 4
+//     hidReportMapMYGTGamePad[0].id = 0x04;  // Report ID为4，根据hidReportMapMYGTGamePad中的0x85, 0x04定义
+//     hidReportMapMYGTGamePad[0].type = HID_REPORT_TYPE_INPUT;  // 输入报告类型
+//     hidReportMapMYGTGamePad[0].handle = hidd_le_env.hidd_inst.att_tbl[HIDD_LE_IDX_REPORT_VAL];  // 报告值句柄
+//     hidReportMapMYGTGamePad[0].cccdHandle = 0;  // 此报告没有通知配置
+//     hidReportMapMYGTGamePad[0].mode = HID_PROTOCOL_MODE_REPORT;  // 报告协议模式
+
+//     // 注册报告映射表
+//     hid_dev_register_reports(1, hidReportMapMYGTGamePad);
+// }

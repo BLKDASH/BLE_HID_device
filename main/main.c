@@ -43,7 +43,7 @@ Windows 10 不支持厂商自定义报告（Vendor Report），因此 SUPPORT_RE
 
 static uint16_t hid_conn_id = 0;
 static bool sec_conn = false;
-static bool send_volum_up = false;
+// static bool send_volum_up = false;
 #define CHAR_DECLARATION_SIZE   (sizeof(uint8_t))
 
 static void hidd_event_callback(esp_hidd_cb_event_t event, esp_hidd_cb_param_t *param);
@@ -301,27 +301,30 @@ void hid_demo_task(void *pvParameters)
 {
     vTaskDelay(pdMS_TO_TICKS(1000));
     while(1) {
-        vTaskDelay(pdMS_TO_TICKS(1000));
-        
         // 当前为安全连接时执行HID控制逻辑
         if (sec_conn)
         {
             ESP_LOGI(HID_BLE_TAG, "Send the volume");
-            send_volum_up = true;
-            // 发送音量增大指令
+            // 间隔5s
+            vTaskDelay(pdMS_TO_TICKS(5000));
+            // 发送音量增大
             esp_hidd_send_consumer_value(hid_conn_id, HID_CONSUMER_VOLUME_UP, true);
-            vTaskDelay(pdMS_TO_TICKS(3000));
-            // 持续3s
-            if (send_volum_up) {
-                // 关闭音量增大并发送音量减小指令
-                send_volum_up = false;
-                esp_hidd_send_consumer_value(hid_conn_id, HID_CONSUMER_VOLUME_UP, false);
-                esp_hidd_send_consumer_value(hid_conn_id, HID_CONSUMER_VOLUME_DOWN, true);
-                vTaskDelay(pdMS_TO_TICKS(3000));
-                // 持续3s
-                // 结束音量减小指令
-                esp_hidd_send_consumer_value(hid_conn_id, HID_CONSUMER_VOLUME_DOWN, false);
-            }
+            vTaskDelay(pdMS_TO_TICKS(200));
+            // 关闭音量增大
+            esp_hidd_send_consumer_value(hid_conn_id, HID_CONSUMER_VOLUME_UP, false);
+            // 间隔5s
+            vTaskDelay(pdMS_TO_TICKS(5000));
+            // 发送音量减小
+            esp_hidd_send_consumer_value(hid_conn_id, HID_CONSUMER_VOLUME_DOWN, true);
+            vTaskDelay(pdMS_TO_TICKS(200));
+            // 关闭音量减小
+            esp_hidd_send_consumer_value(hid_conn_id, HID_CONSUMER_VOLUME_DOWN, false);
+        }
+        else
+        {
+            // 等待连接
+            vTaskDelay(pdMS_TO_TICKS(2000));
+            ESP_LOGI("HID_DEMO", "Waiting for connection...");
         }
     }
 }
@@ -363,7 +366,7 @@ void gamepad_button_task(void *pvParameters)
         if (sec_conn) {
             ESP_LOGI(HID_BLE_TAG, "Simulating gamepad button press");
             // 使用自定义函数发送输入报告
-            esp_hidd_send_custom_report(hid_conn_id, HID_RPT_ID_MOUSE_IN, HID_REPORT_TYPE_INPUT, feature_value, sizeof(feature_value));
+            // esp_hidd_send_custom_report(hid_conn_id, HID_RPT_ID_MOUSE_IN, HID_REPORT_TYPE_INPUT, feature_value, sizeof(feature_value));
         }
 
         // 每5秒发送一次

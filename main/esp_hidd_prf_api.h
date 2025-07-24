@@ -162,7 +162,7 @@ void esp_hidd_send_keyboard_value(uint16_t conn_id, key_mask_t special_key_mask,
 
 void esp_hidd_send_mouse_value(uint16_t conn_id, uint8_t mouse_button, int8_t mickeys_x, int8_t mickeys_y);
 
-void esp_hidd_send_custom_report(uint16_t conn_id, uint8_t report_id, uint8_t report_type, uint8_t *data, uint8_t length);
+void esp_hidd_send_gamepad_report(uint16_t conn_id, uint8_t report_id, uint8_t report_type, uint8_t *data, uint8_t length);
 
 #ifdef __cplusplus
 }
