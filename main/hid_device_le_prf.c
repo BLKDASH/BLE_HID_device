@@ -279,9 +279,9 @@ static const uint8_t hidReportMapMYGTGamePad[] = {
     // ID 1
     0x05, 0x01, // Usage Page (Generic Desktop Ctrls)
     0x09, 0x02, // Usage (Mouse)
-    0xA1, 0x01, // Collection (Application)
+    0xA1, 0x01, // Collection (Application)开集合
     0x09, 0x01, //   Usage (Pointer)
-    0xA1, 0x00, //   Collection (Physical)
+    0xA1, 0x00, //   Collection (Physical)开集合
     0x85, 0x01, //     Report ID (1)
     0x05, 0x09, //     Usage Page (Button)
     0x19, 0x01, //     Usage Minimum (0x01)
@@ -303,8 +303,8 @@ static const uint8_t hidReportMapMYGTGamePad[] = {
     0x75, 0x08, //     Report Size (8)
     0x95, 0x03, //     Report Count (3)
     0x81, 0x06, //     Input (Data,Var,Rel,No Wrap,Linear,Preferred State,No Null Position)
-    0xC0,       //   End Collection
-    0xC0,       // End Collection
+    0xC0,       //   End Collection关集合
+    0xC0,       // End Collection关集合
 
     // ID3
     0x05, 0x0C,       // Usage Page (Consumer)
@@ -422,12 +422,12 @@ uint8_t hidProtocolMode = HID_PROTOCOL_MODE_REPORT;
 
 // HID Information characteristic value
 static const uint8_t hidInfo[HID_INFORMATION_LEN] = {
-    LO_UINT16(0x0111), HI_UINT16(0x0111), // bcdHID (USB HID version)
-    0x00,                                 // bCountryCode
-    HID_KBD_FLAGS                         // Flags
+    LO_UINT16(0x0111), HI_UINT16(0x0111), // bcdHID (USB HID 版本)
+    0x00,                                 // 国家码
+    HID_KBD_FLAGS         // 支持远程唤醒，不支持正常连接
 };
 
-// HID External Report Reference Descriptor
+// HID 外部报告引用描述符
 static uint16_t hidExtReportRefDesc = ESP_GATT_UUID_BATTERY_LEVEL;
 
 // HID Report Reference characteristic descriptor, mouse input
@@ -498,7 +498,7 @@ static const uint16_t bat_lev_uuid = ESP_GATT_UUID_BATTERY_LEVEL;
 static const uint8_t bat_lev_ccc[2] = {0x00, 0x00};
 static const uint16_t char_format_uuid = ESP_GATT_UUID_CHAR_PRESENT_FORMAT;
 
-static uint8_t battary_lev = 50;
+static uint8_t battary_lev = 100;
 /// 完整的HRS数据库描述-用于向数据库中添加属性
 static const esp_gatts_attr_db_t bas_att_db[BAS_IDX_NB] =
     {
@@ -548,38 +548,53 @@ static esp_gatts_attr_db_t hidd_le_gatt_db[HIDD_LE_IDX_NB] =
 
         // HID Service Declaration
         // Include：0x2802
+        // 包含声明
         [HIDD_LE_IDX_INCL_SVC] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&include_service_uuid, ESP_GATT_PERM_READ, sizeof(esp_gatts_incl_svc_desc_t), sizeof(esp_gatts_incl_svc_desc_t), (uint8_t *)&incl_svc}},
 
-        // HID Information Characteristic Declaration
+        // 特征声明
         [HIDD_LE_IDX_HID_INFO_CHAR] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&character_declaration_uuid, ESP_GATT_PERM_READ, CHAR_DECLARATION_SIZE, CHAR_DECLARATION_SIZE, (uint8_t *)&char_prop_read}},
-        // HID Information Characteristic Value
+        // USB HID版本、不支持国家代码、远程唤醒和正常连接
         [HIDD_LE_IDX_HID_INFO_VAL] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&hid_info_char_uuid, ESP_GATT_PERM_READ, sizeof(hids_hid_info_t), sizeof(hidInfo), (uint8_t *)&hidInfo}},
 
-        // HID Control Point Characteristic Declaration
+        // HID控制点特性声明，write with no reply
         [HIDD_LE_IDX_HID_CTNL_PT_CHAR] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&character_declaration_uuid, ESP_GATT_PERM_READ, CHAR_DECLARATION_SIZE, CHAR_DECLARATION_SIZE, (uint8_t *)&char_prop_write_nr}},
-        // HID Control Point Characteristic Value
+        // HID控制点特征值
         [HIDD_LE_IDX_HID_CTNL_PT_VAL] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&hid_control_point_uuid, ESP_GATT_PERM_WRITE, sizeof(uint8_t), 0, NULL}},
 
-        // Report Map Characteristic Declaration
-        [HIDD_LE_IDX_REPORT_MAP_CHAR] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&character_declaration_uuid, ESP_GATT_PERM_READ, CHAR_DECLARATION_SIZE, CHAR_DECLARATION_SIZE, (uint8_t *)&char_prop_read}},
-        // 报告报文描述符
-        [HIDD_LE_IDX_REPORT_MAP_VAL] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&hid_report_map_uuid, ESP_GATT_PERM_READ, HIDD_LE_REPORT_MAP_MAX_LEN, sizeof(hidReportMap), (uint8_t *)&hidReportMap}},
 
+
+
+        // 报告描述符特征声明
+        [HIDD_LE_IDX_REPORT_MAP_CHAR] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&character_declaration_uuid, ESP_GATT_PERM_READ, CHAR_DECLARATION_SIZE, CHAR_DECLARATION_SIZE, (uint8_t *)&char_prop_read}},
+        // 报告描述符特征值
+        //-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+        [HIDD_LE_IDX_REPORT_MAP_VAL] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&hid_report_map_uuid, ESP_GATT_PERM_READ, HIDD_LE_REPORT_MAP_MAX_LEN, sizeof(hidReportMap), (uint8_t *)&hidReportMap}},
+        //-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
         // Report Map Characteristic - External Report Reference Descriptor
         [HIDD_LE_IDX_REPORT_MAP_EXT_REP_REF] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&hid_repot_map_ext_desc_uuid, ESP_GATT_PERM_READ, sizeof(uint16_t), sizeof(uint16_t), (uint8_t *)&hidExtReportRefDesc}},
 
+        
+        
         // Protocol Mode Characteristic Declaration
+        // 协议模式：是启动模式还是报告模式（一般都是报告模式）
         [HIDD_LE_IDX_PROTO_MODE_CHAR] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&character_declaration_uuid, ESP_GATT_PERM_READ, CHAR_DECLARATION_SIZE, CHAR_DECLARATION_SIZE, (uint8_t *)&char_prop_read_write}},
-        // Protocol Mode Characteristic Value
+        // 协议模式值
         [HIDD_LE_IDX_PROTO_MODE_VAL] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&hid_proto_mode_uuid, (ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE), sizeof(uint8_t), sizeof(hidProtocolMode), (uint8_t *)&hidProtocolMode}},
 
+
+
+        //增删要同时修改.h枚举中的内容
+
+        // 鼠标输入报告声明
         [HIDD_LE_IDX_REPORT_MOUSE_IN_CHAR] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&character_declaration_uuid, ESP_GATT_PERM_READ, CHAR_DECLARATION_SIZE, CHAR_DECLARATION_SIZE, (uint8_t *)&char_prop_read_notify}},
-
+        // 鼠标输入报告值（只读，无需分配空间）
         [HIDD_LE_IDX_REPORT_MOUSE_IN_VAL] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&hid_report_uuid, ESP_GATT_PERM_READ, HIDD_LE_REPORT_MAX_LEN, 0, NULL}},
-
+        // 客户端配置描述符
         [HIDD_LE_IDX_REPORT_MOUSE_IN_CCC] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&character_client_config_uuid, (ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE), sizeof(uint16_t), 0, NULL}},
-
+        // 鼠标输入报告参数：包含鼠标输入ID，输入还是输出，报文长度
         [HIDD_LE_IDX_REPORT_MOUSE_REP_REF] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&hid_report_ref_descr_uuid, ESP_GATT_PERM_READ, sizeof(hidReportRefMouseIn), sizeof(hidReportRefMouseIn), hidReportRefMouseIn}},
+        
+        
         // Report Characteristic Declaration
         [HIDD_LE_IDX_REPORT_KEY_IN_CHAR] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&character_declaration_uuid, ESP_GATT_PERM_READ, CHAR_DECLARATION_SIZE, CHAR_DECLARATION_SIZE, (uint8_t *)&char_prop_read_notify}},
         // Report Characteristic Value
@@ -609,6 +624,9 @@ static esp_gatts_attr_db_t hidd_le_gatt_db[HIDD_LE_IDX_NB] =
         // Report Characteristic - Report Reference Descriptor
         [HIDD_LE_IDX_REPORT_CC_IN_REP_REF] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&hid_report_ref_descr_uuid, ESP_GATT_PERM_READ, sizeof(hidReportRefCCIn), sizeof(hidReportRefCCIn), hidReportRefCCIn}},
 
+
+
+        //启动键盘输入报告
         // Boot Keyboard Input Report Characteristic Declaration
         [HIDD_LE_IDX_BOOT_KB_IN_REPORT_CHAR] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&character_declaration_uuid, ESP_GATT_PERM_READ, CHAR_DECLARATION_SIZE, CHAR_DECLARATION_SIZE, (uint8_t *)&char_prop_read_notify}},
         // Boot Keyboard Input Report Characteristic Value
@@ -620,7 +638,7 @@ static esp_gatts_attr_db_t hidd_le_gatt_db[HIDD_LE_IDX_NB] =
         [HIDD_LE_IDX_BOOT_KB_OUT_REPORT_CHAR] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&character_declaration_uuid, ESP_GATT_PERM_READ, CHAR_DECLARATION_SIZE, CHAR_DECLARATION_SIZE, (uint8_t *)&char_prop_read_write}},
         // Boot Keyboard Output Report Characteristic Value
         [HIDD_LE_IDX_BOOT_KB_OUT_REPORT_VAL] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&hid_kb_output_uuid, (ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE), HIDD_LE_BOOT_REPORT_MAX_LEN, 0, NULL}},
-
+        //鼠标
         // Boot Mouse Input Report Characteristic Declaration
         [HIDD_LE_IDX_BOOT_MOUSE_IN_REPORT_CHAR] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&character_declaration_uuid, ESP_GATT_PERM_READ, CHAR_DECLARATION_SIZE, CHAR_DECLARATION_SIZE, (uint8_t *)&char_prop_read_notify}},
         // Boot Mouse Input Report Characteristic Value
@@ -639,7 +657,7 @@ static esp_gatts_attr_db_t hidd_le_gatt_db[HIDD_LE_IDX_NB] =
 static void hid_add_id_tbl(void);
 
 /**
- * @brief HID设备GATT服务回调处理函数
+ * @brief HID设备GATT服务回调处理函数（important）
  *
  * 处理来自GATT服务器的各种事件，包括注册、连接、断开连接、写入等事件
  * 根据不同的事件类型执行相应的操作，如创建服务、处理连接、处理写入请求等
@@ -648,6 +666,7 @@ static void hid_add_id_tbl(void);
  * @param[in] gatts_if GATT服务接口标识符
  * @param[in] param 指向事件参数结构体的指针
  */
+//（important）
 void esp_hidd_prf_cb_hdl(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if,
                          esp_ble_gatts_cb_param_t *param)
 {
@@ -655,8 +674,8 @@ void esp_hidd_prf_cb_hdl(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if,
     {
     case ESP_GATTS_REG_EVT:
     {
-        // 配置本地蓝牙图标为通用HID设备
-        esp_ble_gap_config_local_icon(ESP_BLE_APPEARANCE_GENERIC_HID);
+        // 配置本地蓝牙图标为GamePad
+        esp_ble_gap_config_local_icon(ESP_BLE_APPEARANCE_HID_GAMEPAD);
         esp_hidd_cb_param_t hidd_param;
         hidd_param.init_finish.state = param->reg.status;
         if (param->reg.app_id == HIDD_APP_ID)
@@ -665,8 +684,9 @@ void esp_hidd_prf_cb_hdl(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if,
             if (hidd_le_env.hidd_cb != NULL)
             {
                 (hidd_le_env.hidd_cb)(ESP_HIDD_EVENT_REG_FINISH, &hidd_param);
-                // 创建HID属性表
-                hidd_le_create_service(hidd_le_env.gatt_if);
+                // 创建电池服务HID属性表
+                // 先创建电池的属性表，后续判断电池属性表是否创建成功，如果创建成功，则创建HID属性表（在下面一点的case：）
+                hidd_battery_create_service(hidd_le_env.gatt_if);
             }
         }
         if (param->reg.app_id == BATTRAY_APP_ID)
@@ -741,7 +761,7 @@ void esp_hidd_prf_cb_hdl(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if,
     case ESP_GATTS_CREAT_ATTR_TAB_EVT:
     {
         // 处理属性表创建事件，初始化电池服务和HID服务
-        // 如果是电池服务
+        // 如果电池的属性表创建成功，则初始化HID服务
         if (param->add_attr_tab.num_handle == BAS_IDX_NB &&
             param->add_attr_tab.svc_uuid.uuid.uuid16 == ESP_GATT_UUID_BATTERY_SERVICE_SVC &&
             param->add_attr_tab.status == ESP_GATT_OK)
@@ -753,18 +773,21 @@ void esp_hidd_prf_cb_hdl(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if,
             // 创建HID服务
             esp_ble_gatts_create_attr_tab(hidd_le_gatt_db, gatts_if, HIDD_LE_IDX_NB, 0);
         }
-        // 如果是HID服务
+        // 如果HID服务也创建成功，那么开始start_service
         if (param->add_attr_tab.num_handle == HIDD_LE_IDX_NB &&
             param->add_attr_tab.status == ESP_GATT_OK)
         {
             memcpy(hidd_le_env.hidd_inst.att_tbl, param->add_attr_tab.handles,
                    HIDD_LE_IDX_NB * sizeof(uint16_t));
             ESP_LOGI(HID_LE_PRF_TAG, "hid svc handle = %x", hidd_le_env.hidd_inst.att_tbl[HIDD_LE_IDX_SVC]);
+            // 创建报告ID映射表
             hid_add_id_tbl();
+            // 开启HID服务
             esp_ble_gatts_start_service(hidd_le_env.hidd_inst.att_tbl[HIDD_LE_IDX_SVC]);
         }
         else
         {
+            // 如果只创建了电池服务，那么则先开启电池服务
             esp_ble_gatts_start_service(param->add_attr_tab.handles[0]);
         }
         break;
@@ -775,12 +798,9 @@ void esp_hidd_prf_cb_hdl(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if,
     }
 }
 
-void hidd_le_create_service(esp_gatt_if_t gatts_if)
+void hidd_battery_create_service(esp_gatt_if_t gatts_if)
 {
-    /* 这里应该先添加电池服务，因为 hid 服务应该包括电池服务。
-    添加电池服务完成后，可以添加 hid 服务。。*/
-
-    // config_adv_data后就创建属性表
+    // config_adv_data后就创建属性表，创建电池服务的属性表
     esp_ble_gatts_create_attr_tab(bas_att_db, gatts_if, BAS_IDX_NB, 0);
 }
 

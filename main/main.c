@@ -20,15 +20,13 @@
 #include "esp_bt_device.h"
 #include "driver/gpio.h"
 #include "hid_dev.h"
-/*
-简介：
-该示例实现了 BLE HID（蓝牙低功耗人机接口设备）设备配置文件相关功能。此 HID 设备包含 4 种报告（Report）：
-鼠标（Report 1）
-键盘和 LED（Report 2）
-消费类设备（如音量控制，Report 3）
-厂商自定义设备（Report 4）
-用户可以根据自己的应用场景选择不同的报告类型。BLE HID 配置文件继承了 USB HID 类的功能特性。
 
+//todo:遗忘上一次连接的设备
+//todo:弄懂为啥hidInfo关闭正常连接
+
+/*
+此 HID 设备包含 4 种报告（Report）：鼠标（Report 1）键盘和 LED（Report 2）消费类设备（如音量控制，Report 3）厂商自定义设备（Report 4）
+用户可以根据自己的应用场景选择不同的报告类型。BLE HID 配置文件继承了 USB HID 类的功能特性。
 注意事项：
 Windows 10 不支持厂商自定义报告（Vendor Report），因此 SUPPORT_REPORT_VENDOR 始终设置为 FALSE，该定义位于 hidd_le_prf_int.h 文件中。
 在 iPhone 的 HID 加密期间不允许更新连接参数，因此从设备会在加密期间关闭自动更新连接参数的功能。
@@ -187,6 +185,7 @@ static void hidd_event_callback(esp_hidd_cb_event_t event, esp_hidd_cb_param_t *
     {
         if (param->init_finish.state == ESP_HIDD_INIT_OK)
         {
+
             // esp_bd_addr_t rand_addr = {0x04,0x11,0x11,0x11,0x11,0x05};
             esp_ble_gap_set_device_name(HIDD_DEVICE_NAME);
             // 该API不支持16位UUID
@@ -257,8 +256,8 @@ static void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param
 {
     switch (event)
     {
-    case ESP_GAP_BLE_ADV_DATA_SET_COMPLETE_EVT: // 设置广播数据成功事件，When advertising data set complete, the event comes
-        esp_ble_gap_start_advertising(&hidd_adv_params);
+    case ESP_GAP_BLE_ADV_DATA_SET_COMPLETE_EVT: // 设置广播数据成功事件，When advertising data set complete, the event comes    
+    esp_ble_gap_start_advertising(&hidd_adv_params);
         break;
     case ESP_GAP_BLE_SEC_REQ_EVT: // 安全请求事件，BLE security request
         for (int i = 0; i < ESP_BD_ADDR_LEN; i++)
@@ -322,7 +321,7 @@ void hid_demo_task(void *pvParameters)
         {
             // 等待连接
             vTaskDelay(pdMS_TO_TICKS(2000));
-            ESP_LOGI("HID_DEMO", "Waiting for connection...");
+            ESP_LOGI("HID_DEMO_TASK", "Waiting for connection...");
         }
     }
 }
@@ -386,6 +385,13 @@ esp_err_t ble_init(void)
     }
     ESP_ERROR_CHECK(ret);
 
+    // 删除所有配对信息
+    // esp_err_t err = esp_ble_gap_clear_bond_device();
+    // if (err == ESP_OK) {
+    //     ESP_LOGI("BLE", "已清除所有配对设备的信息");
+    // }
+
+
     // 初始化蓝牙控制器
     ESP_ERROR_CHECK(esp_bt_controller_mem_release(ESP_BT_MODE_CLASSIC_BT));  // 经典蓝牙内存释放
     esp_bt_controller_config_t bt_cfg = BT_CONTROLLER_INIT_CONFIG_DEFAULT(); // 指向蓝牙控制器配置结构体的指针，用于bt_cfg初始化参数
@@ -438,6 +444,7 @@ esp_err_t ble_sec_config(void)
     uint8_t init_key = ESP_BLE_ENC_KEY_MASK | ESP_BLE_ID_KEY_MASK; // 加密密钥（用于数据加密）与身份密钥（用于设备身份识别）。
     uint8_t rsp_key = ESP_BLE_ENC_KEY_MASK | ESP_BLE_ID_KEY_MASK;
     /* 设置安全参数*/
+    // 没有IO，因此无需响应
     esp_ble_gap_set_security_param(ESP_BLE_SM_AUTHEN_REQ_MODE, &auth_req, sizeof(uint8_t));
     esp_ble_gap_set_security_param(ESP_BLE_SM_IOCAP_MODE, &iocap, sizeof(uint8_t));
     esp_ble_gap_set_security_param(ESP_BLE_SM_MAX_KEY_SIZE, &key_size, sizeof(uint8_t));
