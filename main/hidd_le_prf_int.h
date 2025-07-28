@@ -43,9 +43,9 @@
 #define HID_RPT_ID_LED_OUT       2  // LED output report ID
 #define HID_RPT_ID_FEATURE       0  // Feature report ID
 
-// HID的UUID
+// HID的APP ID
 #define HIDD_APP_ID			0x1812//ATT_SVC_HID
-
+// 电池服务的APP ID
 #define BATTRAY_APP_ID       0x180f
 
 

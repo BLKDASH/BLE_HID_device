@@ -1,8 +1,4 @@
-/*
- * SPDX-FileCopyrightText: 2021 Espressif Systems (Shanghai) CO LTD
- *
- * SPDX-License-Identifier: Unlicense OR CC0-1.0
- */
+// GATT操作文件
 
 #include "hid_dev.h"
 #include <stdint.h>
@@ -13,8 +9,6 @@
 
 static hid_report_map_t *hid_dev_rpt_tbl;
 static uint8_t hid_dev_rpt_tbl_Len;
-
-
 
 /**
  * @brief 根据指定的ID和类型查找匹配的HID报告项
@@ -35,15 +29,16 @@ static hid_report_map_t *hid_dev_rpt_by_id(uint8_t id, uint8_t type)
      * - HID协议模式匹配
      * - 三者都匹配则返回rpt指针，后续要用到该项的handle
      */
-    for (uint8_t i = hid_dev_rpt_tbl_Len; i > 0; i--, rpt++) {
-        if (rpt->id == id && rpt->type == type && rpt->mode == hidProtocolMode) {
+    for (uint8_t i = hid_dev_rpt_tbl_Len; i > 0; i--, rpt++)
+    {
+        if (rpt->id == id && rpt->type == type && rpt->mode == hidProtocolMode)
+        {
             return rpt;
         }
     }
 
     return NULL;
 }
-
 
 // 注册HID设备的报告描述符
 void hid_dev_register_reports(uint8_t num_reports, hid_report_map_t *p_report)
@@ -53,14 +48,12 @@ void hid_dev_register_reports(uint8_t num_reports, hid_report_map_t *p_report)
     return;
 }
 
-
-
 /**
  * @brief 发送HID报告到已连接的GATT客户端
- * 
+ *
  * 此函数用于查找指定的HID报告属性句柄，并通过GATT接口发送报告数据。
  * 仅当报告的通知功能已启用时，才会实际发送数据。
- * 
+ *
  * @param gatts_if GATT服务接口标识符
  * @param conn_id 连接标识符
  * @param id 报告ID
@@ -69,13 +62,14 @@ void hid_dev_register_reports(uint8_t num_reports, hid_report_map_t *p_report)
  * @param data 指向报告数据的指针
  */
 void hid_dev_send_report(esp_gatt_if_t gatts_if, uint16_t conn_id,
-                                    uint8_t id, uint8_t type, uint8_t length, uint8_t *data)
+                         uint8_t id, uint8_t type, uint8_t length, uint8_t *data)
 {
-    //主要看参数：id、length、*data
+    // 主要看参数：id、length、*data
     hid_report_map_t *p_rpt;
 
     // 获取报告的属性句柄
-    if ((p_rpt = hid_dev_rpt_by_id(id, type)) != NULL) {
+    if ((p_rpt = hid_dev_rpt_by_id(id, type)) != NULL)
+    {
         // 发送报告数据
         ESP_LOGD(HID_LE_PRF_TAG, "%s(), send the report, handle = %d", __func__, p_rpt->handle);
         // esp gatt自带库，
@@ -84,7 +78,6 @@ void hid_dev_send_report(esp_gatt_if_t gatts_if, uint16_t conn_id,
 
     return;
 }
-
 
 /**
  * @brief 构建HID消费者报告数据
@@ -99,7 +92,8 @@ void hid_dev_send_report(esp_gatt_if_t gatts_if, uint16_t conn_id,
  */
 void hid_consumer_build_report(uint8_t *buffer, consumer_cmd_t cmd)
 {
-    if (!buffer) {
+    if (!buffer)
+    {
         ESP_LOGE(HID_LE_PRF_TAG, "%s(), the buffer is NULL, hid build report failed.", __func__);
         return;
     }
@@ -108,77 +102,78 @@ void hid_consumer_build_report(uint8_t *buffer, consumer_cmd_t cmd)
      * 根据不同的消费者命令设置对应的HID报告数据
      * 每个case分支对应一个特定的消费者控制命令，通过宏定义将相应的报告值写入缓冲区
      */
-    switch (cmd) {
-        case HID_CONSUMER_CHANNEL_UP:
-            HID_CC_RPT_SET_CHANNEL(buffer, HID_CC_RPT_CHANNEL_UP);
-            break;
+    switch (cmd)
+    {
+    case HID_CONSUMER_CHANNEL_UP:
+        HID_CC_RPT_SET_CHANNEL(buffer, HID_CC_RPT_CHANNEL_UP);
+        break;
 
-        case HID_CONSUMER_CHANNEL_DOWN:
-            HID_CC_RPT_SET_CHANNEL(buffer, HID_CC_RPT_CHANNEL_DOWN);
-            break;
+    case HID_CONSUMER_CHANNEL_DOWN:
+        HID_CC_RPT_SET_CHANNEL(buffer, HID_CC_RPT_CHANNEL_DOWN);
+        break;
 
-        case HID_CONSUMER_VOLUME_UP:
-            // (buffer)[0] &= 0x3F 00111111 
-            // (buffer)[0] |= 0x40 01000000
-            // 保留低六位，清零6、7位。并将第六位置1
-            HID_CC_RPT_SET_VOLUME_UP(buffer);
-            break;
+    case HID_CONSUMER_VOLUME_UP:
+        // (buffer)[0] &= 0x3F 00111111
+        // (buffer)[0] |= 0x40 01000000
+        // 保留低六位，清零6、7位。并将第六位置1
+        HID_CC_RPT_SET_VOLUME_UP(buffer);
+        break;
 
-        case HID_CONSUMER_VOLUME_DOWN:
-            // (buffer)[0] &= 0x3F; (buffer)[0] |= 0x80
-            HID_CC_RPT_SET_VOLUME_DOWN(buffer);
-            break;
+    case HID_CONSUMER_VOLUME_DOWN:
+        // (buffer)[0] &= 0x3F; (buffer)[0] |= 0x80
+        HID_CC_RPT_SET_VOLUME_DOWN(buffer);
+        break;
 
-        case HID_CONSUMER_MUTE:
-            HID_CC_RPT_SET_BUTTON(buffer, HID_CC_RPT_MUTE);
-            break;
+    case HID_CONSUMER_MUTE:
+        HID_CC_RPT_SET_BUTTON(buffer, HID_CC_RPT_MUTE);
+        break;
 
-        case HID_CONSUMER_POWER:
-            HID_CC_RPT_SET_BUTTON(buffer, HID_CC_RPT_POWER);
-            break;
+    case HID_CONSUMER_POWER:
+        HID_CC_RPT_SET_BUTTON(buffer, HID_CC_RPT_POWER);
+        break;
 
-        case HID_CONSUMER_RECALL_LAST:
-            HID_CC_RPT_SET_BUTTON(buffer, HID_CC_RPT_LAST);
-            break;
+    case HID_CONSUMER_RECALL_LAST:
+        HID_CC_RPT_SET_BUTTON(buffer, HID_CC_RPT_LAST);
+        break;
 
-        case HID_CONSUMER_ASSIGN_SEL:
-            HID_CC_RPT_SET_BUTTON(buffer, HID_CC_RPT_ASSIGN_SEL);
-            break;
+    case HID_CONSUMER_ASSIGN_SEL:
+        HID_CC_RPT_SET_BUTTON(buffer, HID_CC_RPT_ASSIGN_SEL);
+        break;
 
-        case HID_CONSUMER_PLAY:
-            HID_CC_RPT_SET_BUTTON(buffer, HID_CC_RPT_PLAY);
-            break;
+    case HID_CONSUMER_PLAY:
+        HID_CC_RPT_SET_BUTTON(buffer, HID_CC_RPT_PLAY);
+        break;
 
-        case HID_CONSUMER_PAUSE:
-            HID_CC_RPT_SET_BUTTON(buffer, HID_CC_RPT_PAUSE);
-            break;
+    case HID_CONSUMER_PAUSE:
+        HID_CC_RPT_SET_BUTTON(buffer, HID_CC_RPT_PAUSE);
+        break;
 
-        case HID_CONSUMER_RECORD:
-            HID_CC_RPT_SET_BUTTON(buffer, HID_CC_RPT_RECORD);
-            break;
+    case HID_CONSUMER_RECORD:
+        HID_CC_RPT_SET_BUTTON(buffer, HID_CC_RPT_RECORD);
+        break;
 
-        case HID_CONSUMER_FAST_FORWARD:
-            HID_CC_RPT_SET_BUTTON(buffer, HID_CC_RPT_FAST_FWD);
-            break;
+    case HID_CONSUMER_FAST_FORWARD:
+        HID_CC_RPT_SET_BUTTON(buffer, HID_CC_RPT_FAST_FWD);
+        break;
 
-        case HID_CONSUMER_REWIND:
-            HID_CC_RPT_SET_BUTTON(buffer, HID_CC_RPT_REWIND);
-            break;
+    case HID_CONSUMER_REWIND:
+        HID_CC_RPT_SET_BUTTON(buffer, HID_CC_RPT_REWIND);
+        break;
 
-        case HID_CONSUMER_SCAN_NEXT_TRK:
-            HID_CC_RPT_SET_BUTTON(buffer, HID_CC_RPT_SCAN_NEXT_TRK);
-            break;
+    case HID_CONSUMER_SCAN_NEXT_TRK:
+        HID_CC_RPT_SET_BUTTON(buffer, HID_CC_RPT_SCAN_NEXT_TRK);
+        break;
 
-        case HID_CONSUMER_SCAN_PREV_TRK:
-            HID_CC_RPT_SET_BUTTON(buffer, HID_CC_RPT_SCAN_PREV_TRK);
-            break;
+    case HID_CONSUMER_SCAN_PREV_TRK:
+        HID_CC_RPT_SET_BUTTON(buffer, HID_CC_RPT_SCAN_PREV_TRK);
+        break;
 
-        case HID_CONSUMER_STOP:
-            HID_CC_RPT_SET_BUTTON(buffer, HID_CC_RPT_STOP);
-            break;
+    case HID_CONSUMER_STOP:
+        HID_CC_RPT_SET_BUTTON(buffer, HID_CC_RPT_STOP);
+        break;
 
-        default:
-            break;
+    default:
+        break;
     }
 
     return;

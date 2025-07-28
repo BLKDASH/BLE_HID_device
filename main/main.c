@@ -38,11 +38,11 @@ Windows 10 不支持厂商自定义报告（Vendor Report），因此 SUPPORT_RE
 #define HID_BLE_TAG "BLEinfo"
 
 // 128，API不允许16位
-#define UUID_MOD 16
+#define UUID_MOD 128
 
 static uint16_t hid_conn_id = 0;
 static bool sec_conn = false;
-// static bool send_volum_up = false;
+
 #define CHAR_DECLARATION_SIZE (sizeof(uint8_t))
 
 static void hidd_event_callback(esp_hidd_cb_event_t event, esp_hidd_cb_param_t *param);
@@ -51,25 +51,27 @@ static void hidd_event_callback(esp_hidd_cb_event_t event, esp_hidd_cb_param_t *
 // #define HIDD_DEVICE_NAME            "MYGT Controller"
 //  UUID为0x1812，注册为HID设备
 #if (UUID_MOD == 128)
-static uint8_t hidd_service_uuid[] = {
-    /* LSB <--------------------------------------------------------------------------------> MSB */
-    // first uuid, 16bit, [12],[13] is the value
-    0xfb,
-    0x34,
-    0x9b,
-    0x5f,
-    0x80,
-    0x00,
-    0x00,
-    0x80,
-    0x00,
-    0x10,
-    0x00,
-    0x00,
-    0x12,
-    0x18,
-    0x00,
-    0x00,
+// 向外展示1812的HID标志
+static uint8_t hidd_service_uuid[] =
+    {
+        /* LSB <--------------------------------------------------------------------------------> MSB */
+        // first uuid, 16bit, [12],[13] is the value
+        0xfb,
+        0x34,
+        0x9b,
+        0x5f,
+        0x80,
+        0x00,
+        0x00,
+        0x80,
+        0x00,
+        0x10,
+        0x00,
+        0x00,
+        0x12,
+        0x18,
+        0x00,
+        0x00,
 };
 #endif
 
@@ -83,23 +85,24 @@ static uint8_t hidd_service_uuid[] = {
 #endif
 
 // GATT 广播数据
-static esp_ble_adv_data_t hidd_adv_data = {
-    .set_scan_rsp = false,                          // 是否设置扫描回复数据
-    .include_name = true,                           // 是否包含设备名
-    .include_txpower = true,                        // 是否包含信号强度
-    .min_interval = 0x0006,                         // 从设备连接的最小间隔时间，单位为 1.25ms，0x0006 对应 7.5ms。
-    .max_interval = 0x0010,                         // 从设备连接的最大间隔时间，单位为 1.25ms，0x0010 对应 20ms。
-    .appearance = 0x03c4,                           // 设备外观标识，0x03c0 表示 HID 通用设备。03c4表示HID游戏手柄
-    .manufacturer_len = 0,                          // 厂商数据长度，0 表示没有厂商数据。
-    .p_manufacturer_data = NULL,                    // 指向厂商数据的指针，NULL 表示无厂商数据。
-    .service_data_len = 0,                          // 服务数据长度，0 表示没有服务数据。
-    .p_service_data = NULL,                         // 指向服务数据的指针，NULL 表示无服务数据。
-    .service_uuid_len = sizeof(hidd_service_uuid),  // 服务数据长度UUID
-    .p_service_uuid = (uint8_t *)hidd_service_uuid, // uuid指针
-    .flag = 0x7,                                    // 0b00000111
-                                                    // bit 0: 有限发现模式
-                                                    // bit 1: LE General Discoverable Mode同时支持通用发现模式
-                                                    // bit 2: BR/EDR Not Supported（不支持普通蓝牙）
+static esp_ble_adv_data_t hidd_adv_data =
+    {
+        .set_scan_rsp = false,                          // 是否设置扫描回复数据
+        .include_name = true,                           // 是否包含设备名
+        .include_txpower = true,                        // 是否包含信号强度
+        .min_interval = 0x0006,                         // 从设备连接的最小间隔时间，单位为 1.25ms，0x0006 对应 7.5ms。
+        .max_interval = 0x0010,                         // 从设备连接的最大间隔时间，单位为 1.25ms，0x0010 对应 20ms。
+        .appearance = 0x03c4,                           // 设备外观标识，0x03c0 表示 HID 通用设备。03c4表示HID游戏手柄
+        .manufacturer_len = 0,                          // 厂商数据长度，0 表示没有厂商数据。
+        .p_manufacturer_data = NULL,                    // 指向厂商数据的指针，NULL 表示无厂商数据。
+        .service_data_len = 0,                          // 服务数据长度，0 表示没有服务数据。
+        .p_service_data = NULL,                         // 指向服务数据的指针，NULL 表示无服务数据。
+        .service_uuid_len = sizeof(hidd_service_uuid),  // 服务数据长度UUID
+        .p_service_uuid = (uint8_t *)hidd_service_uuid, // uuid指针
+        .flag = 0x7,                                    // 0b00000111
+                                                        // bit 0: 有限发现模式
+                                                        // bit 1: LE General Discoverable Mode同时支持通用发现模式
+                                                        // bit 2: BR/EDR Not Supported（不支持普通蓝牙）
 };
 
 #define HID_SERVICE_UUID_16 0x1812
@@ -208,9 +211,11 @@ static void hidd_event_callback(esp_hidd_cb_event_t event, esp_hidd_cb_param_t *
     }
     case ESP_HIDD_EVENT_DEINIT_FINISH:
         break;
+    // HIDD连接事件
     case ESP_HIDD_EVENT_BLE_CONNECT:
     {
         ESP_LOGI(HID_BLE_TAG, "ESP_HIDD_EVENT_BLE_CONNECT");
+        // 记录连接id，后续要使用
         hid_conn_id = param->connect.conn_id;
         break;
     }
@@ -218,6 +223,7 @@ static void hidd_event_callback(esp_hidd_cb_event_t event, esp_hidd_cb_param_t *
     {
         sec_conn = false;
         ESP_LOGI(HID_BLE_TAG, "ESP_HIDD_EVENT_BLE_DISCONNECT");
+        // 断连后重新advertising
         esp_ble_gap_start_advertising(&hidd_adv_params);
         break;
     }
@@ -239,6 +245,7 @@ static void hidd_event_callback(esp_hidd_cb_event_t event, esp_hidd_cb_param_t *
     return;
 }
 
+// GAP回调函数
 // 三种GAP事件处理函数，分别处理连接、加密、认证事件。
 //  ESP_GAP_BLE_ADV_DATA_SET_COMPLETE_EVT
 //  广播数据设置完成后启动 BLE 广播。
@@ -250,10 +257,10 @@ static void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param
 {
     switch (event)
     {
-    case ESP_GAP_BLE_ADV_DATA_SET_COMPLETE_EVT: // 设置广播数据成功事件
+    case ESP_GAP_BLE_ADV_DATA_SET_COMPLETE_EVT: // 设置广播数据成功事件，When advertising data set complete, the event comes
         esp_ble_gap_start_advertising(&hidd_adv_params);
         break;
-    case ESP_GAP_BLE_SEC_REQ_EVT: // 安全请求事件
+    case ESP_GAP_BLE_SEC_REQ_EVT: // 安全请求事件，BLE security request
         for (int i = 0; i < ESP_BD_ADDR_LEN; i++)
         {
             ESP_LOGD(HID_BLE_TAG, "%x:", param->ble_security.ble_req.bd_addr[i]);
@@ -263,7 +270,7 @@ static void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param
     case ESP_GAP_BLE_AUTH_CMPL_EVT: // 认证完成事件
         sec_conn = true;
         esp_bd_addr_t bd_addr;
-        memcpy(bd_addr, param->ble_security.auth_cmpl.bd_addr, sizeof(esp_bd_addr_t));
+        memcpy(bd_addr, param->ble_security.auth_cmpl.bd_addr, sizeof(esp_bd_addr_t)); // 复制地址
         ESP_LOGI(HID_BLE_TAG, "remote BD_ADDR: %08x%04x",
                  (bd_addr[0] << 24) + (bd_addr[1] << 16) + (bd_addr[2] << 8) + bd_addr[3],
                  (bd_addr[4] << 8) + bd_addr[5]);
@@ -382,43 +389,40 @@ esp_err_t ble_init(void)
     // 初始化蓝牙控制器
     ESP_ERROR_CHECK(esp_bt_controller_mem_release(ESP_BT_MODE_CLASSIC_BT));  // 经典蓝牙内存释放
     esp_bt_controller_config_t bt_cfg = BT_CONTROLLER_INIT_CONFIG_DEFAULT(); // 指向蓝牙控制器配置结构体的指针，用于bt_cfg初始化参数
-    ret = esp_bt_controller_init(&bt_cfg);                                   // 使用默认参数进行初始化
-    if (ret)
+    // 使用默认参数进行初始化控制器
+    if ((ret = esp_bt_controller_init(&bt_cfg)) != ESP_OK)
     {
-        ESP_LOGE(HID_BLE_TAG, "%s initialize controller failed", __func__);
+        ESP_LOGE("bleInit", "%s initialize controller failed", __func__);
         return ESP_FAIL;
     }
-    // 启动蓝牙控制器
-    ret = esp_bt_controller_enable(ESP_BT_MODE_BLE); // 设置为BLE模式
-    if (ret)
+    // 使能BLE蓝牙控制器
+    if ((ret = esp_bt_controller_enable(ESP_BT_MODE_BLE)) != ESP_OK)
     {
-        ESP_LOGE(HID_BLE_TAG, "%s enable controller failed", __func__);
+        ESP_LOGE("bleInit", "%s enable controller failed", __func__);
         return ESP_FAIL;
     }
     // 初始化蓝牙开发框架bluedroid
-    ret = esp_bluedroid_init(); // 初始化蓝牙开发框架
-    if (ret)
+    if ((ret = esp_bluedroid_init()) != ESP_OK)
     {
-        ESP_LOGE(HID_BLE_TAG, "%s init bluedroid failed", __func__);
+        ESP_LOGE("bleInit", "%s init bluedroid failed", __func__);
         return ESP_FAIL;
     }
     // 启动bluedroid
-    ret = esp_bluedroid_enable();
-    if (ret)
+    if ((ret = esp_bluedroid_enable()) != ESP_OK)
     {
-        ESP_LOGE(HID_BLE_TAG, "%s init bluedroid failed", __func__);
+        ESP_LOGE("bleInit", "%s init bluedroid failed", __func__);
         return ESP_FAIL;
     }
     // 初始化HID设备
     if ((ret = esp_hidd_profile_init()) != ESP_OK)
     {
-        ESP_LOGE(HID_BLE_TAG, "%s init bluedroid failed", __func__);
+        ESP_LOGE("bleInit", "HID init failed");
     }
 
     // 注册GAP事件回调函数，当 BLE GAP 层发生某些事件（例如连接、断开连接、扫描结果等）时，系统会调用 gap_event_handler 函数，并将相应的事件信息传递给它
     // 传入了函数指针，用于自定义gap event的回调函数
     esp_ble_gap_register_callback(gap_event_handler);
-    // 注册HID设备事件回调函数（GATT）
+    // 使用GATT注册HID设备事件回调函数
     esp_hidd_register_callbacks(hidd_event_callback);
 
     return ESP_OK;
