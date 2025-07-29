@@ -103,60 +103,6 @@ static esp_ble_adv_data_t hidd_adv_data =
                                                         // bit 2: BR/EDR Not Supported（不支持普通蓝牙）
 };
 
-#define HID_SERVICE_UUID_16 0x1812
-
-// 原始广播数据缓冲区
-static uint8_t hidd_adv_data_raw[31] = {0}; // 蓝牙广播最大31字节
-static uint8_t hidd_adv_data_raw_len = 0;
-
-// 构建符合AD规范的原始广播数据
-void build_hidd_adv_data_raw()
-{
-    uint8_t idx = 0;
-
-    // 1.  Flags (0x01) - 0x07表示LE General Discoverable Mode且不支持BR/EDR
-    hidd_adv_data_raw[idx++] = 0x02; // 长度: 2字节(类型+数据)
-    hidd_adv_data_raw[idx++] = 0x01; // 类型: Flags
-    hidd_adv_data_raw[idx++] = 0x07; // 数据: 0b00000111
-
-    // 2. 完整本地名称 (0x09)
-    const char *device_name = "ESP32-HID";              // 替换为你的设备名
-    hidd_adv_data_raw[idx++] = strlen(device_name) + 1; // 长度: 名称长度+1(类型)
-    hidd_adv_data_raw[idx++] = 0x09;                    // 类型: 完整本地名称
-    memcpy(&hidd_adv_data_raw[idx], device_name, strlen(device_name));
-    idx += strlen(device_name);
-
-    // 3. 发射功率 (0x0A)
-    hidd_adv_data_raw[idx++] = 0x02; // 长度: 2字节
-    hidd_adv_data_raw[idx++] = 0x0A; // 类型: 发射功率
-    hidd_adv_data_raw[idx++] = 0x00; // 功率值(0dBm，可根据实际调整)
-
-    // 4. 16位服务UUID列表 (0x03)
-    hidd_adv_data_raw[idx++] = 0x03;                              // 长度: 3字节(类型+2字节UUID)
-    hidd_adv_data_raw[idx++] = 0x03;                              // 类型: 完整16位服务UUID列表
-    hidd_adv_data_raw[idx++] = HID_SERVICE_UUID_16 & 0xFF;        // UUID低8位
-    hidd_adv_data_raw[idx++] = (HID_SERVICE_UUID_16 >> 8) & 0xFF; // UUID高8位
-
-    // 5. 连接间隔范围 (0x12)
-    hidd_adv_data_raw[idx++] = 0x05; // 长度: 5字节(类型+4字节数据)
-    hidd_adv_data_raw[idx++] = 0x12; // 类型: 连接间隔范围
-    // 最小间隔(0x0006) - 小端模式
-    hidd_adv_data_raw[idx++] = 0x06;
-    hidd_adv_data_raw[idx++] = 0x00;
-    // 最大间隔(0x0010) - 小端模式
-    hidd_adv_data_raw[idx++] = 0x10;
-    hidd_adv_data_raw[idx++] = 0x00;
-
-    // 6. 外观特征 (0x19)
-    hidd_adv_data_raw[idx++] = 0x03; // 长度: 3字节
-    hidd_adv_data_raw[idx++] = 0x19; // 类型: 外观
-    hidd_adv_data_raw[idx++] = 0xc4; // 外观值0x03c4低8位
-    hidd_adv_data_raw[idx++] = 0x03; // 外观值0x03c4高8位
-
-    // 确认总长度不超过31字节
-    hidd_adv_data_raw_len = idx;
-    assert(hidd_adv_data_raw_len <= 31);
-}
 
 // 广播参数
 static esp_ble_adv_params_t hidd_adv_params = {
@@ -357,7 +303,7 @@ void mouse_move_task(void *pvParameters)
 void gamepad_button_task(void *pvParameters)
 {
     // 示例输入报告
-    uint8_t feature_value[11] = {4, 128, 128, 128, 128, 255, 0, 0, 0, 1, 0};
+    // uint8_t feature_value[11] = {4, 128, 128, 128, 128, 255, 0, 0, 0, 1, 0};
 
     while (1)
     {
