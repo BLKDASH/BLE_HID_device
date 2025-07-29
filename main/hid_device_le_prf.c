@@ -3,7 +3,7 @@
 #include "hidd_le_prf_int.h"
 #include <string.h>
 #include "esp_log.h"
-
+#include "main.h"
 /// @brief Characteristic Presentation Format 结构体
 /// 用于描述 BLE HID 设备中某个 Characteristic 的数据表示格式信息
 ///
@@ -276,11 +276,11 @@ static const uint8_t hidReportMapNetJoystick[] = {
 
 // MYGT 格式：定义游戏手柄的 HID 报告描述符
 static const uint8_t hidReportMapMYGTGamePad[] = {
-    // ID 1
+    // ID 1--------------------------------------------
     0x05, 0x01, // Usage Page (Generic Desktop Ctrls)
-    0x09, 0x02, // Usage (Mouse)
+    0x09, 0x02, // 用途：鼠标
     0xA1, 0x01, // Collection (Application)开集合
-    0x09, 0x01, //   Usage (Pointer)
+    0x09, 0x01, //   用途：指针
     0xA1, 0x00, //   Collection (Physical)开集合
     0x85, 0x01, //     Report ID (1)
     0x05, 0x09, //     Usage Page (Button)
@@ -290,10 +290,10 @@ static const uint8_t hidReportMapMYGTGamePad[] = {
     0x25, 0x01, //     Logical Maximum (1)
     0x75, 0x01, //     Report Size (1)
     0x95, 0x03, //     Report Count (3)
-    0x81, 0x02, //     Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
+    0x81, 0x02, //     Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)//三个按键，每个按键占用1位
     0x75, 0x05, //     Report Size (5)
     0x95, 0x01, //     Report Count (1)
-    0x81, 0x03, //     Input (Const,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
+    0x81, 0x03, //     Input (Const,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)//填充5位，方便对齐到一个字节
     0x05, 0x01, //     Usage Page (Generic Desktop Ctrls)
     0x09, 0x30, //     Usage (X)
     0x09, 0x31, //     Usage (Y)
@@ -306,7 +306,7 @@ static const uint8_t hidReportMapMYGTGamePad[] = {
     0xC0,       //   End Collection关集合
     0xC0,       // End Collection关集合
 
-    // ID3
+    // ID 3--------------------------------------------
     0x05, 0x0C,       // Usage Page (Consumer)
     0x09, 0x01,       // Usage (Consumer Control)
     0xA1, 0x01,       // Collection (Application)
@@ -320,7 +320,7 @@ static const uint8_t hidReportMapMYGTGamePad[] = {
     0x81, 0x00,       //   Input (Data,Array,Abs,No Wrap,Linear,Preferred State,No Null Position)
     0xC0,             // End Collection
 
-    // ID4
+    // ID 4--------------------------------------------
     0x05, 0x01, // 使用页面 (通用桌面控制)
     0x09, 0x05, // 使用 (游戏手柄)
     0xA1, 0x01, // 集合 (应用层) - 开始定义游戏手柄设备
@@ -990,16 +990,3 @@ static void hid_add_id_tbl(void)
     // Setup report ID map
     hid_dev_register_reports(HID_NUM_REPORTS, hid_rpt_map);
 }
-
-// static void hid_add_id_tbl_gamepad(void)
-// {
-//     // GamePad input report with Report ID 4
-//     hidReportMapMYGTGamePad[0].id = 0x04;  // Report ID为4，根据hidReportMapMYGTGamePad中的0x85, 0x04定义
-//     hidReportMapMYGTGamePad[0].type = HID_REPORT_TYPE_INPUT;  // 输入报告类型
-//     hidReportMapMYGTGamePad[0].handle = hidd_le_env.hidd_inst.att_tbl[HIDD_LE_IDX_REPORT_VAL];  // 报告值句柄
-//     hidReportMapMYGTGamePad[0].cccdHandle = 0;  // 此报告没有通知配置
-//     hidReportMapMYGTGamePad[0].mode = HID_PROTOCOL_MODE_REPORT;  // 报告协议模式
-
-//     // 注册报告映射表
-//     hid_dev_register_reports(1, hidReportMapMYGTGamePad);
-// }

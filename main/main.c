@@ -20,6 +20,7 @@
 #include "esp_bt_device.h"
 #include "driver/gpio.h"
 #include "hid_dev.h"
+#include "main.h"
 
 //todo:遗忘上一次连接的设备
 //todo:弄懂为啥hidInfo关闭正常连接
@@ -131,7 +132,6 @@ static void hidd_event_callback(esp_hidd_cb_event_t event, esp_hidd_cb_param_t *
     {
         if (param->init_finish.state == ESP_HIDD_INIT_OK)
         {
-
             // esp_bd_addr_t rand_addr = {0x04,0x11,0x11,0x11,0x11,0x05};
             esp_ble_gap_set_device_name(HIDD_DEVICE_NAME);
             // 该API不支持16位UUID

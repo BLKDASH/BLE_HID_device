@@ -6,7 +6,7 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include "esp_log.h"
-
+#include "main.h"
 static hid_report_map_t *hid_dev_rpt_tbl;
 static uint8_t hid_dev_rpt_tbl_Len;
 
