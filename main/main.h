@@ -2,6 +2,6 @@
 #define __MAIN_H__
 
 
-#define gamePadMode 0
+#define gamePadMode 1
 
 #endif
