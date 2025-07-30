@@ -138,7 +138,7 @@ static void hidd_event_callback(esp_hidd_cb_event_t event, esp_hidd_cb_param_t *
             // 该API不支持16位UUID
             if (ESP_OK == esp_ble_gap_config_adv_data(&hidd_adv_data))
             {
-                ESP_LOGI("HIDD_CALLBACK", "GAP Config Adv Data OK");
+                ESP_LOGI("HIDDcallback", "GAP Config Adv Data OK");
             }
             // if(ESP_OK==esp_ble_gap_config_adv_data_raw(hidd_adv_data_raw, hidd_adv_data_raw_len))
             // {
@@ -146,7 +146,7 @@ static void hidd_event_callback(esp_hidd_cb_event_t event, esp_hidd_cb_param_t *
             // }
             else
             {
-                ESP_LOGI("HIDD_CALLBACK", "GAP Config Adv Data Failed");
+                ESP_LOGI("HIDDcallback", "GAP Config Adv Data Failed");
             }
         }
         break;
@@ -160,7 +160,7 @@ static void hidd_event_callback(esp_hidd_cb_event_t event, esp_hidd_cb_param_t *
     // HIDD连接事件
     case ESP_HIDD_EVENT_BLE_CONNECT:
     {
-        ESP_LOGI(HID_BLE_TAG, "ESP_HIDD_EVENT_BLE_CONNECT");
+        ESP_LOGI("HIDDcallback", "ESP_HIDD_EVENT_BLE_CONNECT");
         // 记录连接id，后续要使用
         hid_conn_id = param->connect.conn_id;
         break;
@@ -168,21 +168,21 @@ static void hidd_event_callback(esp_hidd_cb_event_t event, esp_hidd_cb_param_t *
     case ESP_HIDD_EVENT_BLE_DISCONNECT:
     {
         sec_conn = false;
-        ESP_LOGI(HID_BLE_TAG, "ESP_HIDD_EVENT_BLE_DISCONNECT");
+        ESP_LOGI("HIDDcallback", "ESP_HIDD_EVENT_BLE_DISCONNECT");
         // 断连后重新advertising
         esp_ble_gap_start_advertising(&hidd_adv_params);
         break;
     }
     case ESP_HIDD_EVENT_BLE_VENDOR_REPORT_WRITE_EVT:
     {
-        ESP_LOGI(HID_BLE_TAG, "%s, ESP_HIDD_EVENT_BLE_VENDOR_REPORT_WRITE_EVT", __func__);
-        ESP_LOG_BUFFER_HEX(HID_BLE_TAG, param->vendor_write.data, param->vendor_write.length);
+        ESP_LOGI("HIDDcallback", "%s, ESP_HIDD_EVENT_BLE_VENDOR_REPORT_WRITE_EVT", __func__);
+        ESP_LOG_BUFFER_HEX("HIDDcallback", param->vendor_write.data, param->vendor_write.length);
         break;
     }
     case ESP_HIDD_EVENT_BLE_LED_REPORT_WRITE_EVT:
     {
-        ESP_LOGI(HID_BLE_TAG, "ESP_HIDD_EVENT_BLE_LED_REPORT_WRITE_EVT");
-        ESP_LOG_BUFFER_HEX(HID_BLE_TAG, param->led_write.data, param->led_write.length);
+        ESP_LOGI("HIDDcallback", "ESP_HIDD_EVENT_BLE_LED_REPORT_WRITE_EVT");
+        ESP_LOG_BUFFER_HEX("HIDDcallback", param->led_write.data, param->led_write.length);
         break;
     }
     default:
@@ -252,14 +252,14 @@ void hid_demo_task(void *pvParameters)
         {
             ESP_LOGI(HID_BLE_TAG, "Send the volume");
             // 间隔5s
-            vTaskDelay(pdMS_TO_TICKS(5000));
+            vTaskDelay(pdMS_TO_TICKS(3000));
             // 发送音量增大
             esp_hidd_send_consumer_value(hid_conn_id, HID_CONSUMER_VOLUME_UP, true);
             vTaskDelay(pdMS_TO_TICKS(200));
             // 关闭音量增大
             esp_hidd_send_consumer_value(hid_conn_id, HID_CONSUMER_VOLUME_UP, false);
             // 间隔5s
-            vTaskDelay(pdMS_TO_TICKS(5000));
+            vTaskDelay(pdMS_TO_TICKS(3000));
             // 发送音量减小
             esp_hidd_send_consumer_value(hid_conn_id, HID_CONSUMER_VOLUME_DOWN, true);
             vTaskDelay(pdMS_TO_TICKS(200));

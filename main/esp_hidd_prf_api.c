@@ -183,9 +183,9 @@ void esp_hidd_send_mouse_value(uint16_t conn_id, uint8_t mouse_button, int8_t mi
 void esp_hidd_send_gamepad_report(uint16_t conn_id)
 {
     uint8_t buffer[HID_GAMEPAD_STICK_IN_RPT_LEN];
-
+    static uint8_t testi = 0;
     buffer[0] = 128;
-    buffer[1] = 128;
+    buffer[1] = testi++;
     buffer[2] = 128;
     buffer[3] = 128;
     buffer[4] = 255;

@@ -718,8 +718,8 @@ void esp_hidd_prf_cb_hdl(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if,
         break;
     case ESP_GATTS_WRITE_EVT:
     {
-        // 处理客户端写入特征值事件
-        #if(gamePadMode == 0)
+        // 处理客户端写入特征值事件（不处理）
+        #if((gamePadMode == 0) & (gamePadMode == 1))
         esp_hidd_cb_param_t cb_param = {0};
         if (param->write.handle == hidd_le_env.hidd_inst.att_tbl[HIDD_LE_IDX_REPORT_LED_OUT_VAL])
         {
@@ -997,12 +997,12 @@ static void hid_add_id_tbl(void)
     hid_rpt_map[2].mode = HID_PROTOCOL_MODE_REPORT;
     ESP_LOGI("MAP[2]","STICK headle = %d,ReportID = %d,type = %d",hid_rpt_map[2].handle, hid_rpt_map[2].id, hid_rpt_map[2].type);
     // 不知道是啥玩意
-    hid_rpt_map[7].id = hidReportRefFeature[0];
-    hid_rpt_map[7].type = hidReportRefFeature[1];
-    hid_rpt_map[7].handle = hidd_le_env.hidd_inst.att_tbl[HIDD_LE_IDX_REPORT_VAL];
-    hid_rpt_map[7].cccdHandle = 0;
-    hid_rpt_map[7].mode = HID_PROTOCOL_MODE_REPORT;
-    ESP_LOGI("MAP[7]","Report headle = %d,ReportID = %d,type = %d",hid_rpt_map[7].handle, hid_rpt_map[7].id, hid_rpt_map[7].type);
+    hid_rpt_map[3].id = hidReportRefFeature[0];
+    hid_rpt_map[3].type = hidReportRefFeature[1];
+    hid_rpt_map[3].handle = hidd_le_env.hidd_inst.att_tbl[HIDD_LE_IDX_REPORT_VAL];
+    hid_rpt_map[3].cccdHandle = 0;
+    hid_rpt_map[3].mode = HID_PROTOCOL_MODE_REPORT;
+    ESP_LOGI("MAP[3]","Report headle = %d,ReportID = %d,type = %d",hid_rpt_map[7].handle, hid_rpt_map[7].id, hid_rpt_map[7].type);
 
     #endif
 
