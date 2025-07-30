@@ -35,6 +35,7 @@ Windows 10 不支持厂商自定义报告（Vendor Report），因此 SUPPORT_RE
  */
 
 #define HID_BLE_TAG "BLEinfo"
+#define HID_TASK_TAG "TASKinfo"
 
 // 128，API不允许16位
 #define UUID_MOD 128
@@ -311,13 +312,17 @@ void gamepad_button_task(void *pvParameters)
     {
         if (sec_conn)
         {
-            ESP_LOGI(HID_BLE_TAG, "Simulating gamepad button press");
+            vTaskDelay(pdMS_TO_TICKS(200));
+            ESP_LOGI(HID_TASK_TAG, "Simulating gamepad button press");
+            esp_hidd_send_gamepad_report(hid_conn_id);
             // 使用自定义函数发送输入报告
             // esp_hidd_send_custom_report(hid_conn_id, HID_RPT_ID_MOUSE_IN, HID_REPORT_TYPE_INPUT, feature_value, sizeof(feature_value));
         }
-
-        // 每5秒发送一次
-        vTaskDelay(pdMS_TO_TICKS(5000));
+        else
+        {
+            vTaskDelay(pdMS_TO_TICKS(1000));
+            ESP_LOGI(HID_TASK_TAG, "Waiting for connection...");
+        }
     }
 }
 #endif
@@ -417,10 +422,10 @@ void app_main(void)
     xTaskCreate(&hid_demo_task, "hid_task", 2048, NULL, 5, NULL);
     // 创建鼠标移动任务
     // xTaskCreate(&mouse_move_task, "mouse_move_task", 2048, NULL, 5, NULL);
-    #endif
+    #elif(gamePadMode == 1)
     // 模拟手柄任务
-    // xTaskCreate(&gamepad_button_task, "gamepad_button_task", 4096, NULL, 5, NULL);
-
+    xTaskCreate(&gamepad_button_task, "gamepad_button_task", 4096, NULL, 5, NULL);
+    #endif
     // ESP_LOGI("SIZEUUID:","%d",sizeof(hidd_service_uuid));
     while (1)
     {
