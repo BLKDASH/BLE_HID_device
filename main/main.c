@@ -134,13 +134,7 @@ static esp_ble_adv_data_t hidd_adv_data =
 uint8_t hidd_adv_data_raw[] = {
     0x02, ESP_BLE_AD_TYPE_FLAG, 0x06,           // Flags: LE General Discoverable Mode, BR/EDR Not Supported
     0x03, ESP_BLE_AD_TYPE_16SRV_PART, 0x12, 0x18,     // 部分16位UUID
-    // 0x03, ESP_BLE_AD_TYPE_16SRV_CMPL, 0x12, 0x18,        // 完整16位UUID
-    // 0x11, ESP_BLE_AD_TYPE_128SRV_CMPL,
-    // // 正确的128位UUID：00001812-0000-1000-8000-00805f9b34fb (HID service)
-    // 0xfb, 0x34, 0x9b, 0x5f, 0x80, 0x00, 0x00, 0x80,
-    // 0x00, 0x10, 0x00, 0x00, 0x12, 0x18, 0x00, 0x00,
-
-
+    0x0D, ESP_BLE_AD_TYPE_NAME_CMPL, 'E', 'S', 'P', '3', '2', 'g', 'a', 'm', 'e', 'P','a','d',
     // 0x0D, 0x09,                 // Length of Device Name + 1 byte for length field
     // 'E', 'S', 'P', '3', '2', 'g', 'a', 'm', 'e', 'P','a','d', // Device Name
     0x02, ESP_BLE_AD_TYPE_TX_PWR, 0xEB,           // TX Power Level (0x00 corresponds to -21 dBm)
