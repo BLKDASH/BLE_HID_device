@@ -72,9 +72,6 @@ void app_main(void)
     }
 }
 
-//  UUID为0x1812，注册为HID设备
-#if (UUID_MOD == 128)
-// 向外展示1812的HID标志
 static uint8_t hidd_service_uuid[] =
     {
         /* LSB <--------------------------------------------------------------------------------> MSB */
@@ -96,16 +93,7 @@ static uint8_t hidd_service_uuid[] =
         0x00,
         0x00,
 };
-#endif
 
-#if (UUID_MOD == 16)
-static uint8_t hidd_service_uuid[] = {
-    /* LSB <------> MSB */
-    0x12,
-    0x18,
-};
-// static uint16_t hidd_service_uuid16 = 0x1812;
-#endif
 
 // GATT 广播数据
 static esp_ble_adv_data_t hidd_adv_data =
