@@ -26,8 +26,6 @@
 //todo:弄懂为啥hidInfo关闭正常连接
 
 /*
-此 HID 设备包含 4 种报告（Report）：鼠标（Report 1）键盘和 LED（Report 2）消费类设备（如音量控制，Report 3）厂商自定义设备（Report 4）
-用户可以根据自己的应用场景选择不同的报告类型。BLE HID 配置文件继承了 USB HID 类的功能特性。
 注意事项：
 Windows 10 不支持厂商自定义报告（Vendor Report），因此 SUPPORT_REPORT_VENDOR 始终设置为 FALSE，该定义位于 hidd_le_prf_int.h 文件中。
 在 iPhone 的 HID 加密期间不允许更新连接参数，因此从设备会在加密期间关闭自动更新连接参数的功能。
@@ -49,6 +47,31 @@ static void hidd_event_callback(esp_hidd_cb_event_t event, esp_hidd_cb_param_t *
 
 #define HIDD_DEVICE_NAME "ESP32GamePad"
 // #define HIDD_DEVICE_NAME            "MYGT Controller"
+
+
+void app_main(void)
+{
+    if (ESP_OK == ble_init())
+    {
+        ble_sec_config();
+    }
+    ESP_LOGI("Main", "BLE HID Init OK");
+    // 创建调整音量任务
+    #if(gamePadMode == 0)
+    xTaskCreate(&hid_demo_task, "hid_task", 2048, NULL, 5, NULL);
+    // 创建鼠标移动任务
+    // xTaskCreate(&mouse_move_task, "mouse_move_task", 2048, NULL, 5, NULL);
+    #elif(gamePadMode == 1)
+    // 模拟手柄任务
+    xTaskCreate(&gamepad_button_task, "gamepad_button_task", 4096, NULL, 5, NULL);
+    #endif
+    // ESP_LOGI("SIZEUUID:","%d",sizeof(hidd_service_uuid));
+    while (1)
+    {
+        vTaskDelay(pdMS_TO_TICKS(1000));
+    }
+}
+
 //  UUID为0x1812，注册为HID设备
 #if (UUID_MOD == 128)
 // 向外展示1812的HID标志
@@ -106,6 +129,29 @@ static esp_ble_adv_data_t hidd_adv_data =
 };
 
 
+
+// 原始广播数据包
+uint8_t hidd_adv_data_raw[] = {
+    0x02, ESP_BLE_AD_TYPE_FLAG, 0x06,           // Flags: LE General Discoverable Mode, BR/EDR Not Supported
+    0x03, ESP_BLE_AD_TYPE_16SRV_PART, 0x12, 0x18,     // 部分16位UUID
+    // 0x03, ESP_BLE_AD_TYPE_16SRV_CMPL, 0x12, 0x18,        // 完整16位UUID
+    // 0x11, ESP_BLE_AD_TYPE_128SRV_CMPL,
+    // // 正确的128位UUID：00001812-0000-1000-8000-00805f9b34fb (HID service)
+    // 0xfb, 0x34, 0x9b, 0x5f, 0x80, 0x00, 0x00, 0x80,
+    // 0x00, 0x10, 0x00, 0x00, 0x12, 0x18, 0x00, 0x00,
+
+
+    // 0x0D, 0x09,                 // Length of Device Name + 1 byte for length field
+    // 'E', 'S', 'P', '3', '2', 'g', 'a', 'm', 'e', 'P','a','d', // Device Name
+    0x02, ESP_BLE_AD_TYPE_TX_PWR, 0xEB,           // TX Power Level (0x00 corresponds to -21 dBm)
+};
+
+static uint8_t raw_scan_rsp_data[] = {
+    /* Complete Local Name */
+    0x0D, ESP_BLE_AD_TYPE_NAME_CMPL, 'E', 'S', 'P', '3', '2', 'g', 'a', 'm', 'e', 'P','a','d',   // Length 13, Data Type ESP_BLE_AD_TYPE_NAME_CMPL, Data (ESP_GATTS_DEMO)
+    0x03, ESP_BLE_AD_TYPE_16SRV_PART, 0x12, 0x18,
+};
+
 // 广播参数
 static esp_ble_adv_params_t hidd_adv_params = {
     .adv_int_min = 0x20, // 设置广播间隔的最小和最大值
@@ -136,14 +182,17 @@ static void hidd_event_callback(esp_hidd_cb_event_t event, esp_hidd_cb_param_t *
             // esp_bd_addr_t rand_addr = {0x04,0x11,0x11,0x11,0x11,0x05};
             esp_ble_gap_set_device_name(HIDD_DEVICE_NAME);
             // 该API不支持16位UUID
-            if (ESP_OK == esp_ble_gap_config_adv_data(&hidd_adv_data))
-            {
-                ESP_LOGI("HIDDcallback", "GAP Config Adv Data OK");
-            }
-            // if(ESP_OK==esp_ble_gap_config_adv_data_raw(hidd_adv_data_raw, hidd_adv_data_raw_len))
+            // if (ESP_OK == esp_ble_gap_config_adv_data(&hidd_adv_data))
             // {
-            //     ESP_LOGI("HIDD_CALLBACK","GAP Config Adv Data OK");
+            //     ESP_LOGI("HIDDcallback", "GAP Config Adv Data OK");
             // }
+
+
+            if(ESP_OK==esp_ble_gap_config_adv_data_raw(hidd_adv_data_raw, sizeof(hidd_adv_data_raw)))
+            {
+                if(ESP_OK==esp_ble_gap_config_scan_rsp_data_raw(raw_scan_rsp_data, sizeof(raw_scan_rsp_data)))
+                {ESP_LOGI("HIDDcallback","GAP Config Adv Data OK");}
+            }
             else
             {
                 ESP_LOGI("HIDDcallback", "GAP Config Adv Data Failed");
@@ -204,7 +253,12 @@ static void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param
     switch (event)
     {
     case ESP_GAP_BLE_ADV_DATA_SET_COMPLETE_EVT: // 设置广播数据成功事件，When advertising data set complete, the event comes    
-    esp_ble_gap_start_advertising(&hidd_adv_params);
+        ESP_LOGI(HID_BLE_TAG, "ESP_GAP_BLE_ADV_DATA_SET_COMPLETE_EVT");
+        esp_ble_gap_start_advertising(&hidd_adv_params);
+        break;
+    case ESP_GAP_BLE_ADV_DATA_RAW_SET_COMPLETE_EVT: // 设置广播数据成功事件，When advertising data set complete, the event comes    
+        ESP_LOGI(HID_BLE_TAG, "ESP_GAP_BLE_ADV_DATA_RAW_SET_COMPLETE_EVT");
+        esp_ble_gap_start_advertising(&hidd_adv_params);
         break;
     case ESP_GAP_BLE_SEC_REQ_EVT: // 安全请求事件，BLE security request
         for (int i = 0; i < ESP_BD_ADDR_LEN; i++)
@@ -231,6 +285,36 @@ static void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param
         break;
     }
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 /**
  * @brief HID演示任务函数
@@ -407,28 +491,4 @@ esp_err_t ble_sec_config(void)
     return ESP_OK;
 }
 
-void app_main(void)
-{
 
-    // ble_init();
-
-    if (ESP_OK == ble_init())
-    {
-        ble_sec_config();
-    }
-    ESP_LOGI("Main", "BLE HID Init OK");
-    // 创建调整音量任务
-    #if(gamePadMode == 0)
-    xTaskCreate(&hid_demo_task, "hid_task", 2048, NULL, 5, NULL);
-    // 创建鼠标移动任务
-    // xTaskCreate(&mouse_move_task, "mouse_move_task", 2048, NULL, 5, NULL);
-    #elif(gamePadMode == 1)
-    // 模拟手柄任务
-    xTaskCreate(&gamepad_button_task, "gamepad_button_task", 4096, NULL, 5, NULL);
-    #endif
-    // ESP_LOGI("SIZEUUID:","%d",sizeof(hidd_service_uuid));
-    while (1)
-    {
-        vTaskDelay(pdMS_TO_TICKS(1000));
-    }
-}
