@@ -39,6 +39,7 @@ struct prf_char_pres_fmt
 static hid_report_map_t hid_rpt_map[HID_NUM_REPORTS];
 // static hid_report_map_t hid_rpt_map_gamepad[HID_NUM_REPORTS];
 
+#if(gamePadMode == 0)
 // HID报告描述符
 // 鼠标：支持3个按钮、X/Y坐标移动、滚轮。
 // 键盘：支持修饰键（如Shift）、6个普通按键、LED输出（如Caps Lock）。
@@ -197,84 +198,10 @@ static const uint8_t hidReportMap[] = {
 #endif
 
 };
-
-// 网上找的
-static const uint8_t hidReportMapNetJoystick[] = {
-    0x15, 0x00, // LOGICAL_MINIMUM (0)
-    0x05, 0x01, // USAGE_PAGE (Generic Desktop)
-    0x09, 0x04, // USAGE (Joystick)
-    0xA1, 0x01, // COLLECTION (Application)
-
-    0x05, 0x02, //   USAGE_PAGE (Simulation Controls)
-    0x09, 0xBB, //   USAGE (Throttle)
-    0x15, 0x81, //   LOGICAL_MINIMUM (-127)
-    0x25, 0x7F, //   LOGICAL_MAXIMUM (127)
-    0x75, 0x08, //   REPORT_SIZE (8)
-    0x95, 0x01, //   REPORT_COUNT (1)
-    0x81, 0x02, //   INPUT (Data, Variable, Absolute)
-
-    0xA9, 0x01,                   //   DELIMITER (Open)
-    0x09, 0x20,                   //     USAGE (Flight Control Stick)
-    0x0B, 0x01, 0x00, 0x01, 0x00, //   USAGE (Generic Desktop:Pointer)
-
-    0xA9, 0x00,                   //   DELIMITER (Close)
-    0xA1, 0x00,                   //   COLLECTION (Physical)
-    0x0B, 0x30, 0x00, 0x01, 0x00, //   USAGE (Generic Desktop:X)
-    0x0B, 0x31, 0x00, 0x01, 0x00, //   USAGE (Generic Desktop:Y)
-    0x95, 0x02,                   //   REPORT_COUNT (2)
-    0x81, 0x02,                   //   INPUT (Data, Variable, Absolute)
-    0xC0,                         //   END_COLLECTION
-
-    0xA9, 0x01,                   //   DELIMITER (Open)
-    0x0B, 0x20, 0x00, 0x05, 0x00, //   USAGE (Gaming Controls:Point of View)
-    0x0B, 0x39, 0x00, 0x01, 0x00, //   USAGE (Generic Desktop:Hat switch)
-
-    0xA9, 0x00,       //   DELIMITER (Close)
-    0x15, 0x00,       //   LOGICAL_MINIMUM (0)
-    0x25, 0x03,       //   LOGICAL_MAXIMUM (3)
-    0x35, 0x00,       //   PHYSICAL_MINIMUM (0)
-    0x46, 0x0E, 0x01, //   PHYSICAL_MAXIMUM (270)
-    0x65, 0x14,       //   UNIT (Eng Rot:Angular Pos)
-    0x55, 0x00,       //   UNIT_EXPONENT (0)
-    0x75, 0x04,       //   REPORT_SIZE (4)
-    0x95, 0x01,       //   REPORT_COUNT (1)
-    0x81, 0x02,       //   INPUT (Data, Variable, Absolute)
-
-    0xA9, 0x01,                   //   DELIMITER (Open)
-    0x0B, 0x01, 0x00, 0x09, 0x00, //   USAGE (Button:Button 1)
-    0x09, 0xC0,                   //   USAGE (Trigger)
-
-    0xA9, 0x00,                   //   DELIMITER (Close)
-    0xA9, 0x01,                   //   DELIMITER (Open)
-    0x0B, 0x02, 0x00, 0x09, 0x00, //   USAGE (Button:Button 2)
-    0x09, 0xC2,                   //   USAGE (Weapons Select)
-
-    0xA9, 0x00,                   //   DELIMITER (Close)
-    0xA9, 0x01,                   //   DELIMITER (Open)
-    0x0B, 0x03, 0x00, 0x09, 0x00, //   USAGE (Button:Button 3)
-    0x09, 0xB7,                   //   USAGE (Electronic Counter Measures)
-    0x09, 0xBD,                   //   USAGE (Flare Release)
-
-    0xA9, 0x00,                   //   DELIMITER (Close)
-    0xA9, 0x01,                   //   DELIMITER (Open)
-    0x0B, 0x04, 0x00, 0x09, 0x00, //   USAGE (Button:Button 4)
-    0x09, 0xBE,                   //   USAGE (Landing Gear)
-    0x09, 0xB4,                   //   USAGE (Chaff Release)
-
-    0xA9, 0x00, //   DELIMITER (Close)
-    0x15, 0x00, //   LOGICAL_MINIMUM (0)
-    0x25, 0x01, //   LOGICAL_MAXIMUM (1)
-    0x35, 0x00, //   PHYSICAL_MINIMUM (0)
-    0x45, 0x01, //   PHYSICAL_MAXIMUM (1)
-    0x75, 0x01, //   REPORT_SIZE (1)
-    0x95, 0x04, //   REPORT_COUNT (4)
-    0x65, 0x00, //   UNIT (None)
-    0x81, 0x02, //   INPUT (Data, Variable, Absolute)
-
-    0xC0 // END_COLLECTION
-};
+#endif
 
 // MYGT 格式：定义游戏手柄的 HID 报告描述符
+#if(gamePadMode == 1)
 static const uint8_t hidReportMapMYGTGamePad[] = {
     // ID 1--------------------------------------------
     0x05, 0x01, // Usage Page (Generic Desktop Ctrls)
@@ -376,7 +303,7 @@ static const uint8_t hidReportMapMYGTGamePad[] = {
     0x81, 0x02,       //   输入 (数据,变量,绝对值) - 踏板数据
     0xC0,             // 结束集合 - 结束应用层集合
 };
-
+#endif
 /// Battery Service Attributes Indexes
 enum
 {
@@ -474,7 +401,7 @@ static uint8_t hidReportRefGamePadCCIn[HID_REPORT_REF_LEN] =
 
 // ID4手柄
 static uint8_t hidReportRefGamePadStickIn[HID_REPORT_REF_LEN] =
-    {HID_RPT_ID_GAMEPAD_STICK_IN, HID_REPORT_TYPE_OUTPUT};
+    {HID_RPT_ID_GAMEPAD_STICK_IN, HID_REPORT_TYPE_INPUT};
 // 不知道是啥
 static uint8_t hidReportRefFeature[HID_REPORT_REF_LEN] =
     {HID_RPT_ID_FEATURE, HID_REPORT_TYPE_FEATURE};
@@ -791,8 +718,8 @@ void esp_hidd_prf_cb_hdl(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if,
         break;
     case ESP_GATTS_WRITE_EVT:
     {
-        // 处理客户端写入特征值事件
-        #if(gamePadMode == 0)
+        // 处理客户端写入特征值事件（不处理）
+        #if((gamePadMode == 0) & (gamePadMode == 1))
         esp_hidd_cb_param_t cb_param = {0};
         if (param->write.handle == hidd_le_env.hidd_inst.att_tbl[HIDD_LE_IDX_REPORT_LED_OUT_VAL])
         {
@@ -1052,6 +979,7 @@ static void hid_add_id_tbl(void)
     hid_rpt_map[0].handle = hidd_le_env.hidd_inst.att_tbl[HIDD_LE_IDX_REPORT_GAMEPAD_MOUSE_IN_VAL];
     hid_rpt_map[0].cccdHandle = hidd_le_env.hidd_inst.att_tbl[HIDD_LE_IDX_REPORT_GAMEPAD_MOUSE_IN_CCC];
     hid_rpt_map[0].mode = HID_PROTOCOL_MODE_REPORT;
+    ESP_LOGI("MAP[0]","MOUSE headle = %d,ReportID = %d,type = %d",hid_rpt_map[0].handle, hid_rpt_map[0].id, hid_rpt_map[0].type);
 
     // ID==3cc
     hid_rpt_map[1].id = hidReportRefGamePadCCIn[0];
@@ -1059,6 +987,7 @@ static void hid_add_id_tbl(void)
     hid_rpt_map[1].handle = hidd_le_env.hidd_inst.att_tbl[HIDD_LE_IDX_REPORT_GAMEPAD_CC_IN_VAL];
     hid_rpt_map[1].cccdHandle = hidd_le_env.hidd_inst.att_tbl[HIDD_LE_IDX_REPORT_GAMEPAD_CC_IN_CCC];
     hid_rpt_map[1].mode = HID_PROTOCOL_MODE_REPORT;
+    ESP_LOGI("MAP[1]","CC headle = %d,ReportID = %d,type = %d",hid_rpt_map[1].handle, hid_rpt_map[1].id, hid_rpt_map[1].type);
 
     // ID==4，手柄stick
     hid_rpt_map[2].id = hidReportRefGamePadStickIn[0];
@@ -1066,12 +995,15 @@ static void hid_add_id_tbl(void)
     hid_rpt_map[2].handle = hidd_le_env.hidd_inst.att_tbl[HIDD_LE_IDX_REPORT_GAMEPAD_STICK_IN_VAL];
     hid_rpt_map[2].cccdHandle = hidd_le_env.hidd_inst.att_tbl[HIDD_LE_IDX_REPORT_GAMEPAD_STICK_IN_CCC];
     hid_rpt_map[2].mode = HID_PROTOCOL_MODE_REPORT;
-    // 不知道是啥
-    hid_rpt_map[7].id = hidReportRefFeature[0];
-    hid_rpt_map[7].type = hidReportRefFeature[1];
-    hid_rpt_map[7].handle = hidd_le_env.hidd_inst.att_tbl[HIDD_LE_IDX_REPORT_VAL];
-    hid_rpt_map[7].cccdHandle = 0;
-    hid_rpt_map[7].mode = HID_PROTOCOL_MODE_REPORT;
+    ESP_LOGI("MAP[2]","STICK headle = %d,ReportID = %d,type = %d",hid_rpt_map[2].handle, hid_rpt_map[2].id, hid_rpt_map[2].type);
+    // 不知道是啥玩意
+    hid_rpt_map[3].id = hidReportRefFeature[0];
+    hid_rpt_map[3].type = hidReportRefFeature[1];
+    hid_rpt_map[3].handle = hidd_le_env.hidd_inst.att_tbl[HIDD_LE_IDX_REPORT_VAL];
+    hid_rpt_map[3].cccdHandle = 0;
+    hid_rpt_map[3].mode = HID_PROTOCOL_MODE_REPORT;
+    ESP_LOGI("MAP[3]","Report headle = %d,ReportID = %d,type = %d",hid_rpt_map[7].handle, hid_rpt_map[7].id, hid_rpt_map[7].type);
+
     #endif
 
     // Setup report ID map

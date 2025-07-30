@@ -34,7 +34,12 @@
 #define HID_MAX_APPS                 1
 
 // Number of HID reports defined in the service
+
+#if(gamePadMode == 0)
 #define HID_NUM_REPORTS          9
+#elif(gamePadMode == 1)
+#define HID_NUM_REPORTS          5
+#endif
 
 // HID Report IDs for the service
 #if(gamePadMode == 0)
@@ -44,9 +49,7 @@
     #define HID_RPT_ID_VENDOR_OUT    4   // Vendor output report ID
     #define HID_RPT_ID_LED_OUT       2  // LED output report ID
     #define HID_RPT_ID_FEATURE       0  // Feature report ID
-#endif
-
-#if(gamePadMode == 1)
+#elif(gamePadMode == 1)
     #define HID_RPT_ID_GAMEPAD_MOUSE_IN       1
     #define HID_RPT_ID_GAMEPAD_CC_IN         3
     #define HID_RPT_ID_GAMEPAD_STICK_IN        4
@@ -203,63 +206,63 @@ enum {
 };
 
 
-/// Attribute Table Indexes
-enum {
-    HIDD_LE_INFO_CHAR,
-    HIDD_LE_CTNL_PT_CHAR,
-    HIDD_LE_REPORT_MAP_CHAR,
-    HIDD_LE_REPORT_CHAR,
-    HIDD_LE_PROTO_MODE_CHAR,
-    HIDD_LE_BOOT_KB_IN_REPORT_CHAR,
-    HIDD_LE_BOOT_KB_OUT_REPORT_CHAR,
-    HIDD_LE_BOOT_MOUSE_IN_REPORT_CHAR,
-    HIDD_LE_CHAR_MAX //= HIDD_LE_REPORT_CHAR + HIDD_LE_NB_REPORT_INST_MAX,
-};
+// /// Attribute Table Indexes
+// enum {
+//     HIDD_LE_INFO_CHAR,
+//     HIDD_LE_CTNL_PT_CHAR,
+//     HIDD_LE_REPORT_MAP_CHAR,
+//     HIDD_LE_REPORT_CHAR,
+//     HIDD_LE_PROTO_MODE_CHAR,
+//     HIDD_LE_BOOT_KB_IN_REPORT_CHAR,
+//     HIDD_LE_BOOT_KB_OUT_REPORT_CHAR,
+//     HIDD_LE_BOOT_MOUSE_IN_REPORT_CHAR,
+//     HIDD_LE_CHAR_MAX //= HIDD_LE_REPORT_CHAR + HIDD_LE_NB_REPORT_INST_MAX,
+// };
 
-///att read event table Indexs
-enum {
-    HIDD_LE_READ_INFO_EVT,
-    HIDD_LE_READ_CTNL_PT_EVT,
-    HIDD_LE_READ_REPORT_MAP_EVT,
-    HIDD_LE_READ_REPORT_EVT,
-    HIDD_LE_READ_PROTO_MODE_EVT,
-    HIDD_LE_BOOT_KB_IN_REPORT_EVT,
-    HIDD_LE_BOOT_KB_OUT_REPORT_EVT,
-    HIDD_LE_BOOT_MOUSE_IN_REPORT_EVT,
+// ///att read event table Indexs
+// enum {
+//     HIDD_LE_READ_INFO_EVT,
+//     HIDD_LE_READ_CTNL_PT_EVT,
+//     HIDD_LE_READ_REPORT_MAP_EVT,
+//     HIDD_LE_READ_REPORT_EVT,
+//     HIDD_LE_READ_PROTO_MODE_EVT,
+//     HIDD_LE_BOOT_KB_IN_REPORT_EVT,
+//     HIDD_LE_BOOT_KB_OUT_REPORT_EVT,
+//     HIDD_LE_BOOT_MOUSE_IN_REPORT_EVT,
 
-    HID_LE_EVT_MAX
-};
+//     HID_LE_EVT_MAX
+// };
 
-/// Client Characteristic Configuration Codes
-enum {
-    HIDD_LE_DESC_MASK = 0x10,
+// /// Client Characteristic Configuration Codes
+// enum {
+//     HIDD_LE_DESC_MASK = 0x10,
 
-    HIDD_LE_BOOT_KB_IN_REPORT_CFG     = HIDD_LE_BOOT_KB_IN_REPORT_CHAR | HIDD_LE_DESC_MASK,
-    HIDD_LE_BOOT_MOUSE_IN_REPORT_CFG  = HIDD_LE_BOOT_MOUSE_IN_REPORT_CHAR | HIDD_LE_DESC_MASK,
-    HIDD_LE_REPORT_CFG                = HIDD_LE_REPORT_CHAR | HIDD_LE_DESC_MASK,
-};
+//     HIDD_LE_BOOT_KB_IN_REPORT_CFG     = HIDD_LE_BOOT_KB_IN_REPORT_CHAR | HIDD_LE_DESC_MASK,
+//     HIDD_LE_BOOT_MOUSE_IN_REPORT_CFG  = HIDD_LE_BOOT_MOUSE_IN_REPORT_CHAR | HIDD_LE_DESC_MASK,
+//     HIDD_LE_REPORT_CFG                = HIDD_LE_REPORT_CHAR | HIDD_LE_DESC_MASK,
+// };
 
-/// Features Flag Values
-enum {
-    HIDD_LE_CFG_KEYBOARD      = 0x01,
-    HIDD_LE_CFG_MOUSE         = 0x02,
-    HIDD_LE_CFG_PROTO_MODE    = 0x04,
-    HIDD_LE_CFG_MAP_EXT_REF   = 0x08,
-    HIDD_LE_CFG_BOOT_KB_WR    = 0x10,
-    HIDD_LE_CFG_BOOT_MOUSE_WR = 0x20,
-};
+// /// Features Flag Values
+// enum {
+//     HIDD_LE_CFG_KEYBOARD      = 0x01,
+//     HIDD_LE_CFG_MOUSE         = 0x02,
+//     HIDD_LE_CFG_PROTO_MODE    = 0x04,
+//     HIDD_LE_CFG_MAP_EXT_REF   = 0x08,
+//     HIDD_LE_CFG_BOOT_KB_WR    = 0x10,
+//     HIDD_LE_CFG_BOOT_MOUSE_WR = 0x20,
+// };
 
-/// Report Char. Configuration Flag Values
-enum {
-    HIDD_LE_CFG_REPORT_IN     = 0x01,
-    HIDD_LE_CFG_REPORT_OUT    = 0x02,
-    //HOGPD_CFG_REPORT_FEAT can be used as a mask to check Report type
-    HIDD_LE_CFG_REPORT_FEAT   = 0x03,
-    HIDD_LE_CFG_REPORT_WR     = 0x10,
-};
+// /// Report Char. Configuration Flag Values
+// enum {
+//     HIDD_LE_CFG_REPORT_IN     = 0x01,
+//     HIDD_LE_CFG_REPORT_OUT    = 0x02,
+//     //HOGPD_CFG_REPORT_FEAT can be used as a mask to check Report type
+//     HIDD_LE_CFG_REPORT_FEAT   = 0x03,
+//     HIDD_LE_CFG_REPORT_WR     = 0x10,
+// };
 
-/// Pointer to the connection clean-up function
-#define HIDD_LE_CLEANUP_FNCT        (NULL)
+// /// Pointer to the connection clean-up function
+// #define HIDD_LE_CLEANUP_FNCT        (NULL)
 
 /*
  * TYPE DEFINITIONS
