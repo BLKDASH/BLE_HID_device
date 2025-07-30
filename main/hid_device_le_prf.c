@@ -3,7 +3,7 @@
 #include "hidd_le_prf_int.h"
 #include <string.h>
 #include "esp_log.h"
-
+#include "main.h"
 /// @brief Characteristic Presentation Format 结构体
 /// 用于描述 BLE HID 设备中某个 Characteristic 的数据表示格式信息
 ///
@@ -276,11 +276,11 @@ static const uint8_t hidReportMapNetJoystick[] = {
 
 // MYGT 格式：定义游戏手柄的 HID 报告描述符
 static const uint8_t hidReportMapMYGTGamePad[] = {
-    // ID 1
+    // ID 1--------------------------------------------
     0x05, 0x01, // Usage Page (Generic Desktop Ctrls)
-    0x09, 0x02, // Usage (Mouse)
+    0x09, 0x02, // 用途：鼠标
     0xA1, 0x01, // Collection (Application)开集合
-    0x09, 0x01, //   Usage (Pointer)
+    0x09, 0x01, //   用途：指针
     0xA1, 0x00, //   Collection (Physical)开集合
     0x85, 0x01, //     Report ID (1)
     0x05, 0x09, //     Usage Page (Button)
@@ -290,10 +290,10 @@ static const uint8_t hidReportMapMYGTGamePad[] = {
     0x25, 0x01, //     Logical Maximum (1)
     0x75, 0x01, //     Report Size (1)
     0x95, 0x03, //     Report Count (3)
-    0x81, 0x02, //     Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
+    0x81, 0x02, //     Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)//三个按键，每个按键占用1位
     0x75, 0x05, //     Report Size (5)
     0x95, 0x01, //     Report Count (1)
-    0x81, 0x03, //     Input (Const,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
+    0x81, 0x03, //     Input (Const,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)//填充5位，方便对齐到一个字节
     0x05, 0x01, //     Usage Page (Generic Desktop Ctrls)
     0x09, 0x30, //     Usage (X)
     0x09, 0x31, //     Usage (Y)
@@ -306,7 +306,7 @@ static const uint8_t hidReportMapMYGTGamePad[] = {
     0xC0,       //   End Collection关集合
     0xC0,       // End Collection关集合
 
-    // ID3
+    // ID 3--------------------------------------------
     0x05, 0x0C,       // Usage Page (Consumer)
     0x09, 0x01,       // Usage (Consumer Control)
     0xA1, 0x01,       // Collection (Application)
@@ -320,7 +320,7 @@ static const uint8_t hidReportMapMYGTGamePad[] = {
     0x81, 0x00,       //   Input (Data,Array,Abs,No Wrap,Linear,Preferred State,No Null Position)
     0xC0,             // End Collection
 
-    // ID4
+    // ID 4--------------------------------------------
     0x05, 0x01, // 使用页面 (通用桌面控制)
     0x09, 0x05, // 使用 (游戏手柄)
     0xA1, 0x01, // 集合 (应用层) - 开始定义游戏手柄设备
@@ -414,7 +414,11 @@ struct gatts_profile_inst
 hidd_le_env_t hidd_le_env;
 
 // HID report map length
-uint8_t hidReportMapLen = sizeof(hidReportMap);
+#if(gamePadMode == 0)
+    uint8_t hidReportMapLen = sizeof(hidReportMap);
+#elif(gamePadMode == 1)
+    uint8_t hidReportMapLen = sizeof(hidReportMapMYGTGamePad);
+#endif
 uint8_t hidProtocolMode = HID_PROTOCOL_MODE_REPORT;
 
 // HID report mapping table
@@ -430,6 +434,9 @@ static const uint8_t hidInfo[HID_INFORMATION_LEN] = {
 // HID 外部报告引用描述符
 static uint16_t hidExtReportRefDesc = ESP_GATT_UUID_BATTERY_LEVEL;
 
+
+// 合并报文
+#if(gamePadMode == 0)
 // HID Report Reference characteristic descriptor, mouse input
 static uint8_t hidReportRefMouseIn[HID_REPORT_REF_LEN] =
     {HID_RPT_ID_MOUSE_IN, HID_REPORT_TYPE_INPUT};
@@ -455,6 +462,24 @@ static uint8_t hidReportRefFeature[HID_REPORT_REF_LEN] =
 // HID Report Reference characteristic descriptor, consumer control input
 static uint8_t hidReportRefCCIn[HID_REPORT_REF_LEN] =
     {HID_RPT_ID_CC_IN, HID_REPORT_TYPE_INPUT};
+
+#elif(gamePadMode == 1)
+// ID1鼠标
+static uint8_t hidReportRefGamePadMouseIn[HID_REPORT_REF_LEN] =
+    {HID_RPT_ID_GAMEPAD_MOUSE_IN, HID_REPORT_TYPE_INPUT};
+
+// ID3消费类
+static uint8_t hidReportRefGamePadCCIn[HID_REPORT_REF_LEN] =
+    {HID_RPT_ID_GAMEPAD_CC_IN, HID_REPORT_TYPE_INPUT};
+
+// ID4手柄
+static uint8_t hidReportRefGamePadStickIn[HID_REPORT_REF_LEN] =
+    {HID_RPT_ID_GAMEPAD_STICK_IN, HID_REPORT_TYPE_OUTPUT};
+// 不知道是啥
+static uint8_t hidReportRefFeature[HID_REPORT_REF_LEN] =
+    {HID_RPT_ID_FEATURE, HID_REPORT_TYPE_FEATURE};
+
+#endif
 
 /*
  *  Heart Rate PROFILE ATTRIBUTES
@@ -568,7 +593,11 @@ static esp_gatts_attr_db_t hidd_le_gatt_db[HIDD_LE_IDX_NB] =
         [HIDD_LE_IDX_REPORT_MAP_CHAR] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&character_declaration_uuid, ESP_GATT_PERM_READ, CHAR_DECLARATION_SIZE, CHAR_DECLARATION_SIZE, (uint8_t *)&char_prop_read}},
         // 报告描述符特征值
         //-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+#if(gamePadMode==0)
         [HIDD_LE_IDX_REPORT_MAP_VAL] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&hid_report_map_uuid, ESP_GATT_PERM_READ, HIDD_LE_REPORT_MAP_MAX_LEN, sizeof(hidReportMap), (uint8_t *)&hidReportMap}},
+#elif(gamePadMode==1) 
+        [HIDD_LE_IDX_REPORT_MAP_VAL] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&hid_report_map_uuid, ESP_GATT_PERM_READ, HIDD_LE_REPORT_MAP_MAX_LEN, sizeof(hidReportMapMYGTGamePad), (uint8_t *)&hidReportMapMYGTGamePad}},
+#endif
         //-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
         // Report Map Characteristic - External Report Reference Descriptor
         [HIDD_LE_IDX_REPORT_MAP_EXT_REP_REF] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&hid_repot_map_ext_desc_uuid, ESP_GATT_PERM_READ, sizeof(uint16_t), sizeof(uint16_t), (uint8_t *)&hidExtReportRefDesc}},
@@ -582,7 +611,7 @@ static esp_gatts_attr_db_t hidd_le_gatt_db[HIDD_LE_IDX_NB] =
         [HIDD_LE_IDX_PROTO_MODE_VAL] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&hid_proto_mode_uuid, (ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE), sizeof(uint8_t), sizeof(hidProtocolMode), (uint8_t *)&hidProtocolMode}},
 
 
-
+#if(gamePadMode == 0)
         //增删要同时修改.h枚举中的内容
 
         // 鼠标输入报告声明
@@ -645,6 +674,33 @@ static esp_gatts_attr_db_t hidd_le_gatt_db[HIDD_LE_IDX_NB] =
         [HIDD_LE_IDX_BOOT_MOUSE_IN_REPORT_VAL] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&hid_mouse_input_uuid, ESP_GATT_PERM_READ, HIDD_LE_BOOT_REPORT_MAX_LEN, 0, NULL}},
         // Boot Mouse Input Report Characteristic - Client Characteristic Configuration Descriptor
         [HIDD_LE_IDX_BOOT_MOUSE_IN_REPORT_NTF_CFG] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&character_client_config_uuid, (ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE), sizeof(uint16_t), 0, NULL}},
+#elif(gamePadMode == 1)
+        // FIXME:写一下手柄的描述符
+        // 手柄鼠标输入报告声明
+        [HIDD_LE_IDX_REPORT_GAMEPAD_MOUSE_IN_CHAR] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&character_declaration_uuid, ESP_GATT_PERM_READ, CHAR_DECLARATION_SIZE, CHAR_DECLARATION_SIZE, (uint8_t *)&char_prop_read_notify}},
+        // 手柄鼠标输入报告值（只读，无需分配空间）
+        [HIDD_LE_IDX_REPORT_GAMEPAD_MOUSE_IN_VAL] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&hid_report_uuid, ESP_GATT_PERM_READ, HIDD_LE_REPORT_MAX_LEN, 0, NULL}},
+        // 手柄客户端配置描述符
+        [HIDD_LE_IDX_REPORT_GAMEPAD_MOUSE_IN_CCC] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&character_client_config_uuid, (ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE), sizeof(uint16_t), 0, NULL}},
+        // 手柄鼠标输入报告参数：包含鼠标输入ID，输入还是输出，报文长度
+        [HIDD_LE_IDX_REPORT_GAMEPAD_MOUSE_REP_REF] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&hid_report_ref_descr_uuid, ESP_GATT_PERM_READ, sizeof(hidReportRefGamePadMouseIn), sizeof(hidReportRefGamePadMouseIn), hidReportRefGamePadMouseIn}},
+
+        // 手柄CC
+        [HIDD_LE_IDX_REPORT_GAMEPAD_CC_IN_CHAR] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&character_declaration_uuid, ESP_GATT_PERM_READ, CHAR_DECLARATION_SIZE, CHAR_DECLARATION_SIZE, (uint8_t *)&char_prop_read_notify}},
+        [HIDD_LE_IDX_REPORT_GAMEPAD_CC_IN_VAL] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&hid_report_uuid, ESP_GATT_PERM_READ, HIDD_LE_REPORT_MAX_LEN, 0, NULL}},
+        [HIDD_LE_IDX_REPORT_GAMEPAD_CC_IN_CCC] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&character_client_config_uuid, (ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE), sizeof(uint16_t), 0, NULL}},
+        [HIDD_LE_IDX_REPORT_GAMEPAD_CC_REP_REF] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&hid_report_ref_descr_uuid, ESP_GATT_PERM_READ, sizeof(hidReportRefGamePadCCIn), sizeof(hidReportRefGamePadCCIn), hidReportRefGamePadCCIn}},
+        // 手柄Stick
+        [HIDD_LE_IDX_REPORT_GAMEPAD_STICK_IN_CHAR] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&character_declaration_uuid, ESP_GATT_PERM_READ, CHAR_DECLARATION_SIZE, CHAR_DECLARATION_SIZE, (uint8_t *)&char_prop_read_notify}},
+        [HIDD_LE_IDX_REPORT_GAMEPAD_STICK_IN_VAL] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&hid_report_uuid, ESP_GATT_PERM_READ, HIDD_LE_REPORT_MAX_LEN, 0, NULL}},
+        [HIDD_LE_IDX_REPORT_GAMEPAD_STICK_IN_CCC] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&character_client_config_uuid, (ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE), sizeof(uint16_t), 0, NULL}},
+        [HIDD_LE_IDX_REPORT_GAMEPAD_STICK_REP_REF] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&hid_report_ref_descr_uuid, ESP_GATT_PERM_READ, sizeof(hidReportRefGamePadStickIn), sizeof(hidReportRefGamePadStickIn), hidReportRefGamePadStickIn}},
+
+
+#endif
+
+
+
 
         // Report Characteristic Declaration
         [HIDD_LE_IDX_REPORT_CHAR] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&character_declaration_uuid, ESP_GATT_PERM_READ, CHAR_DECLARATION_SIZE, CHAR_DECLARATION_SIZE, (uint8_t *)&char_prop_read_write}},
@@ -736,6 +792,7 @@ void esp_hidd_prf_cb_hdl(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if,
     case ESP_GATTS_WRITE_EVT:
     {
         // 处理客户端写入特征值事件
+        #if(gamePadMode == 0)
         esp_hidd_cb_param_t cb_param = {0};
         if (param->write.handle == hidd_le_env.hidd_inst.att_tbl[HIDD_LE_IDX_REPORT_LED_OUT_VAL])
         {
@@ -745,6 +802,7 @@ void esp_hidd_prf_cb_hdl(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if,
             cb_param.led_write.data = param->write.value;
             (hidd_le_env.hidd_cb)(ESP_HIDD_EVENT_BLE_LED_REPORT_WRITE_EVT, &cb_param);
         }
+        #endif
 #if (SUPPORT_REPORT_VENDOR == true)
         if (param->write.handle == hidd_le_env.hidd_inst.att_tbl[HIDD_LE_IDX_REPORT_VENDOR_OUT_VAL] &&
             hidd_le_env.hidd_cb != NULL)
@@ -928,6 +986,7 @@ void hidd_get_attr_value(uint16_t handle, uint16_t *length, uint8_t **value)
 
 static void hid_add_id_tbl(void)
 {
+    #if(gamePadMode == 0)
     // Mouse input report
     hid_rpt_map[0].id = hidReportRefMouseIn[0];
     hid_rpt_map[0].type = hidReportRefMouseIn[1];
@@ -986,20 +1045,35 @@ static void hid_add_id_tbl(void)
     hid_rpt_map[7].handle = hidd_le_env.hidd_inst.att_tbl[HIDD_LE_IDX_REPORT_VAL];
     hid_rpt_map[7].cccdHandle = 0;
     hid_rpt_map[7].mode = HID_PROTOCOL_MODE_REPORT;
+    #elif(gamePadMode == 1)
+    // ID==1mouse
+    hid_rpt_map[0].id = hidReportRefGamePadMouseIn[0];
+    hid_rpt_map[0].type = hidReportRefGamePadMouseIn[1];
+    hid_rpt_map[0].handle = hidd_le_env.hidd_inst.att_tbl[HIDD_LE_IDX_REPORT_GAMEPAD_MOUSE_IN_VAL];
+    hid_rpt_map[0].cccdHandle = hidd_le_env.hidd_inst.att_tbl[HIDD_LE_IDX_REPORT_GAMEPAD_MOUSE_IN_CCC];
+    hid_rpt_map[0].mode = HID_PROTOCOL_MODE_REPORT;
+
+    // ID==3cc
+    hid_rpt_map[1].id = hidReportRefGamePadCCIn[0];
+    hid_rpt_map[1].type = hidReportRefGamePadCCIn[1];
+    hid_rpt_map[1].handle = hidd_le_env.hidd_inst.att_tbl[HIDD_LE_IDX_REPORT_GAMEPAD_CC_IN_VAL];
+    hid_rpt_map[1].cccdHandle = hidd_le_env.hidd_inst.att_tbl[HIDD_LE_IDX_REPORT_GAMEPAD_CC_IN_CCC];
+    hid_rpt_map[1].mode = HID_PROTOCOL_MODE_REPORT;
+
+    // ID==4，手柄stick
+    hid_rpt_map[2].id = hidReportRefGamePadStickIn[0];
+    hid_rpt_map[2].type = hidReportRefGamePadStickIn[1];
+    hid_rpt_map[2].handle = hidd_le_env.hidd_inst.att_tbl[HIDD_LE_IDX_REPORT_GAMEPAD_STICK_IN_VAL];
+    hid_rpt_map[2].cccdHandle = hidd_le_env.hidd_inst.att_tbl[HIDD_LE_IDX_REPORT_GAMEPAD_STICK_IN_CCC];
+    hid_rpt_map[2].mode = HID_PROTOCOL_MODE_REPORT;
+    // 不知道是啥
+    hid_rpt_map[7].id = hidReportRefFeature[0];
+    hid_rpt_map[7].type = hidReportRefFeature[1];
+    hid_rpt_map[7].handle = hidd_le_env.hidd_inst.att_tbl[HIDD_LE_IDX_REPORT_VAL];
+    hid_rpt_map[7].cccdHandle = 0;
+    hid_rpt_map[7].mode = HID_PROTOCOL_MODE_REPORT;
+    #endif
 
     // Setup report ID map
     hid_dev_register_reports(HID_NUM_REPORTS, hid_rpt_map);
 }
-
-// static void hid_add_id_tbl_gamepad(void)
-// {
-//     // GamePad input report with Report ID 4
-//     hidReportMapMYGTGamePad[0].id = 0x04;  // Report ID为4，根据hidReportMapMYGTGamePad中的0x85, 0x04定义
-//     hidReportMapMYGTGamePad[0].type = HID_REPORT_TYPE_INPUT;  // 输入报告类型
-//     hidReportMapMYGTGamePad[0].handle = hidd_le_env.hidd_inst.att_tbl[HIDD_LE_IDX_REPORT_VAL];  // 报告值句柄
-//     hidReportMapMYGTGamePad[0].cccdHandle = 0;  // 此报告没有通知配置
-//     hidReportMapMYGTGamePad[0].mode = HID_PROTOCOL_MODE_REPORT;  // 报告协议模式
-
-//     // 注册报告映射表
-//     hid_dev_register_reports(1, hidReportMapMYGTGamePad);
-// }

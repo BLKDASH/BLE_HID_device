@@ -14,6 +14,7 @@
 #include "esp_hidd_prf_api.h"
 #include "esp_gap_ble_api.h"
 #include "hid_dev.h"
+#include "main.h"
 
 #define SUPPORT_REPORT_VENDOR                 false
 //HID BLE profile log tag
@@ -36,12 +37,22 @@
 #define HID_NUM_REPORTS          9
 
 // HID Report IDs for the service
-#define HID_RPT_ID_MOUSE_IN      1   // Mouse input report ID
-#define HID_RPT_ID_KEY_IN        2   // Keyboard input report ID
-#define HID_RPT_ID_CC_IN         3   //Consumer Control input report ID
-#define HID_RPT_ID_VENDOR_OUT    4   // Vendor output report ID
-#define HID_RPT_ID_LED_OUT       2  // LED output report ID
-#define HID_RPT_ID_FEATURE       0  // Feature report ID
+#if(gamePadMode == 0)
+    #define HID_RPT_ID_MOUSE_IN      1   // Mouse input report ID
+    #define HID_RPT_ID_KEY_IN        2   // Keyboard input report ID
+    #define HID_RPT_ID_CC_IN         3   //Consumer Control input report ID
+    #define HID_RPT_ID_VENDOR_OUT    4   // Vendor output report ID
+    #define HID_RPT_ID_LED_OUT       2  // LED output report ID
+    #define HID_RPT_ID_FEATURE       0  // Feature report ID
+#endif
+
+#if(gamePadMode == 1)
+    #define HID_RPT_ID_GAMEPAD_MOUSE_IN       1
+    #define HID_RPT_ID_GAMEPAD_CC_IN         3
+    #define HID_RPT_ID_GAMEPAD_STICK_IN        4
+    #define HID_RPT_ID_FEATURE       0  // Feature report ID
+
+#endif
 
 // HID的APP ID
 #define HIDD_APP_ID			0x1812//ATT_SVC_HID
@@ -88,6 +99,7 @@
 #define HID_REPORT_REF_LEN              2         // HID Report Reference Descriptor
 #define HID_EXT_REPORT_REF_LEN          2         // External Report Reference Descriptor
 
+
 // HID feature flags
 #define HID_KBD_FLAGS             HID_FLAGS_REMOTE_WAKE
 
@@ -121,6 +133,8 @@ enum {
     HIDD_LE_IDX_PROTO_MODE_CHAR,
     HIDD_LE_IDX_PROTO_MODE_VAL,
 
+
+#if(gamePadMode == 0)
     // Report mouse input
     HIDD_LE_IDX_REPORT_MOUSE_IN_CHAR,
     HIDD_LE_IDX_REPORT_MOUSE_IN_VAL,
@@ -160,6 +174,24 @@ enum {
     HIDD_LE_IDX_BOOT_MOUSE_IN_REPORT_CHAR,
     HIDD_LE_IDX_BOOT_MOUSE_IN_REPORT_VAL,
     HIDD_LE_IDX_BOOT_MOUSE_IN_REPORT_NTF_CFG,
+#elif(gamePadMode == 1)
+    HIDD_LE_IDX_REPORT_GAMEPAD_MOUSE_IN_CHAR,
+    HIDD_LE_IDX_REPORT_GAMEPAD_MOUSE_IN_VAL,
+    HIDD_LE_IDX_REPORT_GAMEPAD_MOUSE_IN_CCC,
+    HIDD_LE_IDX_REPORT_GAMEPAD_MOUSE_REP_REF,
+
+    HIDD_LE_IDX_REPORT_GAMEPAD_CC_IN_CHAR,
+    HIDD_LE_IDX_REPORT_GAMEPAD_CC_IN_VAL,
+    HIDD_LE_IDX_REPORT_GAMEPAD_CC_IN_CCC,
+    HIDD_LE_IDX_REPORT_GAMEPAD_CC_REP_REF,
+
+    HIDD_LE_IDX_REPORT_GAMEPAD_STICK_IN_CHAR,
+    HIDD_LE_IDX_REPORT_GAMEPAD_STICK_IN_VAL,
+    HIDD_LE_IDX_REPORT_GAMEPAD_STICK_IN_CCC,
+    HIDD_LE_IDX_REPORT_GAMEPAD_STICK_REP_REF,
+
+
+#endif
 
     // Report
     HIDD_LE_IDX_REPORT_CHAR,

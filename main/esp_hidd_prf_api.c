@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "esp_log.h"
+#include "main.h"
 
 // HID keyboard input report length
 #define HID_KEYBOARD_IN_RPT_LEN 8
@@ -17,6 +18,8 @@
 
 // HID输入报文长度
 #define HID_CC_IN_RPT_LEN 3
+
+#define HID_GAMEPAD_IN_RPT_LEN 10
 
 /**
  * @brief 注册HID设备的回调函数并初始化GATT服务应用。
@@ -119,6 +122,7 @@ uint16_t esp_hidd_get_version(void)
     return HIDD_VERSION;
 }
 
+#if(gamePadMode == 0)
 void esp_hidd_send_consumer_value(uint16_t conn_id, uint8_t key_cmd, bool key_pressed)
 {
     // 定义buffer，初始化为0
@@ -175,7 +179,10 @@ void esp_hidd_send_mouse_value(uint16_t conn_id, uint8_t mouse_button, int8_t mi
     return;
 }
 
+#elif(gamePadMode == 1)
 void esp_hidd_send_gamepad_report(uint16_t conn_id, uint8_t report_id, uint8_t report_type, uint8_t *data, uint8_t length)
 {
     hid_dev_send_report(hidd_le_env.gatt_if, conn_id, report_id, report_type, length, data);
 }
+
+#endif

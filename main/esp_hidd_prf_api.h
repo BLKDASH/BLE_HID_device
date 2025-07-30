@@ -10,6 +10,7 @@
 #include "esp_bt_defs.h"
 #include "esp_gatt_defs.h"
 #include "esp_err.h"
+#include "main.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -155,14 +156,16 @@ esp_err_t esp_hidd_profile_deinit(void);
  *
  */
 uint16_t esp_hidd_get_version(void);
-
+#if(gamePadMode == 0)
 void esp_hidd_send_consumer_value(uint16_t conn_id, uint8_t key_cmd, bool key_pressed);
 
 void esp_hidd_send_keyboard_value(uint16_t conn_id, key_mask_t special_key_mask, uint8_t *keyboard_cmd, uint8_t num_key);
 
 void esp_hidd_send_mouse_value(uint16_t conn_id, uint8_t mouse_button, int8_t mickeys_x, int8_t mickeys_y);
-
+#elif(gamePadMode == 1)
 void esp_hidd_send_gamepad_report(uint16_t conn_id, uint8_t report_id, uint8_t report_type, uint8_t *data, uint8_t length);
+#endif
+
 
 #ifdef __cplusplus
 }

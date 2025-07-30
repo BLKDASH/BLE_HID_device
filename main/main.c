@@ -20,6 +20,7 @@
 #include "esp_bt_device.h"
 #include "driver/gpio.h"
 #include "hid_dev.h"
+#include "main.h"
 
 //todo:遗忘上一次连接的设备
 //todo:弄懂为啥hidInfo关闭正常连接
@@ -131,7 +132,6 @@ static void hidd_event_callback(esp_hidd_cb_event_t event, esp_hidd_cb_param_t *
     {
         if (param->init_finish.state == ESP_HIDD_INIT_OK)
         {
-
             // esp_bd_addr_t rand_addr = {0x04,0x11,0x11,0x11,0x11,0x05};
             esp_ble_gap_set_device_name(HIDD_DEVICE_NAME);
             // 该API不支持16位UUID
@@ -239,6 +239,8 @@ static void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param
  *
  * @param pvParameters 任务参数（未使用）
  */
+
+#if(gamePadMode == 0)
 void hid_demo_task(void *pvParameters)
 {
     vTaskDelay(pdMS_TO_TICKS(1000));
@@ -291,7 +293,7 @@ void mouse_move_task(void *pvParameters)
         vTaskDelay(pdMS_TO_TICKS(3000));
     }
 }
-
+#elif(gamePadMode == 1)
 /**
  * @brief 模拟手柄按键任务函数
  *
@@ -318,7 +320,7 @@ void gamepad_button_task(void *pvParameters)
         vTaskDelay(pdMS_TO_TICKS(5000));
     }
 }
-
+#endif
 esp_err_t ble_init(void)
 {
     // 初始化FLASH，NVS 初始化（自带函数）：用于存储蓝牙配对信息等。
@@ -411,9 +413,11 @@ void app_main(void)
     }
     ESP_LOGI("Main", "BLE HID Init OK");
     // 创建调整音量任务
+    #if(gamePadMode == 0)
     xTaskCreate(&hid_demo_task, "hid_task", 2048, NULL, 5, NULL);
     // 创建鼠标移动任务
     // xTaskCreate(&mouse_move_task, "mouse_move_task", 2048, NULL, 5, NULL);
+    #endif
     // 模拟手柄任务
     // xTaskCreate(&gamepad_button_task, "gamepad_button_task", 4096, NULL, 5, NULL);
 
