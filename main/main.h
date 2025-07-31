@@ -8,6 +8,9 @@
 esp_err_t ble_init(void);
 esp_err_t ble_sec_config(void);
 
+void blink_task(void *pvParameter);
+void gpio_read_task(void *pvParameter);
+void adc_read_task(void *pvParameter);
 
 void gamepad_button_task(void *pvParameters);
 

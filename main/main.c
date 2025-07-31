@@ -22,6 +22,11 @@
 #include "hid_dev.h"
 #include "main.h"
 
+#include "sdkconfig.h"
+#include "iot_button.h"
+#include "led_strip.h"
+#include "hardware_init.h"
+
 //todo:遗忘上一次连接的设备
 
 
@@ -41,14 +46,18 @@ static void hidd_event_callback(esp_hidd_cb_event_t event, esp_hidd_cb_param_t *
 
 void app_main(void)
 {
+    init_all();
     if (ESP_OK == ble_init())
     {
         ble_sec_config();
     }
     ESP_LOGI("Main", "BLE HID Init OK");
 
+    xTaskCreatePinnedToCore(blink_task, "blink_task", 4096, NULL, 5, NULL, 1);
+    xTaskCreatePinnedToCore(gpio_read_task, "gpio_toggle_task", 4096, NULL, 6, NULL, 1);
+    xTaskCreatePinnedToCore(adc_read_task, "adc_read_task", 4096, NULL, 7, NULL, 1);
     // 模拟手柄任务
-    xTaskCreate(&gamepad_button_task, "gamepad_button_task", 4096, NULL, 5, NULL);
+    xTaskCreate(&gamepad_button_task, "gamepad_button_task", 4096, NULL, 9, NULL);
 
     while (1)
     {
@@ -212,9 +221,63 @@ static void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param
 
 
 
+void blink_task(void *pvParameter)
+{ 
+    bool led_on_off = false;
+    while(1)
+    {
+            if (led_on_off) {
+            setLED(0, 0, 10, 0);
+            setLED(1, 10, 0, 0);
+            setLED(2, 10, 0, 10);
+            setLED(3, 10, 10, 0);
 
+            //ESP_LOGI("main", "LED ON!");
+        } else {
+            setLED(0, 0, 0, 0);
+            //ESP_LOGI("main", "LED OFF!");
+        }
+        
+        led_on_off = !led_on_off;
+        vTaskDelay(pdMS_TO_TICKS(500)); 
+    }
+}
 
+void gpio_read_task(void *pvParameter)
+{
+    int level_25, level_26, level_27, level_14;
+    int level_15, level_19;
 
+    while (1) {
+        // Toggle GPIO32
+
+        // Read input GPIO levels
+        level_25 = gpio_get_level(GPIO_INPUT_IO_25);
+        level_26 = gpio_get_level(GPIO_INPUT_IO_26);
+        level_27 = gpio_get_level(GPIO_INPUT_IO_27);
+        level_14 = gpio_get_level(GPIO_INPUT_IO_14);
+
+        level_15 = gpio_get_level(GPIO_INPUT_IO_15);
+        level_19 = gpio_get_level(GPIO_INPUT_IO_19);
+
+        // Log levels
+        ESP_LOGI("gpio_toggle_task", "GPIO25: %d | GPIO26: %d | GPIO27: %d | GPIO14: %d",
+                 level_25, level_26, level_27, level_14);
+        ESP_LOGI("gpio_toggle_task", "GPIO15: %d | GPIO19: %d",
+                 level_15, level_19);
+
+        // Delay 500ms
+        vTaskDelay(pdMS_TO_TICKS(500));
+    }
+}
+
+void adc_read_task(void *pvParameter)
+{
+    while (1) {
+        read_and_log_adc_values();
+        vTaskDelay(pdMS_TO_TICKS(300));
+    }
+}
 
 
 
