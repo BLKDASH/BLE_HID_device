@@ -23,20 +23,10 @@
 #include "main.h"
 
 //todo:遗忘上一次连接的设备
-//todo:弄懂为啥hidInfo关闭正常连接
 
-/*
-注意事项：
-Windows 10 不支持厂商自定义报告（Vendor Report），因此 SUPPORT_REPORT_VENDOR 始终设置为 FALSE，该定义位于 hidd_le_prf_int.h 文件中。
-在 iPhone 的 HID 加密期间不允许更新连接参数，因此从设备会在加密期间关闭自动更新连接参数的功能。
-当我们的 HID 设备连接后，iPhone 会向 Report 特性配置描述符写入 1，即使 HID 加密尚未完成。实际上，应该在加密完成后才写入 1。为此，我们将 Report 特性配置描述符的权限修改为 ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE_ENCRYPTED。如果出现 GATT_INSUF_ENCRYPTION 错误，请忽略该错误。
- */
 
 #define HID_BLE_TAG "BLEinfo"
 #define HID_TASK_TAG "TASKinfo"
-
-// 128，API不允许16位
-#define UUID_MOD 128
 
 static uint16_t hid_conn_id = 0;
 static bool sec_conn = false;
@@ -56,65 +46,18 @@ void app_main(void)
         ble_sec_config();
     }
     ESP_LOGI("Main", "BLE HID Init OK");
-    // 创建调整音量任务
-    #if(gamePadMode == 0)
-    xTaskCreate(&hid_demo_task, "hid_task", 2048, NULL, 5, NULL);
-    // 创建鼠标移动任务
-    // xTaskCreate(&mouse_move_task, "mouse_move_task", 2048, NULL, 5, NULL);
-    #elif(gamePadMode == 1)
+
     // 模拟手柄任务
     xTaskCreate(&gamepad_button_task, "gamepad_button_task", 4096, NULL, 5, NULL);
-    #endif
-    // ESP_LOGI("SIZEUUID:","%d",sizeof(hidd_service_uuid));
+
     while (1)
     {
         vTaskDelay(pdMS_TO_TICKS(1000));
     }
 }
 
-static uint8_t hidd_service_uuid[] =
-    {
-        /* LSB <--------------------------------------------------------------------------------> MSB */
-        // first uuid, 16bit, [12],[13] is the value
-        0xfb,
-        0x34,
-        0x9b,
-        0x5f,
-        0x80,
-        0x00,
-        0x00,
-        0x80,
-        0x00,
-        0x10,
-        0x00,
-        0x00,
-        0x12,
-        0x18,
-        0x00,
-        0x00,
-};
 
 
-// GATT 广播数据
-static esp_ble_adv_data_t hidd_adv_data =
-    {
-        .set_scan_rsp = false,                          // 是否设置扫描回复数据
-        .include_name = true,                           // 是否包含设备名
-        .include_txpower = true,                        // 是否包含信号强度
-        .min_interval = 0x0006,                         // 从设备连接的最小间隔时间，单位为 1.25ms，0x0006 对应 7.5ms。
-        .max_interval = 0x0010,                         // 从设备连接的最大间隔时间，单位为 1.25ms，0x0010 对应 20ms。
-        .appearance = 0x03c4,                           // 设备外观标识，0x03c0 表示 HID 通用设备。03c4表示HID游戏手柄
-        .manufacturer_len = 0,                          // 厂商数据长度，0 表示没有厂商数据。
-        .p_manufacturer_data = NULL,                    // 指向厂商数据的指针，NULL 表示无厂商数据。
-        .service_data_len = 0,                          // 服务数据长度，0 表示没有服务数据。
-        .p_service_data = NULL,                         // 指向服务数据的指针，NULL 表示无服务数据。
-        .service_uuid_len = sizeof(hidd_service_uuid),  // 服务数据长度UUID
-        .p_service_uuid = (uint8_t *)hidd_service_uuid, // uuid指针
-        .flag = 0x7,                                    // 0b00000111
-                                                        // bit 0: 有限发现模式
-                                                        // bit 1: LE General Discoverable Mode同时支持通用发现模式
-                                                        // bit 2: BR/EDR Not Supported（不支持普通蓝牙）
-};
 
 
 
@@ -122,7 +65,7 @@ static esp_ble_adv_data_t hidd_adv_data =
 uint8_t hidd_adv_data_raw[] = {
     0x02, ESP_BLE_AD_TYPE_FLAG, 0x06,           // Flags: LE General Discoverable Mode, BR/EDR Not Supported
     0x03, ESP_BLE_AD_TYPE_16SRV_PART, 0x12, 0x18,     // 部分16位UUID
-    0x0D, ESP_BLE_AD_TYPE_NAME_CMPL, 'E', 'S', 'P', '3', '2', 'g', 'a', 'm', 'e', 'P','a','d',
+    0x0D, ESP_BLE_AD_TYPE_NAME_CMPL, 'E', 'S', 'P', '3', '2', 'G', 'a', 'm', 'e', 'P','a','d',
     // 0x0D, 0x09,                 // Length of Device Name + 1 byte for length field
     // 'E', 'S', 'P', '3', '2', 'g', 'a', 'm', 'e', 'P','a','d', // Device Name
     0x02, ESP_BLE_AD_TYPE_TX_PWR, 0xEB,           // TX Power Level (0x00 corresponds to -21 dBm)
@@ -130,7 +73,7 @@ uint8_t hidd_adv_data_raw[] = {
 
 static uint8_t raw_scan_rsp_data[] = {
     /* Complete Local Name */
-    0x0D, ESP_BLE_AD_TYPE_NAME_CMPL, 'E', 'S', 'P', '3', '2', 'g', 'a', 'm', 'e', 'P','a','d',   // Length 13, Data Type ESP_BLE_AD_TYPE_NAME_CMPL, Data (ESP_GATTS_DEMO)
+    0x0D, ESP_BLE_AD_TYPE_NAME_CMPL, 'E', 'S', 'P', '3', '2', 'G', 'a', 'm', 'e', 'P','a','d',   // Length 13, Data Type ESP_BLE_AD_TYPE_NAME_CMPL, Data (ESP_GATTS_DEMO)
     0x03, ESP_BLE_AD_TYPE_16SRV_PART, 0x12, 0x18,
 };
 
@@ -146,12 +89,8 @@ static esp_ble_adv_params_t hidd_adv_params = {
     .adv_filter_policy = ADV_FILTER_ALLOW_SCAN_ANY_CON_ANY, // 广播过滤策略：不过滤
 };
 
-// ESP32 BLE HID设备的事件回调函数，处理蓝牙连接、断开、数据写入等事件。
-//  1. **ESP_HIDD_EVENT_REG_FINISH**：HID设备注册完成后设置设备名并配置广播数据。
-//  2. **ESP_HIDD_EVENT_BLE_CONNECT**：设备连接时记录连接ID。
-//  3. **ESP_HIDD_EVENT_BLE_DISCONNECT**：设备断开连接后重新开始广播。
-//  4. **ESP_HIDD_EVENT_BLE_VENDOR_REPORT_WRITE_EVT**：接收到厂商报告数据时打印日志。
-//  5. **ESP_HIDD_EVENT_BLE_LED_REPORT_WRITE_EVT**：接收到LED报告数据时打印日志。
+
+// GATT回调
 static void hidd_event_callback(esp_hidd_cb_event_t event, esp_hidd_cb_param_t *param)
 {
     // build_hidd_adv_data_raw();//构建自己的广播包raw
@@ -161,15 +100,7 @@ static void hidd_event_callback(esp_hidd_cb_event_t event, esp_hidd_cb_param_t *
     {
         if (param->init_finish.state == ESP_HIDD_INIT_OK)
         {
-            // esp_bd_addr_t rand_addr = {0x04,0x11,0x11,0x11,0x11,0x05};
             esp_ble_gap_set_device_name(HIDD_DEVICE_NAME);
-            // 该API不支持16位UUID
-            // if (ESP_OK == esp_ble_gap_config_adv_data(&hidd_adv_data))
-            // {
-            //     ESP_LOGI("HIDDcallback", "GAP Config Adv Data OK");
-            // }
-
-
             if(ESP_OK==esp_ble_gap_config_adv_data_raw(hidd_adv_data_raw, sizeof(hidd_adv_data_raw)))
             {
                 if(ESP_OK==esp_ble_gap_config_scan_rsp_data_raw(raw_scan_rsp_data, sizeof(raw_scan_rsp_data)))
@@ -222,14 +153,7 @@ static void hidd_event_callback(esp_hidd_cb_event_t event, esp_hidd_cb_param_t *
     return;
 }
 
-// GAP回调函数
-// 三种GAP事件处理函数，分别处理连接、加密、认证事件。
-//  ESP_GAP_BLE_ADV_DATA_SET_COMPLETE_EVT
-//  广播数据设置完成后启动 BLE 广播。
-// ESP_GAP_BLE_SEC_REQ_EVT
-// 收到安全请求时，打印设备地址并发送安全响应。
-// ESP_GAP_BLE_AUTH_CMPL_EVT
-// 认证完成后，记录安全连接标志，打印远程设备地址、地址类型、配对状态及失败原因
+// GAP回调
 static void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param)
 {
     switch (event)
@@ -297,82 +221,8 @@ static void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param
 
 
 
-
-/**
- * @brief HID演示任务函数
- *
- * 该任务负责定时发送HID音量控制指令，首先发送音量增大指令，
- * 然后在适当延迟后发送音量减小指令。只有在安全连接状态下才会发送指令。
- *
- * @param pvParameters 任务参数（未使用）
- */
-
-#if(gamePadMode == 0)
-void hid_demo_task(void *pvParameters)
-{
-    vTaskDelay(pdMS_TO_TICKS(1000));
-    while (1)
-    {
-        // 当前为安全连接时执行HID控制逻辑
-        if (sec_conn)
-        {
-            ESP_LOGI(HID_BLE_TAG, "Send the volume");
-            // 间隔5s
-            vTaskDelay(pdMS_TO_TICKS(3000));
-            // 发送音量增大
-            esp_hidd_send_consumer_value(hid_conn_id, HID_CONSUMER_VOLUME_UP, true);
-            vTaskDelay(pdMS_TO_TICKS(200));
-            // 关闭音量增大
-            esp_hidd_send_consumer_value(hid_conn_id, HID_CONSUMER_VOLUME_UP, false);
-            // 间隔5s
-            vTaskDelay(pdMS_TO_TICKS(3000));
-            // 发送音量减小
-            esp_hidd_send_consumer_value(hid_conn_id, HID_CONSUMER_VOLUME_DOWN, true);
-            vTaskDelay(pdMS_TO_TICKS(200));
-            // 关闭音量减小
-            esp_hidd_send_consumer_value(hid_conn_id, HID_CONSUMER_VOLUME_DOWN, false);
-        }
-        else
-        {
-            // 等待连接
-            vTaskDelay(pdMS_TO_TICKS(2000));
-            ESP_LOGI("HID_DEMO_TASK", "Waiting for connection...");
-        }
-    }
-}
-
-void mouse_move_task(void *pvParameters)
-{
-    // 初始偏移量
-    int8_t x = 5;
-    int8_t y = 5;
-
-    while (1)
-    {
-        // 仅在有连接的情况下发送
-        if (sec_conn)
-        {
-            ESP_LOGI(HID_BLE_TAG, "Sending mouse move: x=%d, y=%d", x, y);
-            esp_hidd_send_mouse_value(hid_conn_id, 0x00, x, y);
-        }
-
-        // 每3秒发送一次
-        vTaskDelay(pdMS_TO_TICKS(3000));
-    }
-}
-#elif(gamePadMode == 1)
-/**
- * @brief 模拟手柄按键任务函数
- *
- * 该任务负责定时发送HID特性值以模拟手柄按键按下。
- * 只有在安全连接状态下才会发送指令。
- *
- * @param pvParameters 任务参数（未使用）
- */
 void gamepad_button_task(void *pvParameters)
 {
-    // 示例输入报告
-    // uint8_t feature_value[11] = {4, 128, 128, 128, 128, 255, 0, 0, 0, 1, 0};
 
     while (1)
     {
@@ -381,8 +231,6 @@ void gamepad_button_task(void *pvParameters)
             vTaskDelay(pdMS_TO_TICKS(200));
             ESP_LOGI(HID_TASK_TAG, "Simulating gamepad button press");
             esp_hidd_send_gamepad_report(hid_conn_id);
-            // 使用自定义函数发送输入报告
-            // esp_hidd_send_custom_report(hid_conn_id, HID_RPT_ID_MOUSE_IN, HID_REPORT_TYPE_INPUT, feature_value, sizeof(feature_value));
         }
         else
         {
@@ -391,7 +239,7 @@ void gamepad_button_task(void *pvParameters)
         }
     }
 }
-#endif
+
 esp_err_t ble_init(void)
 {
     // 初始化FLASH，NVS 初始化（自带函数）：用于存储蓝牙配对信息等。
@@ -403,12 +251,6 @@ esp_err_t ble_init(void)
         ret = nvs_flash_init();
     }
     ESP_ERROR_CHECK(ret);
-
-    // 删除所有配对信息
-    // esp_err_t err = esp_ble_gap_clear_bond_device();
-    // if (err == ESP_OK) {
-    //     ESP_LOGI("BLE", "已清除所有配对设备的信息");
-    // }
 
 
     // 初始化蓝牙控制器

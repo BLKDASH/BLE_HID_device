@@ -42,20 +42,12 @@
 #endif
 
 // HID Report IDs for the service
-#if(gamePadMode == 0)
-    #define HID_RPT_ID_MOUSE_IN      1   // Mouse input report ID
-    #define HID_RPT_ID_KEY_IN        2   // Keyboard input report ID
-    #define HID_RPT_ID_CC_IN         3   //Consumer Control input report ID
-    #define HID_RPT_ID_VENDOR_OUT    4   // Vendor output report ID
-    #define HID_RPT_ID_LED_OUT       2  // LED output report ID
-    #define HID_RPT_ID_FEATURE       0  // Feature report ID
-#elif(gamePadMode == 1)
-    #define HID_RPT_ID_GAMEPAD_MOUSE_IN       1
-    #define HID_RPT_ID_GAMEPAD_CC_IN         3
-    #define HID_RPT_ID_GAMEPAD_STICK_IN        4
-    #define HID_RPT_ID_FEATURE       0  // Feature report ID
 
-#endif
+#define HID_RPT_ID_GAMEPAD_MOUSE_IN       1
+#define HID_RPT_ID_GAMEPAD_CC_IN         3
+#define HID_RPT_ID_GAMEPAD_STICK_IN        4
+#define HID_RPT_ID_FEATURE       0 // Feature report ID
+
 
 // HID的APP ID
 #define HIDD_APP_ID			0x1812//ATT_SVC_HID
@@ -137,47 +129,7 @@ enum {
     HIDD_LE_IDX_PROTO_MODE_VAL,
 
 
-#if(gamePadMode == 0)
-    // Report mouse input
-    HIDD_LE_IDX_REPORT_MOUSE_IN_CHAR,
-    HIDD_LE_IDX_REPORT_MOUSE_IN_VAL,
-    HIDD_LE_IDX_REPORT_MOUSE_IN_CCC,
-    HIDD_LE_IDX_REPORT_MOUSE_REP_REF,
-    //Report Key input
-    HIDD_LE_IDX_REPORT_KEY_IN_CHAR,
-    HIDD_LE_IDX_REPORT_KEY_IN_VAL,
-    HIDD_LE_IDX_REPORT_KEY_IN_CCC,
-    HIDD_LE_IDX_REPORT_KEY_IN_REP_REF,
-    ///Report Led output
-    HIDD_LE_IDX_REPORT_LED_OUT_CHAR,
-    HIDD_LE_IDX_REPORT_LED_OUT_VAL,
-    HIDD_LE_IDX_REPORT_LED_OUT_REP_REF,
 
-#if (SUPPORT_REPORT_VENDOR  == true)
-    /// Report Vendor
-    HIDD_LE_IDX_REPORT_VENDOR_OUT_CHAR,
-    HIDD_LE_IDX_REPORT_VENDOR_OUT_VAL,
-    HIDD_LE_IDX_REPORT_VENDOR_OUT_REP_REF,
-#endif
-    HIDD_LE_IDX_REPORT_CC_IN_CHAR,
-    HIDD_LE_IDX_REPORT_CC_IN_VAL,
-    HIDD_LE_IDX_REPORT_CC_IN_CCC,
-    HIDD_LE_IDX_REPORT_CC_IN_REP_REF,
-
-    // Boot Keyboard Input Report
-    HIDD_LE_IDX_BOOT_KB_IN_REPORT_CHAR,
-    HIDD_LE_IDX_BOOT_KB_IN_REPORT_VAL,
-    HIDD_LE_IDX_BOOT_KB_IN_REPORT_NTF_CFG,
-
-    // Boot Keyboard Output Report
-    HIDD_LE_IDX_BOOT_KB_OUT_REPORT_CHAR,
-    HIDD_LE_IDX_BOOT_KB_OUT_REPORT_VAL,
-
-    // Boot Mouse Input Report
-    HIDD_LE_IDX_BOOT_MOUSE_IN_REPORT_CHAR,
-    HIDD_LE_IDX_BOOT_MOUSE_IN_REPORT_VAL,
-    HIDD_LE_IDX_BOOT_MOUSE_IN_REPORT_NTF_CFG,
-#elif(gamePadMode == 1)
     HIDD_LE_IDX_REPORT_GAMEPAD_MOUSE_IN_CHAR,
     HIDD_LE_IDX_REPORT_GAMEPAD_MOUSE_IN_VAL,
     HIDD_LE_IDX_REPORT_GAMEPAD_MOUSE_IN_CCC,
@@ -194,7 +146,6 @@ enum {
     HIDD_LE_IDX_REPORT_GAMEPAD_STICK_REP_REF,
 
 
-#endif
 
     // Report
     HIDD_LE_IDX_REPORT_CHAR,

@@ -6,21 +6,6 @@
 #include "main.h"
 /// @brief Characteristic Presentation Format 结构体
 /// 用于描述 BLE HID 设备中某个 Characteristic 的数据表示格式信息
-///
-/// 该结构体定义了 BLE GATT Characteristic 的 Presentation Format Descriptor 的格式，
-/// 主要用于在 BLE 连接中向对端设备表明该 Characteristic 的数据格式信息。
-///
-/// @field unit Unit (The Unit is a UUID)
-///        类型为 uint16_t，表示数据的单位，通常为一个 UUID 值。
-/// @field description Description
-///        类型为 uint16_t，表示描述字段，用于提供额外的说明信息。
-/// @field format Format
-///        类型为 uint8_t，表示数据的格式类型，如布尔值、整数、浮点数等。
-/// @field exponent Exponent
-///        类型为 uint8_t，表示指数因子，用于定义小数点的位置。
-/// @field name_space Name space
-///        类型为 uint8_t，表示命名空间，用于定义描述字段的含义范围。
-///
 struct prf_char_pres_fmt
 {
     /// Unit (The Unit is a UUID)
@@ -39,169 +24,10 @@ struct prf_char_pres_fmt
 static hid_report_map_t hid_rpt_map[HID_NUM_REPORTS];
 // static hid_report_map_t hid_rpt_map_gamepad[HID_NUM_REPORTS];
 
-#if(gamePadMode == 0)
-// HID报告描述符
-// 鼠标：支持3个按钮、X/Y坐标移动、滚轮。
-// 键盘：支持修饰键（如Shift）、6个普通按键、LED输出（如Caps Lock）。
-// 消费者设备：支持音量加减、静音、播放控制等多媒体按键。
-// 厂商自定义：可选支持厂商自定义数据传输。
-static const uint8_t hidReportMap[] = {
-    //////////////////////////鼠标：ID1
-    0x05, 0x01, // Usage Page (Generic Desktop) - 指定设备类型所属的通用类别
-    0x09, 0x02, // Usage (Mouse) - 具体设备为鼠标
-    0xA1, 0x01, // Collection (Application) - 开始"应用级"集合（整个鼠标设备）
-    0x85, 0x01, // Report Id (1) - 此报告的ID为1（用于区分不同设备的报告）
-    0x09, 0x01, //   Usage (Pointer) - 子功能为"指针"（鼠标的核心功能）
-    0xA1, 0x00, //   Collection (Physical) - 开始"物理级"集合（指针的物理组件）
-    // 鼠标按键（左键、右键、中键）
-    0x05, 0x09, //     Usage Page (Buttons) - 功能类别为"按键"
-    0x19, 0x01, //     Usage Minimum (01) - 最小按键编号（1号键，左键）
-    0x29, 0x03, //     Usage Maximum (03) - 最大按键编号（3号键，中键）
-    0x15, 0x00, //     Logical Minimum (0) - 逻辑最小值（0表示未按下）
-    0x25, 0x01, //     Logical Maximum (1) - 逻辑最大值（1表示按下）
-    0x75, 0x01, //     Report Size (1) - 每个按键状态占1位
-    0x95, 0x03, //     Report Count (3) - 共3个按键（3位）
-    0x81, 0x02, //     Input (Data, Variable, Absolute) - 输入项：存储3个按键的状态（0/1）
-    // 填充位（凑齐1字节）
-    0x75, 0x05, //     Report Size (5) - 5位
-    0x95, 0x01, //     Report Count (1) - 1组
-    0x81, 0x01, //     Input (Constant) - 输入项：常量（填充位，无实际意义）
-    // X/Y位移和滚轮
-    0x05, 0x01, //     Usage Page (Generic Desktop) - 回到通用类别
-    0x09, 0x30, //     Usage (X) - X轴位移
-    0x09, 0x31, //     Usage (Y) - Y轴位移
-    0x09, 0x38, //     Usage (Wheel) - 滚轮
-    0x15, 0x81, //     Logical Minimum (-127) - 位移最小值（有符号数，0x81 = -127）
-    0x25, 0x7F, //     Logical Maximum (127) - 位移最大值（有符号数，0x7F = 127）
-    0x75, 0x08, //     Report Size (8) - 每个轴/滚轮占8位（1字节）
-    0x95, 0x03, //     Report Count (3) - 共3个（X、Y、滚轮各1字节）
-    0x81, 0x06, //     Input (Data, Variable, Relative) - 输入项：存储相对位移（相对于上一次的变化量）
-    0xC0,       //   End Collection - 结束"物理级"集合（指针）
-    0xC0,       // End Collection - 结束"应用级"集合（鼠标）
 
-    ////////////////////////////////键盘：ID2
-    0x05, 0x01, // Usage Page (Generic Desktop) - 通用类别
-    0x09, 0x06, // Usage (Keyboard) - 具体设备为键盘
-    0xA1, 0x01, // Collection (Application) - 开始"应用级"集合（整个键盘）
-    0x85, 0x02, // Report Id (2) - 此报告的ID为2
-    // 修饰键（Ctrl/Shift/Alt等）
-    0x05, 0x07, //   Usage Page (Key Codes) - 功能类别为"按键码"
-    0x19, 0xE0, //   Usage Minimum (224) - 修饰键起始码（左Ctrl=224）
-    0x29, 0xE7, //   Usage Maximum (231) - 修饰键结束码（右GUI=231，共8个）
-    0x15, 0x00, //   Logical Minimum (0) - 0表示未按下
-    0x25, 0x01, //   Logical Maximum (1) - 1表示按下
-    0x75, 0x01, //   Report Size (1) - 每个修饰键占1位
-    0x95, 0x08, //   Report Count (8) - 共8个修饰键（8位=1字节）
-    0x81, 0x02, //   Input (Data, Variable, Absolute) - 输入项：存储修饰键状态
-    // 保留字节（无实际功能）
-    0x95, 0x01, //   Report Count (1) - 1个
-    0x75, 0x08, //   Report Size (8) - 8位（1字节）
-    0x81, 0x01, //   Input (Constant) - 输入项：常量（保留，固定值）
-    // LED指示灯（Num Lock/Caps Lock等）
-    0x05, 0x08, //   Usage Page (LEDs) - 功能类别为"LED"
-    0x19, 0x01, //   Usage Minimum (1) - 最小LED（Num Lock=1）
-    0x29, 0x05, //   Usage Maximum (5) - 最大LED（Kana=5，共5个）
-    0x95, 0x05, //   Report Count (5) - 5个LED
-    0x75, 0x01, //   Report Size (1) - 每个LED占1位
-    0x91, 0x02, //   Output (Data, Variable, Absolute) - 输出项：控制LED亮灭（主机→设备）
-    // LED填充位（凑齐1字节）
-    0x95, 0x01, //   Report Count (1) - 1组
-    0x75, 0x03, //   Report Size (3) - 3位
-    0x91, 0x01, //   Output (Constant) - 输出项：常量（填充位）
-    // 按键数组（同时按下的最多6个键）
-    0x95, 0x06, //   Report Count (6) - 6个字节（支持6键无冲）
-    0x75, 0x08, //   Report Size (8) - 每个键占8位（1字节）
-    0x15, 0x00, //   Logical Minimum (0) - 最小按键码
-    0x25, 0x65, //   Logical Maximum (101) - 最大按键码（对应HID标准按键码范围）
-    0x05, 0x07, //   Usage Page (Key Codes) - 回到按键码类别
-    0x19, 0x00, //   Usage Minimum (0) - 最小按键码
-    0x29, 0x65, //   Usage Maximum (101) - 最大按键码
-    0x81, 0x00, //   Input (Data, Array) - 输入项：存储同时按下的键码（数组形式）
-    0xC0,       // End Collection - 结束"应用级"集合（键盘）
-
-    /////////////////////////消费类：ID3
-    0x05, 0x0C, // Usage Page (Consumer Devices) - 功能类别为"消费类设备"（多媒体控制）
-    0x09, 0x01, // Usage (Consumer Control) - 具体功能为"消费控制"
-    0xA1, 0x01, // Collection (Application) - 开始"应用级"集合
-    0x85, 0x03, // Report Id (3) - 此报告的ID为3
-    // 数字小键盘按钮（10个）
-    0x09, 0x02, //   Usage (Numeric Key Pad) - 子功能为"数字小键盘"
-    0xA1, 0x02, //   Collection (Logical) - 开始"逻辑级"集合
-    0x05, 0x09, //     Usage Page (Button) - 功能类别为"按钮"
-    0x19, 0x01, //     Usage Minimum (Button 1) - 最小按钮编号（1）
-    0x29, 0x0A, //     Usage Maximum (Button 10) - 最大按钮编号（10）
-    0x15, 0x01, //     Logical Minimum (1) - 逻辑最小值
-    0x25, 0x0A, //     Logical Maximum (10) - 逻辑最大值
-    0x75, 0x04, //     Report Size (4) - 4位（可表示1-10）
-    0x95, 0x01, //     Report Count (1) - 1组
-    0x81, 0x00, //     Input (Data, Array, Absolute) - 输入项：存储小键盘按钮状态
-    0xC0,       //   End Collection - 结束"逻辑级"集合
-    // 频道控制（频道+/频道-）
-    0x05, 0x0C, //   Usage Page (Consumer Devices) - 回到消费类设备类别
-    0x09, 0x86, //   Usage (Channel) - 功能为"频道控制"
-    0x15, 0xFF, //   Logical Minimum (-1) - -1表示频道减
-    0x25, 0x01, //   Logical Maximum (1) - 1表示频道加
-    0x75, 0x02, //   Report Size (2) - 2位（可表示-1/0/1）
-    0x95, 0x01, //   Report Count (1) - 1组
-    0x81, 0x46, //   Input (Data, Variable, Relative, Null) - 输入项：相对值（0表示无操作）
-    // 音量控制（音量+/音量-）
-    0x09, 0xE9, //   Usage (Volume Up) - 音量加
-    0x09, 0xEA, //   Usage (Volume Down) - 音量减
-    0x15, 0x00, //   Logical Minimum (0) - 0表示未操作
-    0x75, 0x01, //   Report Size (1) - 每个功能占1位
-    0x95, 0x02, //   Report Count (2) - 2个功能（音量+/减）
-    0x81, 0x02, //   Input (Data, Variable, Absolute) - 输入项：存储音量控制状态
-    // 多媒体功能键（播放/暂停/停止等）
-    0x09, 0xE2, //   Usage (Mute) - 静音
-    0x09, 0x30, //   Usage (Power) - 电源
-    0x09, 0x83, //   Usage (Recall Last) - 召回上次
-    0x09, 0x81, //   Usage (Assign Selection) - 分配选择
-    0x09, 0xB0, //   Usage (Play) - 播放
-    0x09, 0xB1, //   Usage (Pause) - 暂停
-    0x09, 0xB2, //   Usage (Record) - 录音
-    0x09, 0xB3, //   Usage (Fast Forward) - 快进
-    0x09, 0xB4, //   Usage (Rewind) - 倒带
-    0x09, 0xB5, //   Usage (Scan Next) - 下一曲
-    0x09, 0xB6, //   Usage (Scan Prev) - 上一曲
-    0x09, 0xB7, //   Usage (Stop) - 停止（共12个功能）
-    0x15, 0x01, //   Logical Minimum (1) - 最小功能编号
-    0x25, 0x0C, //   Logical Maximum (12) - 最大功能编号（12对应Stop）
-    0x75, 0x04, //   Report Size (4) - 4位（可表示1-12）
-    0x95, 0x01, //   Report Count (1) - 1组
-    0x81, 0x00, //   Input (Data, Array, Absolute) - 输入项：存储多媒体键状态
-    // 选择功能按钮（3个）
-    0x09, 0x80, //   Usage (Selection) - 功能为"选择"
-    0xA1, 0x02, //   Collection (Logical) - 开始"逻辑级"集合
-    0x05, 0x09, //     Usage Page (Button) - 功能类别为"按钮"
-    0x19, 0x01, //     Usage Minimum (Button 1) - 最小按钮编号（1）
-    0x29, 0x03, //     Usage Maximum (Button 3) - 最大按钮编号（3）
-    0x15, 0x01, //     Logical Minimum (1)
-    0x25, 0x03, //     Logical Maximum (3)
-    0x75, 0x02, //     Report Size (2) - 2位（可表示1-3）
-    0x81, 0x00, //     Input (Data, Array, Absolute) - 输入项：存储选择按钮状态
-    0xC0,       //   End Collection - 结束"逻辑级"集合
-
-    0x81, 0x03, //   Input (Const, Var, Abs) - 输入项：常量填充（补齐报告长度）
-    0xC0,       // End Collection - 结束"应用级"集合（消费类设备）
-
-#if (SUPPORT_REPORT_VENDOR == true)
-    0x06, 0xFF, 0xFF, // Usage Page(Vendor defined)
-    0x09, 0xA5,       // Usage(Vendor Defined)
-    0xA1, 0x01,       // Collection(Application)
-    0x85, 0x04,       // Report Id (4)
-    0x09, 0xA6,       // Usage(Vendor defined)
-    0x09, 0xA9,       // Usage(Vendor defined)
-    0x75, 0x08,       // Report Size
-    0x95, 0x7F,       // Report Count = 127 Btyes
-    0x91, 0x02,       // Output(Data, Variable, Absolute)
-    0xC0,             // End Collection
-#endif
-
-};
-#endif
 
 // MYGT 格式：定义游戏手柄的 HID 报告描述符
-#if(gamePadMode == 1)
+
 static const uint8_t hidReportMapMYGTGamePad[] = {
     // ID 1--------------------------------------------
     0x05, 0x01, // Usage Page (Generic Desktop Ctrls)
@@ -303,7 +129,7 @@ static const uint8_t hidReportMapMYGTGamePad[] = {
     0x81, 0x02,       //   输入 (数据,变量,绝对值) - 踏板数据
     0xC0,             // 结束集合 - 结束应用层集合
 };
-#endif
+
 /// Battery Service Attributes Indexes
 enum
 {
@@ -341,11 +167,8 @@ struct gatts_profile_inst
 hidd_le_env_t hidd_le_env;
 
 // HID report map length
-#if(gamePadMode == 0)
-    uint8_t hidReportMapLen = sizeof(hidReportMap);
-#elif(gamePadMode == 1)
-    uint8_t hidReportMapLen = sizeof(hidReportMapMYGTGamePad);
-#endif
+
+uint8_t hidReportMapLen = sizeof(hidReportMapMYGTGamePad);
 uint8_t hidProtocolMode = HID_PROTOCOL_MODE_REPORT;
 
 // HID report mapping table
@@ -363,34 +186,6 @@ static uint16_t hidExtReportRefDesc = ESP_GATT_UUID_BATTERY_LEVEL;
 
 
 // 合并报文
-#if(gamePadMode == 0)
-// HID Report Reference characteristic descriptor, mouse input
-static uint8_t hidReportRefMouseIn[HID_REPORT_REF_LEN] =
-    {HID_RPT_ID_MOUSE_IN, HID_REPORT_TYPE_INPUT};
-
-// HID Report Reference characteristic descriptor, key input
-static uint8_t hidReportRefKeyIn[HID_REPORT_REF_LEN] =
-    {HID_RPT_ID_KEY_IN, HID_REPORT_TYPE_INPUT};
-
-// HID Report Reference characteristic descriptor, LED output
-static uint8_t hidReportRefLedOut[HID_REPORT_REF_LEN] =
-    {HID_RPT_ID_LED_OUT, HID_REPORT_TYPE_OUTPUT};
-
-#if (SUPPORT_REPORT_VENDOR == true)
-
-static uint8_t hidReportRefVendorOut[HID_REPORT_REF_LEN] =
-    {HID_RPT_ID_VENDOR_OUT, HID_REPORT_TYPE_OUTPUT};
-#endif
-
-// HID Report Reference characteristic descriptor, Feature
-static uint8_t hidReportRefFeature[HID_REPORT_REF_LEN] =
-    {HID_RPT_ID_FEATURE, HID_REPORT_TYPE_FEATURE};
-
-// HID Report Reference characteristic descriptor, consumer control input
-static uint8_t hidReportRefCCIn[HID_REPORT_REF_LEN] =
-    {HID_RPT_ID_CC_IN, HID_REPORT_TYPE_INPUT};
-
-#elif(gamePadMode == 1)
 // ID1鼠标
 static uint8_t hidReportRefGamePadMouseIn[HID_REPORT_REF_LEN] =
     {HID_RPT_ID_GAMEPAD_MOUSE_IN, HID_REPORT_TYPE_INPUT};
@@ -406,7 +201,6 @@ static uint8_t hidReportRefGamePadStickIn[HID_REPORT_REF_LEN] =
 static uint8_t hidReportRefFeature[HID_REPORT_REF_LEN] =
     {HID_RPT_ID_FEATURE, HID_REPORT_TYPE_FEATURE};
 
-#endif
 
 /*
  *  Heart Rate PROFILE ATTRIBUTES
@@ -520,11 +314,7 @@ static esp_gatts_attr_db_t hidd_le_gatt_db[HIDD_LE_IDX_NB] =
         [HIDD_LE_IDX_REPORT_MAP_CHAR] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&character_declaration_uuid, ESP_GATT_PERM_READ, CHAR_DECLARATION_SIZE, CHAR_DECLARATION_SIZE, (uint8_t *)&char_prop_read}},
         // 报告描述符特征值
         //-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-#if(gamePadMode==0)
-        [HIDD_LE_IDX_REPORT_MAP_VAL] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&hid_report_map_uuid, ESP_GATT_PERM_READ, HIDD_LE_REPORT_MAP_MAX_LEN, sizeof(hidReportMap), (uint8_t *)&hidReportMap}},
-#elif(gamePadMode==1) 
         [HIDD_LE_IDX_REPORT_MAP_VAL] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&hid_report_map_uuid, ESP_GATT_PERM_READ, HIDD_LE_REPORT_MAP_MAX_LEN, sizeof(hidReportMapMYGTGamePad), (uint8_t *)&hidReportMapMYGTGamePad}},
-#endif
         //-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
         // Report Map Characteristic - External Report Reference Descriptor
         [HIDD_LE_IDX_REPORT_MAP_EXT_REP_REF] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&hid_repot_map_ext_desc_uuid, ESP_GATT_PERM_READ, sizeof(uint16_t), sizeof(uint16_t), (uint8_t *)&hidExtReportRefDesc}},
@@ -538,70 +328,6 @@ static esp_gatts_attr_db_t hidd_le_gatt_db[HIDD_LE_IDX_NB] =
         [HIDD_LE_IDX_PROTO_MODE_VAL] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&hid_proto_mode_uuid, (ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE), sizeof(uint8_t), sizeof(hidProtocolMode), (uint8_t *)&hidProtocolMode}},
 
 
-#if(gamePadMode == 0)
-        //增删要同时修改.h枚举中的内容
-
-        // 鼠标输入报告声明
-        [HIDD_LE_IDX_REPORT_MOUSE_IN_CHAR] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&character_declaration_uuid, ESP_GATT_PERM_READ, CHAR_DECLARATION_SIZE, CHAR_DECLARATION_SIZE, (uint8_t *)&char_prop_read_notify}},
-        // 鼠标输入报告值（只读，无需分配空间）
-        [HIDD_LE_IDX_REPORT_MOUSE_IN_VAL] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&hid_report_uuid, ESP_GATT_PERM_READ, HIDD_LE_REPORT_MAX_LEN, 0, NULL}},
-        // 客户端配置描述符
-        [HIDD_LE_IDX_REPORT_MOUSE_IN_CCC] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&character_client_config_uuid, (ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE), sizeof(uint16_t), 0, NULL}},
-        // 鼠标输入报告参数：包含鼠标输入ID，输入还是输出，报文长度
-        [HIDD_LE_IDX_REPORT_MOUSE_REP_REF] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&hid_report_ref_descr_uuid, ESP_GATT_PERM_READ, sizeof(hidReportRefMouseIn), sizeof(hidReportRefMouseIn), hidReportRefMouseIn}},
-        
-        
-        // Report Characteristic Declaration
-        [HIDD_LE_IDX_REPORT_KEY_IN_CHAR] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&character_declaration_uuid, ESP_GATT_PERM_READ, CHAR_DECLARATION_SIZE, CHAR_DECLARATION_SIZE, (uint8_t *)&char_prop_read_notify}},
-        // Report Characteristic Value
-        [HIDD_LE_IDX_REPORT_KEY_IN_VAL] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&hid_report_uuid, ESP_GATT_PERM_READ, HIDD_LE_REPORT_MAX_LEN, 0, NULL}},
-        // Report KEY INPUT Characteristic - Client Characteristic Configuration Descriptor
-        [HIDD_LE_IDX_REPORT_KEY_IN_CCC] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&character_client_config_uuid, (ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE), sizeof(uint16_t), 0, NULL}},
-        // Report Characteristic - Report Reference Descriptor
-        [HIDD_LE_IDX_REPORT_KEY_IN_REP_REF] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&hid_report_ref_descr_uuid, ESP_GATT_PERM_READ, sizeof(hidReportRefKeyIn), sizeof(hidReportRefKeyIn), hidReportRefKeyIn}},
-
-        // Report Characteristic Declaration
-        [HIDD_LE_IDX_REPORT_LED_OUT_CHAR] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&character_declaration_uuid, ESP_GATT_PERM_READ, CHAR_DECLARATION_SIZE, CHAR_DECLARATION_SIZE, (uint8_t *)&char_prop_read_write_write_nr}},
-
-        [HIDD_LE_IDX_REPORT_LED_OUT_VAL] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&hid_report_uuid, ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE, HIDD_LE_REPORT_MAX_LEN, 0, NULL}},
-        [HIDD_LE_IDX_REPORT_LED_OUT_REP_REF] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&hid_report_ref_descr_uuid, ESP_GATT_PERM_READ, sizeof(hidReportRefLedOut), sizeof(hidReportRefLedOut), hidReportRefLedOut}},
-#if (SUPPORT_REPORT_VENDOR == true)
-        // Report Characteristic Declaration
-        [HIDD_LE_IDX_REPORT_VENDOR_OUT_CHAR] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&character_declaration_uuid, ESP_GATT_PERM_READ, CHAR_DECLARATION_SIZE, CHAR_DECLARATION_SIZE, (uint8_t *)&char_prop_read_write_notify}},
-        [HIDD_LE_IDX_REPORT_VENDOR_OUT_VAL] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&hid_report_uuid, ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE, HIDD_LE_REPORT_MAX_LEN, 0, NULL}},
-        [HIDD_LE_IDX_REPORT_VENDOR_OUT_REP_REF] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&hid_report_ref_descr_uuid, ESP_GATT_PERM_READ, sizeof(hidReportRefVendorOut), sizeof(hidReportRefVendorOut), hidReportRefVendorOut}},
-#endif
-        // Report Characteristic Declaration
-        [HIDD_LE_IDX_REPORT_CC_IN_CHAR] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&character_declaration_uuid, ESP_GATT_PERM_READ, CHAR_DECLARATION_SIZE, CHAR_DECLARATION_SIZE, (uint8_t *)&char_prop_read_notify}},
-        // Report Characteristic Value
-        [HIDD_LE_IDX_REPORT_CC_IN_VAL] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&hid_report_uuid, ESP_GATT_PERM_READ, HIDD_LE_REPORT_MAX_LEN, 0, NULL}},
-        // Report KEY INPUT Characteristic - Client Characteristic Configuration Descriptor
-        [HIDD_LE_IDX_REPORT_CC_IN_CCC] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&character_client_config_uuid, (ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE_ENCRYPTED), sizeof(uint16_t), 0, NULL}},
-        // Report Characteristic - Report Reference Descriptor
-        [HIDD_LE_IDX_REPORT_CC_IN_REP_REF] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&hid_report_ref_descr_uuid, ESP_GATT_PERM_READ, sizeof(hidReportRefCCIn), sizeof(hidReportRefCCIn), hidReportRefCCIn}},
-
-
-
-        //启动键盘输入报告
-        // Boot Keyboard Input Report Characteristic Declaration
-        [HIDD_LE_IDX_BOOT_KB_IN_REPORT_CHAR] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&character_declaration_uuid, ESP_GATT_PERM_READ, CHAR_DECLARATION_SIZE, CHAR_DECLARATION_SIZE, (uint8_t *)&char_prop_read_notify}},
-        // Boot Keyboard Input Report Characteristic Value
-        [HIDD_LE_IDX_BOOT_KB_IN_REPORT_VAL] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&hid_kb_input_uuid, ESP_GATT_PERM_READ, HIDD_LE_BOOT_REPORT_MAX_LEN, 0, NULL}},
-        // Boot Keyboard Input Report Characteristic - Client Characteristic Configuration Descriptor
-        [HIDD_LE_IDX_BOOT_KB_IN_REPORT_NTF_CFG] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&character_client_config_uuid, (ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE), sizeof(uint16_t), 0, NULL}},
-
-        // Boot Keyboard Output Report Characteristic Declaration
-        [HIDD_LE_IDX_BOOT_KB_OUT_REPORT_CHAR] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&character_declaration_uuid, ESP_GATT_PERM_READ, CHAR_DECLARATION_SIZE, CHAR_DECLARATION_SIZE, (uint8_t *)&char_prop_read_write}},
-        // Boot Keyboard Output Report Characteristic Value
-        [HIDD_LE_IDX_BOOT_KB_OUT_REPORT_VAL] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&hid_kb_output_uuid, (ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE), HIDD_LE_BOOT_REPORT_MAX_LEN, 0, NULL}},
-        //鼠标
-        // Boot Mouse Input Report Characteristic Declaration
-        [HIDD_LE_IDX_BOOT_MOUSE_IN_REPORT_CHAR] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&character_declaration_uuid, ESP_GATT_PERM_READ, CHAR_DECLARATION_SIZE, CHAR_DECLARATION_SIZE, (uint8_t *)&char_prop_read_notify}},
-        // Boot Mouse Input Report Characteristic Value
-        [HIDD_LE_IDX_BOOT_MOUSE_IN_REPORT_VAL] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&hid_mouse_input_uuid, ESP_GATT_PERM_READ, HIDD_LE_BOOT_REPORT_MAX_LEN, 0, NULL}},
-        // Boot Mouse Input Report Characteristic - Client Characteristic Configuration Descriptor
-        [HIDD_LE_IDX_BOOT_MOUSE_IN_REPORT_NTF_CFG] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&character_client_config_uuid, (ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE), sizeof(uint16_t), 0, NULL}},
-#elif(gamePadMode == 1)
         // FIXME:写一下手柄的描述符
         // 手柄鼠标输入报告声明
         [HIDD_LE_IDX_REPORT_GAMEPAD_MOUSE_IN_CHAR] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&character_declaration_uuid, ESP_GATT_PERM_READ, CHAR_DECLARATION_SIZE, CHAR_DECLARATION_SIZE, (uint8_t *)&char_prop_read_notify}},
@@ -622,9 +348,6 @@ static esp_gatts_attr_db_t hidd_le_gatt_db[HIDD_LE_IDX_NB] =
         [HIDD_LE_IDX_REPORT_GAMEPAD_STICK_IN_VAL] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&hid_report_uuid, ESP_GATT_PERM_READ, HIDD_LE_REPORT_MAX_LEN, 0, NULL}},
         [HIDD_LE_IDX_REPORT_GAMEPAD_STICK_IN_CCC] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&character_client_config_uuid, (ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE), sizeof(uint16_t), 0, NULL}},
         [HIDD_LE_IDX_REPORT_GAMEPAD_STICK_REP_REF] = {{ESP_GATT_AUTO_RSP}, {ESP_UUID_LEN_16, (uint8_t *)&hid_report_ref_descr_uuid, ESP_GATT_PERM_READ, sizeof(hidReportRefGamePadStickIn), sizeof(hidReportRefGamePadStickIn), hidReportRefGamePadStickIn}},
-
-
-#endif
 
 
 
@@ -719,17 +442,15 @@ void esp_hidd_prf_cb_hdl(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if,
     case ESP_GATTS_WRITE_EVT:
     {
         // 处理客户端写入特征值事件（不处理）
-        #if((gamePadMode == 0) & (gamePadMode == 1))
-        esp_hidd_cb_param_t cb_param = {0};
-        if (param->write.handle == hidd_le_env.hidd_inst.att_tbl[HIDD_LE_IDX_REPORT_LED_OUT_VAL])
-        {
-            cb_param.led_write.conn_id = param->write.conn_id;
-            cb_param.led_write.report_id = HID_RPT_ID_LED_OUT;
-            cb_param.led_write.length = param->write.len;
-            cb_param.led_write.data = param->write.value;
-            (hidd_le_env.hidd_cb)(ESP_HIDD_EVENT_BLE_LED_REPORT_WRITE_EVT, &cb_param);
-        }
-        #endif
+        // esp_hidd_cb_param_t cb_param = {0};
+        // if (param->write.handle == hidd_le_env.hidd_inst.att_tbl[HIDD_LE_IDX_REPORT_LED_OUT_VAL])
+        // {
+        //     cb_param.led_write.conn_id = param->write.conn_id;
+        //     cb_param.led_write.report_id = HID_RPT_ID_LED_OUT;
+        //     cb_param.led_write.length = param->write.len;
+        //     cb_param.led_write.data = param->write.value;
+        //     (hidd_le_env.hidd_cb)(ESP_HIDD_EVENT_BLE_LED_REPORT_WRITE_EVT, &cb_param);
+        // }
 #if (SUPPORT_REPORT_VENDOR == true)
         if (param->write.handle == hidd_le_env.hidd_inst.att_tbl[HIDD_LE_IDX_REPORT_VENDOR_OUT_VAL] &&
             hidd_le_env.hidd_cb != NULL)
@@ -913,66 +634,6 @@ void hidd_get_attr_value(uint16_t handle, uint16_t *length, uint8_t **value)
 
 static void hid_add_id_tbl(void)
 {
-    #if(gamePadMode == 0)
-    // Mouse input report
-    hid_rpt_map[0].id = hidReportRefMouseIn[0];
-    hid_rpt_map[0].type = hidReportRefMouseIn[1];
-    hid_rpt_map[0].handle = hidd_le_env.hidd_inst.att_tbl[HIDD_LE_IDX_REPORT_MOUSE_IN_VAL];
-    hid_rpt_map[0].cccdHandle = hidd_le_env.hidd_inst.att_tbl[HIDD_LE_IDX_REPORT_MOUSE_IN_VAL];
-    hid_rpt_map[0].mode = HID_PROTOCOL_MODE_REPORT;
-
-    // Key input report
-    hid_rpt_map[1].id = hidReportRefKeyIn[0];
-    hid_rpt_map[1].type = hidReportRefKeyIn[1];
-    hid_rpt_map[1].handle = hidd_le_env.hidd_inst.att_tbl[HIDD_LE_IDX_REPORT_KEY_IN_VAL];
-    hid_rpt_map[1].cccdHandle = hidd_le_env.hidd_inst.att_tbl[HIDD_LE_IDX_REPORT_KEY_IN_CCC];
-    hid_rpt_map[1].mode = HID_PROTOCOL_MODE_REPORT;
-
-    // Consumer Control input report
-    hid_rpt_map[2].id = hidReportRefCCIn[0];
-    hid_rpt_map[2].type = hidReportRefCCIn[1];
-    hid_rpt_map[2].handle = hidd_le_env.hidd_inst.att_tbl[HIDD_LE_IDX_REPORT_CC_IN_VAL];
-    hid_rpt_map[2].cccdHandle = hidd_le_env.hidd_inst.att_tbl[HIDD_LE_IDX_REPORT_CC_IN_CCC];
-    hid_rpt_map[2].mode = HID_PROTOCOL_MODE_REPORT;
-
-    // LED output report
-    hid_rpt_map[3].id = hidReportRefLedOut[0];
-    hid_rpt_map[3].type = hidReportRefLedOut[1];
-    hid_rpt_map[3].handle = hidd_le_env.hidd_inst.att_tbl[HIDD_LE_IDX_REPORT_LED_OUT_VAL];
-    hid_rpt_map[3].cccdHandle = 0;
-    hid_rpt_map[3].mode = HID_PROTOCOL_MODE_REPORT;
-
-    // Boot keyboard input report
-    // Use same ID and type as key input report
-    hid_rpt_map[4].id = hidReportRefKeyIn[0];
-    hid_rpt_map[4].type = hidReportRefKeyIn[1];
-    hid_rpt_map[4].handle = hidd_le_env.hidd_inst.att_tbl[HIDD_LE_IDX_BOOT_KB_IN_REPORT_VAL];
-    hid_rpt_map[4].cccdHandle = 0;
-    hid_rpt_map[4].mode = HID_PROTOCOL_MODE_BOOT;
-
-    // Boot keyboard output report
-    // Use same ID and type as LED output report
-    hid_rpt_map[5].id = hidReportRefLedOut[0];
-    hid_rpt_map[5].type = hidReportRefLedOut[1];
-    hid_rpt_map[5].handle = hidd_le_env.hidd_inst.att_tbl[HIDD_LE_IDX_BOOT_KB_OUT_REPORT_VAL];
-    hid_rpt_map[5].cccdHandle = 0;
-    hid_rpt_map[5].mode = HID_PROTOCOL_MODE_BOOT;
-
-    // Boot mouse input report
-    // Use same ID and type as mouse input report
-    hid_rpt_map[6].id = hidReportRefMouseIn[0];
-    hid_rpt_map[6].type = hidReportRefMouseIn[1];
-    hid_rpt_map[6].handle = hidd_le_env.hidd_inst.att_tbl[HIDD_LE_IDX_BOOT_MOUSE_IN_REPORT_VAL];
-    hid_rpt_map[6].cccdHandle = 0;
-    hid_rpt_map[6].mode = HID_PROTOCOL_MODE_BOOT;
-
-    // Feature report
-    hid_rpt_map[7].id = hidReportRefFeature[0];
-    hid_rpt_map[7].type = hidReportRefFeature[1];
-    hid_rpt_map[7].handle = hidd_le_env.hidd_inst.att_tbl[HIDD_LE_IDX_REPORT_VAL];
-    hid_rpt_map[7].cccdHandle = 0;
-    hid_rpt_map[7].mode = HID_PROTOCOL_MODE_REPORT;
-    #elif(gamePadMode == 1)
     // ID==1mouse
     hid_rpt_map[0].id = hidReportRefGamePadMouseIn[0];
     hid_rpt_map[0].type = hidReportRefGamePadMouseIn[1];
@@ -1003,8 +664,6 @@ static void hid_add_id_tbl(void)
     hid_rpt_map[3].cccdHandle = 0;
     hid_rpt_map[3].mode = HID_PROTOCOL_MODE_REPORT;
     ESP_LOGI("MAP[3]","Report headle = %d,ReportID = %d,type = %d",hid_rpt_map[7].handle, hid_rpt_map[7].id, hid_rpt_map[7].type);
-
-    #endif
 
     // Setup report ID map
     hid_dev_register_reports(HID_NUM_REPORTS, hid_rpt_map);
