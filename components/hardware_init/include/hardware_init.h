@@ -28,18 +28,29 @@ void read_and_log_adc_values(void);
 
 
 // Define GPIOs
-// 25 26 27 14分别对应右上角KEY X Y A B（左 上 下 右）
-#define GPIO_INPUT_IO_25     25
-#define GPIO_INPUT_IO_26     26
-#define GPIO_INPUT_IO_27     27
-#define GPIO_INPUT_IO_14     14
+// 右上角按键 (X Y A B)
+#define GPIO_INPUT_KEY_X         25  // 右上角按键X (左)
+#define GPIO_INPUT_KEY_Y         26  // 右上角按键Y (上)
+#define GPIO_INPUT_KEY_A         27  // 右上角按键A (下)
+#define GPIO_INPUT_KEY_B         14  // 右上角按键B (右)
 
-#define GPIO_INPUT_IO_15     15 //右摇杆按键
-#define GPIO_INPUT_IO_19     19 //左摇杆按键
+// 摇杆按键
+#define GPIO_INPUT_LEFT_JOYSTICK_BTN   15  // 左摇杆按键
+#define GPIO_INPUT_RIGHT_JOYSTICK_BTN  19  // 右摇杆按键
 
 // 肩键
-
+#define GPIO_INPUT_LEFT_SHOULDER_BTN   23  // 左肩键
+#define GPIO_INPUT_RIGHT_SHOULDER_BTN  18  // 右肩键
 // 超薄按键
+#define GPIO_INPUT_SELECT_BTN    4  // SELECT按键
+#define GPIO_INPUT_START_BTN     2   // START按键
+#define GPIO_INPUT_HOME_BTN      13   // HOME按键
+#define GPIO_INPUT_IKEY_BTN      0   // IKEY按键
+#define GPIO_INPUT_IOS_BTN       21   // IOS按键
+#define GPIO_INPUT_WINDOWS_BTN   22   // Windows按键
+
+#define GPIO_INPUT_ANDROID_BTN   4   // Android按键
+
 
 void init_gpio(void);
 

@@ -150,28 +150,26 @@ void read_and_log_adc_values(void)
 void init_gpio(void)
 {
     gpio_config_t io_conf = {};
-    
-    // Configure output pin (GPIO32)
-    // io_conf.intr_type = GPIO_INTR_DISABLE;         // Disable interrupt
-    // io_conf.mode = GPIO_MODE_OUTPUT;               // Set as output
-    // //
-    // io_conf.pin_bit_mask = BIT64(GPIO_OUTPUT_IO_32); // GPIO32
-    // io_conf.pull_down_en = false;                  // Disable pull-down
-    // io_conf.pull_up_en = false;                    // Disable pull-up
-    // gpio_config(&io_conf);
-
-    // Configure input pins (GPIO25, 26, 27, 14)
     io_conf.intr_type = GPIO_INTR_DISABLE;         // Disable interrupt
     io_conf.mode = GPIO_MODE_INPUT;                // Set as input
     // 详情查看init.h
-    io_conf.pin_bit_mask = BIT64(GPIO_INPUT_IO_25) | BIT64(GPIO_INPUT_IO_26) |
-                           BIT64(GPIO_INPUT_IO_27) | BIT64(GPIO_INPUT_IO_14) |
-                           BIT64(GPIO_INPUT_IO_15) | BIT64(GPIO_INPUT_IO_19);
+    io_conf.pin_bit_mask = BIT64(GPIO_INPUT_KEY_X) | BIT64(GPIO_INPUT_KEY_Y) |
+                           BIT64(GPIO_INPUT_KEY_A) | BIT64(GPIO_INPUT_KEY_B) |
+                           BIT64(GPIO_INPUT_LEFT_JOYSTICK_BTN) | BIT64(GPIO_INPUT_RIGHT_JOYSTICK_BTN) | 
+                           BIT64(GPIO_INPUT_LEFT_SHOULDER_BTN) | BIT64(GPIO_INPUT_RIGHT_SHOULDER_BTN) |
+                           BIT64(GPIO_INPUT_SELECT_BTN)| BIT64(GPIO_INPUT_START_BTN) | BIT64(GPIO_INPUT_IKEY_BTN) | BIT64(GPIO_INPUT_IOS_BTN)|BIT64(GPIO_INPUT_WINDOWS_BTN);
     io_conf.pull_down_en = false;                  // Disable pull-down
     io_conf.pull_up_en = true;                     // Enable pull-up
-
-
     gpio_config(&io_conf);
+    
+    // 为HOME按键单独配置为拉低模式
+    gpio_config_t home_btn_conf = {};
+    home_btn_conf.intr_type = GPIO_INTR_DISABLE;
+    home_btn_conf.mode = GPIO_MODE_INPUT;
+    home_btn_conf.pin_bit_mask = BIT64(GPIO_INPUT_HOME_BTN);
+    home_btn_conf.pull_down_en = true;             // Enable pull-down for HOME button
+    home_btn_conf.pull_up_en = false;              // Disable pull-up for HOME button
+    gpio_config(&home_btn_conf);
 }
 
 
@@ -182,5 +180,6 @@ void init_all(void)
     led_strip = configure_led();
     init_adc();
     init_gpio();
+    // gpio_set_drive_capability(GPIO_INPUT_START_BTN, GPIO_DRIVE_CAP_3); // 设置为40mA驱动能力
     
 }

@@ -257,27 +257,46 @@ void gpio_read_task(void *pvParameter)
 {
     int level_25, level_26, level_27, level_14;
     int level_15, level_19;
+    int level_23, level_18;
+    int level_4, level_2, level_13, level_0, level_21, level_22;
 
     while (1) {
         // Toggle GPIO32
 
         // Read input GPIO levels
-        level_25 = gpio_get_level(GPIO_INPUT_IO_25);
-        level_26 = gpio_get_level(GPIO_INPUT_IO_26);
-        level_27 = gpio_get_level(GPIO_INPUT_IO_27);
-        level_14 = gpio_get_level(GPIO_INPUT_IO_14);
+        level_25 = gpio_get_level(GPIO_INPUT_KEY_X);
+        level_26 = gpio_get_level(GPIO_INPUT_KEY_Y);
+        level_27 = gpio_get_level(GPIO_INPUT_KEY_A);
+        level_14 = gpio_get_level(GPIO_INPUT_KEY_B);
 
-        level_15 = gpio_get_level(GPIO_INPUT_IO_15);
-        level_19 = gpio_get_level(GPIO_INPUT_IO_19);
+
+        level_15 = gpio_get_level(GPIO_INPUT_LEFT_JOYSTICK_BTN);
+        level_19 = gpio_get_level(GPIO_INPUT_RIGHT_JOYSTICK_BTN);
+        
+        level_23 = gpio_get_level(GPIO_INPUT_LEFT_SHOULDER_BTN);
+        level_18 = gpio_get_level(GPIO_INPUT_RIGHT_SHOULDER_BTN);
+
+        level_4 = gpio_get_level(GPIO_INPUT_SELECT_BTN);
+        level_2 = gpio_get_level(GPIO_INPUT_START_BTN);
+        level_13 = gpio_get_level(GPIO_INPUT_HOME_BTN);
+        level_0 = gpio_get_level(GPIO_INPUT_IKEY_BTN);
+        level_21 = gpio_get_level(GPIO_INPUT_IOS_BTN);
+        level_22 = gpio_get_level(GPIO_INPUT_WINDOWS_BTN);
 
         // Log levels
-        ESP_LOGI("gpio_toggle_task", "GPIO25: %d | GPIO26: %d | GPIO27: %d | GPIO14: %d",
+        ESP_LOGI("ioTask", "X: %d | Y: %d | A: %d | B: %d",
                  level_25, level_26, level_27, level_14);
-        ESP_LOGI("gpio_toggle_task", "GPIO15: %d | GPIO19: %d",
+        ESP_LOGI("ioTask", "LS: %d | RS: %d",
                  level_15, level_19);
+        ESP_LOGI("ioTask", "Shoulders - Left: %d | Right: %d",
+                 level_23, level_18);
+        ESP_LOGI("ioTask", "Special Keys - SELECT: %d | START: %d | HOME: %d | IKEY: %d | IOS: %d | WINDOWS: %d",
+                 level_4, level_2, level_13, level_0, level_21, level_22);
+
+        
 
         // Delay 500ms
-        vTaskDelay(pdMS_TO_TICKS(500));
+        vTaskDelay(pdMS_TO_TICKS(300));
     }
 }
 
@@ -306,7 +325,7 @@ void gamepad_button_task(void *pvParameters)
         }
         else
         {
-            vTaskDelay(pdMS_TO_TICKS(1000));
+            vTaskDelay(pdMS_TO_TICKS(10000));
             ESP_LOGI(HID_TASK_TAG, "Waiting for connection...");
         }
     }
