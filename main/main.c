@@ -28,6 +28,8 @@
 #include "hardware_init.h"
 
 //todo:遗忘上一次连接的设备
+//todo:修改ADC库和ADC校准库
+//todo:修改为连续ADC
 
 
 #define HID_BLE_TAG "BLEinfo"
@@ -224,22 +226,30 @@ static void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param
 void blink_task(void *pvParameter)
 { 
     bool led_on_off = false;
+    setLED(0, 0, 10, 0);
+    setLED(1, 10, 0, 0);
+    setLED(2, 10, 0, 10);
+    setLED(3, 10, 10, 0);
     while(1)
     {
-            if (led_on_off) {
+        if (led_on_off) {
             setLED(0, 0, 10, 0);
-            setLED(1, 10, 0, 0);
-            setLED(2, 10, 0, 10);
-            setLED(3, 10, 10, 0);
-
             //ESP_LOGI("main", "LED ON!");
-        } else {
-            setLED(0, 0, 0, 0);
+        } 
+        else 
+        {
+            if(sec_conn)
+            {
+            }
+            else
+            {
+                setLED(0, 0, 0, 0);
+            }
             //ESP_LOGI("main", "LED OFF!");
         }
         
         led_on_off = !led_on_off;
-        vTaskDelay(pdMS_TO_TICKS(500)); 
+        vTaskDelay(pdMS_TO_TICKS(400)); 
     }
 }
 
@@ -291,8 +301,7 @@ void gamepad_button_task(void *pvParameters)
     {
         if (sec_conn)
         {
-            vTaskDelay(pdMS_TO_TICKS(200));
-            ESP_LOGI(HID_TASK_TAG, "Simulating gamepad button press");
+            vTaskDelay(pdMS_TO_TICKS(80));
             esp_hidd_send_gamepad_report(hid_conn_id);
         }
         else

@@ -91,14 +91,16 @@ void init_adc(void)
     };
 
     // 为每个通道配置
-    ESP_ERROR_CHECK(adc_oneshot_config_channel(adc1_handle, ADC_CHANNEL_0, &chan_cfg));
-    ESP_ERROR_CHECK(adc_oneshot_config_channel(adc1_handle, ADC_CHANNEL_1, &chan_cfg));
-    ESP_ERROR_CHECK(adc_oneshot_config_channel(adc1_handle, ADC_CHANNEL_2, &chan_cfg));
-    ESP_ERROR_CHECK(adc_oneshot_config_channel(adc1_handle, ADC_CHANNEL_3, &chan_cfg));
-    ESP_ERROR_CHECK(adc_oneshot_config_channel(adc1_handle, ADC_CHANNEL_4, &chan_cfg));
-    ESP_ERROR_CHECK(adc_oneshot_config_channel(adc1_handle, ADC_CHANNEL_5, &chan_cfg));
-    ESP_ERROR_CHECK(adc_oneshot_config_channel(adc1_handle, ADC_CHANNEL_6, &chan_cfg));
-    ESP_ERROR_CHECK(adc_oneshot_config_channel(adc1_handle, ADC_CHANNEL_7, &chan_cfg));
+
+    ESP_ERROR_CHECK(adc_oneshot_config_channel(adc1_handle, ADC_CHANNEL_RIGHT_UP_DOWN, &chan_cfg));
+    ESP_ERROR_CHECK(adc_oneshot_config_channel(adc1_handle, ADC_CHANNEL_RIGHT_LEFT_RIGHT, &chan_cfg));
+    ESP_ERROR_CHECK(adc_oneshot_config_channel(adc1_handle, ADC_CHANNEL_LEFT_UP_DOWN, &chan_cfg));
+    ESP_ERROR_CHECK(adc_oneshot_config_channel(adc1_handle, ADC_CHANNEL_LEFT_LEFT_RIGHT, &chan_cfg));
+    ESP_ERROR_CHECK(adc_oneshot_config_channel(adc1_handle, ADC_CHANNEL_LEFT_TRIGGER, &chan_cfg));
+    ESP_ERROR_CHECK(adc_oneshot_config_channel(adc1_handle, ADC_CHANNEL_RIGHT_TRIGGER, &chan_cfg));
+    ESP_ERROR_CHECK(adc_oneshot_config_channel(adc1_handle, ADC_CHANNEL_BATTERY, &chan_cfg));
+    ESP_ERROR_CHECK(adc_oneshot_config_channel(adc1_handle, ADC_CHANNEL_DPAD, &chan_cfg));
+
 
     // 校准配置
     adc_cali_line_fitting_config_t cali_config = {
@@ -121,48 +123,16 @@ int read_adc_channel_voltage(adc_channel_t channel)
 
 void read_and_log_adc_values(void)
 {
-    // int voltage;
-    
-    // // 右上下
-    // voltage = read_adc_channel_voltage(ADC_CHANNEL_0);
-    // printf("RIGHT上下ADC CH0 (GPIO36): %d\n", voltage);
-    
-    // // 右左右
-    // voltage = read_adc_channel_voltage(ADC_CHANNEL_1);
-    // printf("RIGHT左右ADC CH1 (GPIO37): %d\n", voltage);
-    
-    // // 左上下
-    // voltage = read_adc_channel_voltage(ADC_CHANNEL_2);
-    // printf("LEFT上下ADC CH2 (GPIO38): %d\n", voltage);
-    
-    // // 左左右
-    // voltage = read_adc_channel_voltage(ADC_CHANNEL_3);
-    // printf("LEFT左右ADC CH3 (GPIO39): %d\n", voltage);
-    
-    // // 左板机
-    // voltage = read_adc_channel_voltage(ADC_CHANNEL_4);
-    // printf("LEFT板机ADC CH4 (GPIO32): %d\n", voltage);
-    
-    // // 右板机
-    // voltage = read_adc_channel_voltage(ADC_CHANNEL_5);
-    // printf("RIGHT板机ADC CH5 (GPIO33): %d\n", voltage);
-    
-    // // 电池电压
-    // voltage = read_adc_channel_voltage(ADC_CHANNEL_6);
-    // printf("BATTERY ADC CH6 (GPIO34): %d\n", voltage);
-    
-    // // 十字键
-    // voltage = read_adc_channel_voltage(ADC_CHANNEL_7);
-    // printf("十字键ADC CH7 (GPIO35): %d\n", voltage);
 
-    float voltage0 = (float)read_adc_channel_voltage(ADC_CHANNEL_0) / 1000.0f;
-    float voltage1 = (float)read_adc_channel_voltage(ADC_CHANNEL_1) / 1000.0f;
-    float voltage2 = (float)read_adc_channel_voltage(ADC_CHANNEL_2) / 1000.0f;
-    float voltage3 = (float)read_adc_channel_voltage(ADC_CHANNEL_3) / 1000.0f;
-    float voltage4 = (float)read_adc_channel_voltage(ADC_CHANNEL_4) / 1000.0f;
-    float voltage5 = (float)read_adc_channel_voltage(ADC_CHANNEL_5) / 1000.0f;
-    float voltage6 = (float)read_adc_channel_voltage(ADC_CHANNEL_6) / 1000.0f;
-    float voltage7 = (float)read_adc_channel_voltage(ADC_CHANNEL_7) / 1000.0f;
+    float voltage0 = (float)read_adc_channel_voltage(ADC_CHANNEL_RIGHT_UP_DOWN) / 1000.0f;
+    float voltage1 = (float)read_adc_channel_voltage(ADC_CHANNEL_RIGHT_LEFT_RIGHT) / 1000.0f;
+    float voltage2 = (float)read_adc_channel_voltage(ADC_CHANNEL_LEFT_UP_DOWN) / 1000.0f;
+    float voltage3 = (float)read_adc_channel_voltage(ADC_CHANNEL_LEFT_LEFT_RIGHT) / 1000.0f;
+    float voltage4 = (float)read_adc_channel_voltage(ADC_CHANNEL_LEFT_TRIGGER) / 1000.0f;
+    float voltage5 = (float)read_adc_channel_voltage(ADC_CHANNEL_RIGHT_TRIGGER) / 1000.0f;
+    float voltage6 = (float)read_adc_channel_voltage(ADC_CHANNEL_BATTERY) / 1000.0f;
+    float voltage7 = (float)read_adc_channel_voltage(ADC_CHANNEL_DPAD) / 1000.0f;
+
 
     printf("%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f\n",
            voltage0, voltage1, voltage2, voltage3,
@@ -193,7 +163,7 @@ void init_gpio(void)
     // Configure input pins (GPIO25, 26, 27, 14)
     io_conf.intr_type = GPIO_INTR_DISABLE;         // Disable interrupt
     io_conf.mode = GPIO_MODE_INPUT;                // Set as input
-    // 25 26 27 14分别对应右上角KEY X Y A B（左 上 下 右）
+    // 详情查看init.h
     io_conf.pin_bit_mask = BIT64(GPIO_INPUT_IO_25) | BIT64(GPIO_INPUT_IO_26) |
                            BIT64(GPIO_INPUT_IO_27) | BIT64(GPIO_INPUT_IO_14) |
                            BIT64(GPIO_INPUT_IO_15) | BIT64(GPIO_INPUT_IO_19);
