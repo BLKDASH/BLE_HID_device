@@ -57,52 +57,56 @@ bool shoule_startup = false;
 bool LED_ON = true;
 void app_main(void)
 {
-    ESP_LOGW("main", "Into MAIN");
-    if(ESP_OK == START_UP())
+    while(1)
     {
-        ESP_LOGI("main", "START_UP OK");
-        
-        init_all();//初始化除了HOME按键之外的外设
-        // LED任务
-        
-        // xTaskCreatePinnedToCore(blink_task, "blink_task", 4096, NULL, 5, NULL, 1);
-        // 先闪灯，让用户以为开机了
-        while(gpio_get_level(GPIO_INPUT_HOME_BTN))
+        ESP_LOGW("main", "Into MAIN");
+        if(ESP_OK == START_UP())
         {
-            vTaskDelay(pdMS_TO_TICKS(100));//让出时间给LED任务
-        }//等待按键释放
-        ESP_LOGI("main", "register home button--");
-        setHomeButton();//注册home按键长按
-        if (ESP_OK == ble_init())
-        {
-            ble_sec_config();
-        }
-        ESP_LOGI("Main", "BLE HID Init OK");
-        
-        // GPIO与ADC读取任务
-        // xTaskCreatePinnedToCore(gpio_read_task, "gpio_toggle_task", 4096, NULL, 6, NULL, 1);
-        // xTaskCreatePinnedToCore(adc_read_task, "adc_read_task", 4096, NULL, 7, NULL, 1);
-        // 模拟手柄任务
-        // xTaskCreate(&gamepad_button_task, "gamepad_button_task", 4096, NULL, 9, NULL);
-
-        vTaskDelay(pdMS_TO_TICKS(5000));
-        // SLEEP();
-        while (1)
-        {
-            vTaskDelay(pdMS_TO_TICKS(1000));
-        }
+            ESP_LOGI("main", "START_UP OK");
             
-    }
-    else
-    {
-        ESP_LOGW("main", "START_UP failed,closing...");
-        SLEEP();
+            init_all();//初始化除了HOME按键之外的外设
+            // LED任务
+            
+            // xTaskCreatePinnedToCore(blink_task, "blink_task", 4096, NULL, 5, NULL, 1);
+            // 先闪灯，让用户以为开机了
+            while(gpio_get_level(GPIO_INPUT_HOME_BTN))
+            {
+                vTaskDelay(pdMS_TO_TICKS(100));//让出时间给LED任务
+            }//等待按键释放
+            ESP_LOGI("main", "register home button--");
+            setHomeButton();//注册home按键长按
+            if (ESP_OK == ble_init())
+            {
+                ble_sec_config();
+            }
+            ESP_LOGI("Main", "BLE HID Init OK");
+            
+            // GPIO与ADC读取任务
+            // xTaskCreatePinnedToCore(gpio_read_task, "gpio_toggle_task", 4096, NULL, 6, NULL, 1);
+            // xTaskCreatePinnedToCore(adc_read_task, "adc_read_task", 4096, NULL, 7, NULL, 1);
+            // 模拟手柄任务
+            // xTaskCreate(&gamepad_button_task, "gamepad_button_task", 4096, NULL, 9, NULL);
+
+            vTaskDelay(pdMS_TO_TICKS(5000));
+            // SLEEP();
+            while (1)
+            {
+                vTaskDelay(pdMS_TO_TICKS(1000));
+            }
+                
+        }
+        else
+        {
+            ESP_LOGW("main", "START_UP failed,closing...");
+            SLEEP();
+        }
     }
 }
 
 
 esp_err_t START_UP(void)
 {
+    // 关闭单颗LED的灯
     gpio_config_t led_out_btn_conf = {};
     led_out_btn_conf.intr_type = GPIO_INTR_DISABLE;
     led_out_btn_conf.mode = GPIO_MODE_OUTPUT;
@@ -114,6 +118,7 @@ esp_err_t START_UP(void)
     }
     gpio_set_level(LED_STRIP_BLINK_GPIO, 0);
 
+    // 配置home按键下拉输入
     gpio_config_t home_btn_conf = {};
     home_btn_conf.intr_type = GPIO_INTR_DISABLE;
     home_btn_conf.mode = GPIO_MODE_INPUT;
@@ -127,7 +132,6 @@ esp_err_t START_UP(void)
     // 阻塞方式检测按键是否持续高电平3秒
     int64_t start_time = esp_timer_get_time();  // 获取起始时间(微秒)
     int64_t required_duration = 1500000;       // 1.5秒 = 1,500,000微秒
-    
     while (true) {
         // 读取当前按键状态
         int level = gpio_get_level(GPIO_INPUT_HOME_BTN);
@@ -149,8 +153,16 @@ static void button_long_press_home_cb(void *arg,void *usr_data)
 {
     ESP_LOGW("button_cb", "HOME_BUTTON_LONG_PRESS");
     // 假如一直按住，则松开才执行后面的操作
-    while(gpio_get_level(GPIO_INPUT_HOME_BTN) == 1){vTaskDelay(100);}
-
+    while(gpio_get_level(GPIO_INPUT_HOME_BTN) == 1)
+    {
+        // 先关灯
+        LED_ON = false;
+        setLED(0, 0, 0, 0);
+        setLED(1, 0, 0, 0);
+        setLED(2, 0, 0, 0);
+        setLED(3, 0, 0, 0);
+        vTaskDelay(100);
+    }
     SLEEP();
 }
 
@@ -175,11 +187,12 @@ esp_err_t setHomeButton(void)
 void SLEEP(void)
 {
     ESP_LOGI(HID_BLE_TAG, "Sleeping...");
-    // setLED(0, 0, 0, 0);
-    // setLED(1, 0, 0, 0);
-    // setLED(2, 0, 0, 0);
-    // setLED(3, 0, 0, 0);
     LED_ON = false;
+    setLED(0, 0, 0, 0);
+    setLED(1, 0, 0, 0);
+    setLED(2, 0, 0, 0);
+    setLED(3, 0, 0, 0);
+    
     esp_bluedroid_disable();
     esp_bluedroid_deinit();
     esp_bt_controller_disable();
@@ -187,27 +200,29 @@ void SLEEP(void)
     // 关闭ws1812
     
     // led_strip_deinit(led_strip_get_handle());
-    gpio_config_t led_out_btn_conf = {};
-    led_out_btn_conf.intr_type = GPIO_INTR_DISABLE;
-    led_out_btn_conf.mode = GPIO_MODE_OUTPUT;
-    led_out_btn_conf.pin_bit_mask = BIT64(LED_STRIP_BLINK_GPIO);
-    led_out_btn_conf.pull_down_en = true;      // 下拉
-    led_out_btn_conf.pull_up_en = false;
-    if (gpio_config(&led_out_btn_conf) == ESP_OK) {
-        gpio_set_level(LED_STRIP_BLINK_GPIO, 1);
-    }
+    // 关机时亮led灯
+    // gpio_config_t led_out_io_conf = {};
+    // led_out_io_conf.intr_type = GPIO_INTR_DISABLE;
+    // led_out_io_conf.mode = GPIO_MODE_OUTPUT;
+    // led_out_io_conf.pin_bit_mask = BIT64(LED_STRIP_BLINK_GPIO);
+    // led_out_io_conf.pull_down_en = false;
+    // led_out_io_conf.pull_up_en = false;
+    // if (gpio_config(&led_out_io_conf) == ESP_OK) {
+    //     gpio_set_level(LED_STRIP_BLINK_GPIO, 1);
+    // }
     
 
     vTaskDelay(pdMS_TO_TICKS(1000));
+    // 下拉输出powerkeep0
     gpio_config_t io_conf = {};
     io_conf.intr_type = GPIO_INTR_DISABLE;
     io_conf.mode = GPIO_MODE_OUTPUT;
-    // 详情查看init.h
     io_conf.pin_bit_mask = BIT64(GPIO_OUTPUT_POWER_KEEP_IO);
     io_conf.pull_down_en = true;                  // Disable pull-down
     io_conf.pull_up_en = false;                     // Enable pull-up
     gpio_config(&io_conf);
     gpio_set_level(GPIO_OUTPUT_POWER_KEEP_IO, 0);
+    ESP_LOGI("SLEEP", "PULLDOWN IO5 LEVEL 0...");
     // esp_sleep_enable_ext0_wakeup(GPIO_INPUT_HOME_BTN, 1);
     // esp_deep_sleep_start();
 }
@@ -382,20 +397,18 @@ void blink_task(void *pvParameter)
             } 
             else 
             {
-                if(sec_conn)
-                {
-                }
-                else
-                {
-                    setLED(0, 0, 0, 0);
-                }
+
+                setLED(0, 0, 0, 0);
                 //ESP_LOGI("main", "LED OFF!");
             }
             
             led_on_off = !led_on_off;
             vTaskDelay(pdMS_TO_TICKS(400)); 
         }
-        vTaskDelay(pdMS_TO_TICKS(1000));
+        else
+        {
+            vTaskDelay(pdMS_TO_TICKS(1000));
+        }
     }
     
 }
