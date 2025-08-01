@@ -416,7 +416,7 @@ void esp_hidd_prf_cb_hdl(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if,
     {
         // 处理HID设备连接事件
         esp_hidd_cb_param_t cb_param = {0};
-        ESP_LOGI(HID_LE_PRF_TAG, "HID connection establish, conn_id = %x", param->connect.conn_id);
+        // ESP_LOGI(HID_LE_PRF_TAG, "HID connection establish, conn_id = %x", param->connect.conn_id);
         memcpy(cb_param.connect.remote_bda, param->connect.remote_bda, sizeof(esp_bd_addr_t));
         cb_param.connect.conn_id = param->connect.conn_id;
         hidd_clcb_alloc(param->connect.conn_id, param->connect.remote_bda);
@@ -474,8 +474,8 @@ void esp_hidd_prf_cb_hdl(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if,
         {
             incl_svc.start_hdl = param->add_attr_tab.handles[BAS_IDX_SVC];
             incl_svc.end_hdl = incl_svc.start_hdl + BAS_IDX_NB - 1;
-            ESP_LOGI(HID_LE_PRF_TAG, "%s(), start added the hid service to the stack database. incl_handle = %d",
-                     __func__, incl_svc.start_hdl);
+            // ESP_LOGI(HID_LE_PRF_TAG, "%s(), start added the hid service to the stack database. incl_handle = %d",
+            //          __func__, incl_svc.start_hdl);
             // 创建HID服务
             esp_ble_gatts_create_attr_tab(hidd_le_gatt_db, gatts_if, HIDD_LE_IDX_NB, 0);
         }
@@ -485,7 +485,7 @@ void esp_hidd_prf_cb_hdl(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if,
         {
             memcpy(hidd_le_env.hidd_inst.att_tbl, param->add_attr_tab.handles,
                    HIDD_LE_IDX_NB * sizeof(uint16_t));
-            ESP_LOGI(HID_LE_PRF_TAG, "hid svc handle = %x", hidd_le_env.hidd_inst.att_tbl[HIDD_LE_IDX_SVC]);
+            // ESP_LOGI(HID_LE_PRF_TAG, "hid svc handle = %x", hidd_le_env.hidd_inst.att_tbl[HIDD_LE_IDX_SVC]);
             // 创建报告ID映射表
             hid_add_id_tbl();
             // 开启HID服务

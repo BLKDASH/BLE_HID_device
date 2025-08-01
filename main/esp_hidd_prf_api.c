@@ -82,7 +82,7 @@ esp_err_t esp_hidd_profile_init(void)
     // 检查HID设备配置文件是否已初始化
     if (hidd_le_env.enabled)
     {
-        ESP_LOGE(HID_LE_PRF_TAG, "HID device profile already initialized");
+        // ESP_LOGE(HID_LE_PRF_TAG, "HID device profile already initialized");
         return ESP_FAIL;
     }
 
@@ -97,7 +97,7 @@ esp_err_t esp_hidd_profile_deinit(void)
     uint16_t hidd_svc_hdl = hidd_le_env.hidd_inst.att_tbl[HIDD_LE_IDX_SVC];
     if (!hidd_le_env.enabled)
     {
-        ESP_LOGE(HID_LE_PRF_TAG, "HID device profile already initialized");
+        // ESP_LOGE(HID_LE_PRF_TAG, "HID device profile already initialized");
         return ESP_OK;
     }
 

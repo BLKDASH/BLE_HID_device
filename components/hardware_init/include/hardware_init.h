@@ -5,6 +5,14 @@
 #include "driver/adc.h"
 #include "esp_adc_cal.h"
 
+// ws2812 IO_IN
+#define LED_STRIP_BLINK_GPIO  12
+// LED nums
+#define LED_STRIP_LED_NUMBERS 4
+// 10MHz resolution, 1 tick = 0.1us
+#define LED_STRIP_RMT_RES_HZ  (10 * 1000000)
+
+
 void func(void);
 led_strip_handle_t configure_led(void);
 // esp_err_t set_led_brightness(uint8_t brightness);
@@ -44,12 +52,16 @@ void read_and_log_adc_values(void);
 // 超薄按键
 #define GPIO_INPUT_SELECT_BTN    4  // SELECT按键
 #define GPIO_INPUT_START_BTN     2   // START按键
-#define GPIO_INPUT_HOME_BTN      13   // HOME按键
+#define GPIO_INPUT_HOME_BTN      13   // HOME按键，开关机检测按键
 #define GPIO_INPUT_IKEY_BTN      0   // IKEY按键
 #define GPIO_INPUT_IOS_BTN       21   // IOS按键
 #define GPIO_INPUT_WINDOWS_BTN   22   // Windows按键
 
+
 #define GPIO_INPUT_ANDROID_BTN   4   // Android按键
+
+
+#define GPIO_OUTPUT_POWER_KEEP_IO      5
 
 
 void init_gpio(void);
