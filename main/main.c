@@ -42,7 +42,7 @@
 #define HID_BLE_TAG "BLEinfo"
 #define HID_TASK_TAG "TASKinfo"
 
-#define DEBUG_MODE
+// #define DEBUG_MODE
 
 static uint16_t hid_conn_id = 0;
 static bool sec_conn = false;
@@ -182,7 +182,6 @@ void SLEEP(void)
 {
     ESP_LOGI(HID_BLE_TAG, "Sleeping...");
     // setLED函数同时会影响IO12单LED的初始化
-    setLED(0, 0, 30, 10);
     vTaskDelay(pdMS_TO_TICKS(300));
     // 不要做这些操作，直接关机即可。这些操作的后果不确定
     // esp_bluedroid_disable();
@@ -190,12 +189,14 @@ void SLEEP(void)
     // esp_bt_controller_disable();
     // esp_bt_controller_deinit();
     setLED(0, 30, 10, 0);
-    // 下拉输出powerkeep0
-    vTaskDelay(pdMS_TO_TICKS(300));
+
+    vTaskDelay(pdMS_TO_TICKS(1000));
     setLED(0, 0, 0, 0);
     vTaskDelay(pdMS_TO_TICKS(100));
     // 取消LED strip初始化
     led_strip_del(led_strip);
+
+    // 下拉输出powerkeep0
     gpio_config_t io_conf = {};
     io_conf.intr_type = GPIO_INTR_DISABLE;
     io_conf.mode = GPIO_MODE_OUTPUT;
