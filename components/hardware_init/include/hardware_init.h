@@ -5,6 +5,8 @@
 #include "driver/adc.h"
 #include "esp_adc_cal.h"
 
+extern led_strip_handle_t led_strip;
+
 // ws2812 IO_IN
 #define LED_STRIP_BLINK_GPIO  12
 // LED nums

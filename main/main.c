@@ -42,6 +42,8 @@
 #define HID_BLE_TAG "BLEinfo"
 #define HID_TASK_TAG "TASKinfo"
 
+#define DEBUG_MODE
+
 static uint16_t hid_conn_id = 0;
 static bool sec_conn = false;
 
@@ -61,7 +63,7 @@ void app_main(void)
     while(1)
     {
         ESP_LOGW("main", "Into MAIN");
-        if(ESP_OK == START_UP())
+        if(ESP_OK == START_UP())//DEBUG模式下，始终返回ESP_OK
         {
             ESP_LOGI("main", "START_UP OK");
             
@@ -107,6 +109,9 @@ void app_main(void)
 
 esp_err_t START_UP(void)
 {
+    #ifdef DEBUG_MODE
+        return ESP_OK;
+    #endif
     // 配置home按键下拉输入
     gpio_config_t home_btn_conf = {};
     home_btn_conf.intr_type = GPIO_INTR_DISABLE;
@@ -178,7 +183,7 @@ void SLEEP(void)
     ESP_LOGI(HID_BLE_TAG, "Sleeping...");
     // setLED函数同时会影响IO12单LED的初始化
     setLED(0, 0, 30, 10);
-    vTaskDelay(pdMS_TO_TICKS(1000));
+    vTaskDelay(pdMS_TO_TICKS(300));
     // 不要做这些操作，直接关机即可。这些操作的后果不确定
     // esp_bluedroid_disable();
     // esp_bluedroid_deinit();
@@ -186,9 +191,11 @@ void SLEEP(void)
     // esp_bt_controller_deinit();
     setLED(0, 30, 10, 0);
     // 下拉输出powerkeep0
-    vTaskDelay(pdMS_TO_TICKS(1000));
+    vTaskDelay(pdMS_TO_TICKS(300));
     setLED(0, 0, 0, 0);
     vTaskDelay(pdMS_TO_TICKS(100));
+    // 取消LED strip初始化
+    led_strip_del(led_strip);
     gpio_config_t io_conf = {};
     io_conf.intr_type = GPIO_INTR_DISABLE;
     io_conf.mode = GPIO_MODE_OUTPUT;
@@ -197,7 +204,7 @@ void SLEEP(void)
     io_conf.pull_up_en = false;                     // Enable pull-up
     gpio_config(&io_conf);
     gpio_set_level(GPIO_OUTPUT_POWER_KEEP_IO, 0);
-    //vTaskDelay(pdMS_TO_TICKS(50));//硬件关机有延迟，防止再次进入主函数
+    //vTaskDelay(pdMS_TO_TICKS(50));//硬件关机有延迟，防止再次进入主函数（不对，不能delay，一delay又开机了）
     
 }
 
@@ -212,7 +219,7 @@ void START_FAIL(void)
     io_conf.pull_up_en = false;                     // Enable pull-up
     gpio_config(&io_conf);
     gpio_set_level(GPIO_OUTPUT_POWER_KEEP_IO, 0);
-    //vTaskDelay(pdMS_TO_TICKS(50));//硬件关机有延迟，防止再次进入主函数
+    //vTaskDelay(pdMS_TO_TICKS(50));//硬件关机有延迟，防止再次进入主函数（不对，不能delay，一delay又开机了）
 }
 
 

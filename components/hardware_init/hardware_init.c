@@ -29,7 +29,7 @@ void func(void)
 #define LED_DEFAULT_COLOR_BLUE  0 // Default blue value
 
 // Global LED handle
-static led_strip_handle_t led_strip = NULL;
+led_strip_handle_t led_strip = NULL;
 
 static const char *TAG = "hardware_init";
 led_strip_handle_t configure_led(void)
