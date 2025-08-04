@@ -371,8 +371,7 @@ static void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param
 
 
 
-
-
+// -------------------------------------------------------------------- TASK -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 
 
@@ -394,7 +393,6 @@ void blink_task(void *pvParameter)
             } 
             else 
             {
-
                 setLED(0, 0, 0, 0);
                 //ESP_LOGI("main", "LED OFF!");
             }
@@ -485,30 +483,31 @@ void adc_read_task(void *pvParameter)
     ESP_ERROR_CHECK(adc_continuous_start(ADC_init_handle));
 
 
+
+    uint32_t log_counter = 0;
+    const uint32_t log_interval = 10;
+
     while (1) {
         // read_and_log_adc_values();
-        vTaskDelay(pdMS_TO_TICKS(300));
+        vTaskDelay(pdMS_TO_TICKS(20));
         // 读取256个数据
         ret = adc_continuous_read(ADC_init_handle, bufferADC, EXAMPLE_READ_LEN, &ret_num, 0);
         if (ret == ESP_OK) {
                 ESP_LOGI("TASK", "ret is %x, ret_num is %"PRIu32" bytes", ret, ret_num);
+                //ESP32的ADC连续读取模式将采集到的数据以特定格式存储在缓冲区中。每个ADC采样结果包含多个字节（通常是4字节），包含了通道号和采样值等信息。
                 for (int i = 0; i < ret_num; i += SOC_ADC_DIGI_RESULT_BYTES) {
                     adc_digi_output_data_t *p = (adc_digi_output_data_t*)&bufferADC[i];
                     uint32_t chan_num = EXAMPLE_ADC_GET_CHANNEL(p);
                     uint32_t data = EXAMPLE_ADC_GET_DATA(p);
-                    /* Check the channel number validation, the data is invalid if the channel num exceed the maximum channel */
-                    if (chan_num < SOC_ADC_CHANNEL_NUM(EXAMPLE_ADC_UNIT)) {
+                    log_counter++;
+                    if (log_counter % log_interval == 0 && chan_num == 0) 
+                    {
                         ESP_LOGI("ADCtask", "Unit: %s, Channel: %"PRIu32", Value: %"PRIx32, unit, chan_num, data);
-                    } else {
-                        ESP_LOGW("ADCtask", "Invalid data [%s_%"PRIu32"_%"PRIx32"]", unit, chan_num, data);
                     }
                 }
         }
     }
 }
-
-
-
 
 
 
