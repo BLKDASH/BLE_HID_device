@@ -57,6 +57,7 @@ bool shoule_startup = false;
 bool LED_ON = true;
 void app_main(void)
 {
+    vTaskDelay(pdMS_TO_TICKS(100));//等待boot日志输出完毕
     while(1)
     {
         ESP_LOGW("main", "Into MAIN");
@@ -66,8 +67,8 @@ void app_main(void)
             
             init_all();//初始化除了HOME按键之外的外设
             // LED任务
-            
-            // xTaskCreatePinnedToCore(blink_task, "blink_task", 4096, NULL, 5, NULL, 1);
+            LED_ON = true;
+            xTaskCreatePinnedToCore(blink_task, "blink_task", 4096, NULL, 5, NULL, 1);
             // 先闪灯，让用户以为开机了
             while(gpio_get_level(GPIO_INPUT_HOME_BTN))
             {
@@ -98,7 +99,7 @@ void app_main(void)
         else
         {
             ESP_LOGW("main", "START_UP failed,closing...");
-            SLEEP();
+            START_FAIL();
         }
     }
 }
@@ -106,18 +107,6 @@ void app_main(void)
 
 esp_err_t START_UP(void)
 {
-    // 关闭单颗LED的灯
-    gpio_config_t led_out_btn_conf = {};
-    led_out_btn_conf.intr_type = GPIO_INTR_DISABLE;
-    led_out_btn_conf.mode = GPIO_MODE_OUTPUT;
-    led_out_btn_conf.pin_bit_mask = BIT64(LED_STRIP_BLINK_GPIO);
-    led_out_btn_conf.pull_down_en = true;      // 下拉
-    led_out_btn_conf.pull_up_en = false;
-    if (gpio_config(&led_out_btn_conf) != ESP_OK) {
-        return ESP_FAIL;
-    }
-    gpio_set_level(LED_STRIP_BLINK_GPIO, 0);
-
     // 配置home按键下拉输入
     gpio_config_t home_btn_conf = {};
     home_btn_conf.intr_type = GPIO_INTR_DISABLE;
@@ -178,7 +167,7 @@ esp_err_t setHomeButton(void)
     iot_button_new_gpio_device(&btn_cfg, &btn_gpio_cfg, &gpio_btn);
     // 设置属性
     button_event_args_t args = {
-        .long_press.press_time = 3000,
+        .long_press.press_time = 1500,
     };
     iot_button_register_cb(gpio_btn, BUTTON_LONG_PRESS_START, &args, button_long_press_home_cb, NULL);
     return ESP_OK;
@@ -187,33 +176,19 @@ esp_err_t setHomeButton(void)
 void SLEEP(void)
 {
     ESP_LOGI(HID_BLE_TAG, "Sleeping...");
-    LED_ON = false;
-    setLED(0, 0, 0, 0);
-    setLED(1, 0, 0, 0);
-    setLED(2, 0, 0, 0);
-    setLED(3, 0, 0, 0);
-    
-    esp_bluedroid_disable();
-    esp_bluedroid_deinit();
-    esp_bt_controller_disable();
-    esp_bt_controller_deinit();
-    // 关闭ws1812
-    
-    // led_strip_deinit(led_strip_get_handle());
-    // 关机时亮led灯
-    // gpio_config_t led_out_io_conf = {};
-    // led_out_io_conf.intr_type = GPIO_INTR_DISABLE;
-    // led_out_io_conf.mode = GPIO_MODE_OUTPUT;
-    // led_out_io_conf.pin_bit_mask = BIT64(LED_STRIP_BLINK_GPIO);
-    // led_out_io_conf.pull_down_en = false;
-    // led_out_io_conf.pull_up_en = false;
-    // if (gpio_config(&led_out_io_conf) == ESP_OK) {
-    //     gpio_set_level(LED_STRIP_BLINK_GPIO, 1);
-    // }
-    
-
+    // setLED函数同时会影响IO12单LED的初始化
+    setLED(0, 0, 30, 10);
     vTaskDelay(pdMS_TO_TICKS(1000));
+    // 不要做这些操作，直接关机即可。这些操作的后果不确定
+    // esp_bluedroid_disable();
+    // esp_bluedroid_deinit();
+    // esp_bt_controller_disable();
+    // esp_bt_controller_deinit();
+    setLED(0, 30, 10, 0);
     // 下拉输出powerkeep0
+    vTaskDelay(pdMS_TO_TICKS(1000));
+    setLED(0, 0, 0, 0);
+    vTaskDelay(pdMS_TO_TICKS(100));
     gpio_config_t io_conf = {};
     io_conf.intr_type = GPIO_INTR_DISABLE;
     io_conf.mode = GPIO_MODE_OUTPUT;
@@ -222,9 +197,22 @@ void SLEEP(void)
     io_conf.pull_up_en = false;                     // Enable pull-up
     gpio_config(&io_conf);
     gpio_set_level(GPIO_OUTPUT_POWER_KEEP_IO, 0);
-    ESP_LOGI("SLEEP", "PULLDOWN IO5 LEVEL 0...");
-    // esp_sleep_enable_ext0_wakeup(GPIO_INPUT_HOME_BTN, 1);
-    // esp_deep_sleep_start();
+    //vTaskDelay(pdMS_TO_TICKS(50));//硬件关机有延迟，防止再次进入主函数
+    
+}
+
+void START_FAIL(void)
+{ 
+    // 由于LED strip没有初始化，因此直接拉低电源保持
+    gpio_config_t io_conf = {};
+    io_conf.intr_type = GPIO_INTR_DISABLE;
+    io_conf.mode = GPIO_MODE_OUTPUT;
+    io_conf.pin_bit_mask = BIT64(GPIO_OUTPUT_POWER_KEEP_IO);
+    io_conf.pull_down_en = true;                  // Disable pull-down
+    io_conf.pull_up_en = false;                     // Enable pull-up
+    gpio_config(&io_conf);
+    gpio_set_level(GPIO_OUTPUT_POWER_KEEP_IO, 0);
+    //vTaskDelay(pdMS_TO_TICKS(50));//硬件关机有延迟，防止再次进入主函数
 }
 
 

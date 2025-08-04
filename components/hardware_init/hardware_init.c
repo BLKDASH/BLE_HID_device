@@ -172,7 +172,7 @@ void init_gpio(void)
 //-------------------------------------------------------------------------------------
 void init_all(void)
 {
-    // led_strip = configure_led();
+    led_strip = configure_led();
     init_adc();
     init_gpio();
     
