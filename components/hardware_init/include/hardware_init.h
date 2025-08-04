@@ -2,8 +2,9 @@
 #define __HARDWARE_INIT_H__
 
 #include "led_strip.h"
-#include "driver/adc.h"
-#include "esp_adc_cal.h"
+#include "esp_adc/adc_continuous.h"
+// #include "driver/adc.h"
+// #include "esp_adc_cal.h"
 
 extern led_strip_handle_t led_strip;
 
@@ -16,9 +17,6 @@ extern led_strip_handle_t led_strip;
 
 
 void func(void);
-led_strip_handle_t configure_led(void);
-// esp_err_t set_led_brightness(uint8_t brightness);
-// esp_err_t update_leds(void);
 esp_err_t setLED(uint8_t index, uint8_t red, uint8_t green, uint8_t blue);
 
 
@@ -32,10 +30,29 @@ esp_err_t setLED(uint8_t index, uint8_t red, uint8_t green, uint8_t blue);
 #define ADC_CHANNEL_DPAD              ADC_CHANNEL_7  // 十字键 (GPIO35)
 
 // ADC functions
-void init_adc(void);
-int read_adc_channel_voltage(adc_channel_t channel);
-void read_and_log_adc_values(void);
+// void init_adc(void);
+// int read_adc_channel_voltage(adc_channel_t channel);
+// void read_and_log_adc_values(void);
+// ADC配置
+#define EXAMPLE_ADC_UNIT                    ADC_UNIT_1
+#define _EXAMPLE_ADC_UNIT_STR(unit)         #unit
+#define EXAMPLE_ADC_UNIT_STR(unit)          _EXAMPLE_ADC_UNIT_STR(unit)
+#define EXAMPLE_ADC_CONV_MODE               ADC_CONV_SINGLE_UNIT_1
+#define EXAMPLE_ADC_ATTEN                   ADC_ATTEN_DB_12
+#define EXAMPLE_ADC_BIT_WIDTH               SOC_ADC_DIGI_MAX_BITWIDTH
 
+// 设置输出格式类型和获取通道/数据的宏
+#define EXAMPLE_ADC_OUTPUT_TYPE             ADC_DIGI_OUTPUT_FORMAT_TYPE1
+#define EXAMPLE_ADC_GET_CHANNEL(p_data)     ((p_data)->type1.channel)
+#define EXAMPLE_ADC_GET_DATA(p_data)        ((p_data)->type1.data)
+
+#define ADC_CHANNEL_COUNT   8
+#define EXAMPLE_READ_LEN                    256
+#define AVERAGE_LEN 10 
+
+
+extern uint8_t resultAvr[ADC_CHANNEL_COUNT][AVERAGE_LEN];
+extern adc_continuous_handle_t ADC_init_handle;
 
 // Define GPIOs
 // 右上角按键 (X Y A B)
@@ -65,8 +82,6 @@ void read_and_log_adc_values(void);
 
 #define GPIO_OUTPUT_POWER_KEEP_IO      5
 
-
-void init_gpio(void);
 
 void init_all(void);
 

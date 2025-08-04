@@ -3,6 +3,7 @@
 #include <string.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "freertos/semphr.h"
 #include "freertos/event_groups.h"
 #include "esp_system.h"
 #include "esp_wifi.h"
@@ -86,7 +87,7 @@ void app_main(void)
             
             // GPIO与ADC读取任务
             // xTaskCreatePinnedToCore(gpio_read_task, "gpio_toggle_task", 4096, NULL, 6, NULL, 1);
-            // xTaskCreatePinnedToCore(adc_read_task, "adc_read_task", 4096, NULL, 7, NULL, 1);
+            xTaskCreatePinnedToCore(adc_read_task, "adc_read_task", 8192, NULL, 7, NULL, 1);
             // 模拟手柄任务
             // xTaskCreate(&gamepad_button_task, "gamepad_button_task", 4096, NULL, 9, NULL);
 
@@ -183,7 +184,7 @@ void SLEEP(void)
     ESP_LOGI(HID_BLE_TAG, "Sleeping...");
     // setLED函数同时会影响IO12单LED的初始化
     vTaskDelay(pdMS_TO_TICKS(300));
-    // 不要做这些操作，直接关机即可。这些操作的后果不确定
+    // 不要做这些操作，直接关机即可。这些操作的导致的延时后果不确定
     // esp_bluedroid_disable();
     // esp_bluedroid_deinit();
     // esp_bt_controller_disable();
@@ -456,11 +457,53 @@ void gpio_read_task(void *pvParameter)
     }
 }
 
+static TaskHandle_t s_task_handle;
+static bool IRAM_ATTR s_conv_done_cb(adc_continuous_handle_t handle, const adc_continuous_evt_data_t *edata, void *user_data)
+{
+    BaseType_t mustYield = pdFALSE;
+    // 在中断中通知任务 ADC 已经完成足够次数的转换
+    vTaskNotifyGiveFromISR(s_task_handle, &mustYield);
+    // 如果转换完成，进行上下文切换（让步）
+    return (mustYield == pdTRUE);
+}
+
+// 使用handle，读取缓冲区buffer的值，然后依次赋值到result二维数组中，先入先出，最后进行均值滤波。raw data是uint32
 void adc_read_task(void *pvParameter)
 {
+    char unit[] = EXAMPLE_ADC_UNIT_STR(EXAMPLE_ADC_UNIT);
+    esp_err_t ret;
+    uint32_t ret_num = 0;
+    uint8_t bufferADC[EXAMPLE_READ_LEN] = {0};
+    memset(bufferADC, 0xcc, EXAMPLE_READ_LEN);
+    s_task_handle = xTaskGetCurrentTaskHandle();
+        // 注册错误检查回调
+    adc_continuous_evt_cbs_t cbs = {
+        .on_conv_done = s_conv_done_cb,
+    };
+    ESP_ERROR_CHECK(adc_continuous_register_event_callbacks(ADC_init_handle, &cbs, NULL));
+    // 开始转换
+    ESP_ERROR_CHECK(adc_continuous_start(ADC_init_handle));
+
+
     while (1) {
-        read_and_log_adc_values();
+        // read_and_log_adc_values();
         vTaskDelay(pdMS_TO_TICKS(300));
+        // 读取256个数据
+        ret = adc_continuous_read(ADC_init_handle, bufferADC, EXAMPLE_READ_LEN, &ret_num, 0);
+        if (ret == ESP_OK) {
+                ESP_LOGI("TASK", "ret is %x, ret_num is %"PRIu32" bytes", ret, ret_num);
+                for (int i = 0; i < ret_num; i += SOC_ADC_DIGI_RESULT_BYTES) {
+                    adc_digi_output_data_t *p = (adc_digi_output_data_t*)&bufferADC[i];
+                    uint32_t chan_num = EXAMPLE_ADC_GET_CHANNEL(p);
+                    uint32_t data = EXAMPLE_ADC_GET_DATA(p);
+                    /* Check the channel number validation, the data is invalid if the channel num exceed the maximum channel */
+                    if (chan_num < SOC_ADC_CHANNEL_NUM(EXAMPLE_ADC_UNIT)) {
+                        ESP_LOGI("ADCtask", "Unit: %s, Channel: %"PRIu32", Value: %"PRIx32, unit, chan_num, data);
+                    } else {
+                        ESP_LOGW("ADCtask", "Invalid data [%s_%"PRIu32"_%"PRIx32"]", unit, chan_num, data);
+                    }
+                }
+        }
     }
 }
 
