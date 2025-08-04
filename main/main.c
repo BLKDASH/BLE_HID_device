@@ -19,24 +19,28 @@
 #include "esp_bt_main.h"
 #include "esp_bt_device.h"
 #include "driver/gpio.h"
+#include "driver/rtc_io.h"
+#include "esp_sleep.h"
 #include "hid_dev.h"
+
+#include "esp_timer.h"
+
 #include "main.h"
 
-//todo:遗忘上一次连接的设备
-//todo:弄懂为啥hidInfo关闭正常连接
+#include "sdkconfig.h"
+#include "iot_button.h"
+#include "button_gpio.h"
+#include "led_strip.h"
+#include "hardware_init.h"
 
-/*
-注意事项：
-Windows 10 不支持厂商自定义报告（Vendor Report），因此 SUPPORT_REPORT_VENDOR 始终设置为 FALSE，该定义位于 hidd_le_prf_int.h 文件中。
-在 iPhone 的 HID 加密期间不允许更新连接参数，因此从设备会在加密期间关闭自动更新连接参数的功能。
-当我们的 HID 设备连接后，iPhone 会向 Report 特性配置描述符写入 1，即使 HID 加密尚未完成。实际上，应该在加密完成后才写入 1。为此，我们将 Report 特性配置描述符的权限修改为 ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE_ENCRYPTED。如果出现 GATT_INSUF_ENCRYPTION 错误，请忽略该错误。
- */
+//todo:遗忘上一次连接的设备
+//todo:修改ADC库和ADC校准库
+//todo:修改为连续ADC
+//todo:修改开机检测与关机检测
+
 
 #define HID_BLE_TAG "BLEinfo"
 #define HID_TASK_TAG "TASKinfo"
-
-// 128，API不允许16位
-#define UUID_MOD 128
 
 static uint16_t hid_conn_id = 0;
 static bool sec_conn = false;
@@ -48,81 +52,175 @@ static void hidd_event_callback(esp_hidd_cb_event_t event, esp_hidd_cb_param_t *
 #define HIDD_DEVICE_NAME "ESP32GamePad"
 // #define HIDD_DEVICE_NAME            "MYGT Controller"
 
+bool shoule_startup = false;
 
+bool LED_ON = true;
 void app_main(void)
 {
-    if (ESP_OK == ble_init())
+    vTaskDelay(pdMS_TO_TICKS(100));//等待boot日志输出完毕
+    while(1)
     {
-        ble_sec_config();
-    }
-    ESP_LOGI("Main", "BLE HID Init OK");
-    // 创建调整音量任务
-    #if(gamePadMode == 0)
-    xTaskCreate(&hid_demo_task, "hid_task", 2048, NULL, 5, NULL);
-    // 创建鼠标移动任务
-    // xTaskCreate(&mouse_move_task, "mouse_move_task", 2048, NULL, 5, NULL);
-    #elif(gamePadMode == 1)
-    // 模拟手柄任务
-    xTaskCreate(&gamepad_button_task, "gamepad_button_task", 4096, NULL, 5, NULL);
-    #endif
-    // ESP_LOGI("SIZEUUID:","%d",sizeof(hidd_service_uuid));
-    while (1)
-    {
-        vTaskDelay(pdMS_TO_TICKS(1000));
+        ESP_LOGW("main", "Into MAIN");
+        if(ESP_OK == START_UP())
+        {
+            ESP_LOGI("main", "START_UP OK");
+            
+            init_all();//初始化除了HOME按键之外的外设
+            // LED任务
+            LED_ON = true;
+            xTaskCreatePinnedToCore(blink_task, "blink_task", 4096, NULL, 5, NULL, 1);
+            // 先闪灯，让用户以为开机了
+            while(gpio_get_level(GPIO_INPUT_HOME_BTN))
+            {
+                vTaskDelay(pdMS_TO_TICKS(100));//让出时间给LED任务
+            }//等待按键释放
+            ESP_LOGI("main", "register home button--");
+            setHomeButton();//注册home按键长按
+            if (ESP_OK == ble_init())
+            {
+                ble_sec_config();
+            }
+            ESP_LOGI("Main", "BLE HID Init OK");
+            
+            // GPIO与ADC读取任务
+            // xTaskCreatePinnedToCore(gpio_read_task, "gpio_toggle_task", 4096, NULL, 6, NULL, 1);
+            // xTaskCreatePinnedToCore(adc_read_task, "adc_read_task", 4096, NULL, 7, NULL, 1);
+            // 模拟手柄任务
+            // xTaskCreate(&gamepad_button_task, "gamepad_button_task", 4096, NULL, 9, NULL);
+
+            vTaskDelay(pdMS_TO_TICKS(5000));
+            // SLEEP();
+            while (1)
+            {
+                vTaskDelay(pdMS_TO_TICKS(1000));
+            }
+                
+        }
+        else
+        {
+            ESP_LOGW("main", "START_UP failed,closing...");
+            START_FAIL();
+        }
     }
 }
 
-static uint8_t hidd_service_uuid[] =
+
+esp_err_t START_UP(void)
+{
+    // 配置home按键下拉输入
+    gpio_config_t home_btn_conf = {};
+    home_btn_conf.intr_type = GPIO_INTR_DISABLE;
+    home_btn_conf.mode = GPIO_MODE_INPUT;
+    home_btn_conf.pin_bit_mask = BIT64(GPIO_INPUT_HOME_BTN);
+    home_btn_conf.pull_down_en = true;      // 下拉
+    home_btn_conf.pull_up_en = false;
+    if (gpio_config(&home_btn_conf) != ESP_OK) {
+        return ESP_FAIL;  // 配置GPIO失败
+    }
+
+    // 阻塞方式检测按键是否持续高电平3秒
+    int64_t start_time = esp_timer_get_time();  // 获取起始时间(微秒)
+    int64_t required_duration = 1500000;       // 1.5秒 = 1,500,000微秒
+    while (true) {
+        // 读取当前按键状态
+        int level = gpio_get_level(GPIO_INPUT_HOME_BTN);
+        
+        // 如果按键为低电平，说明没有按下
+        if (level == 0) {
+            return ESP_FAIL;
+        }
+        // 如果按键持续高电平达到3秒，返回成功
+        else if (esp_timer_get_time() - start_time >= required_duration) {
+            return ESP_OK;
+        }
+    }
+}
+
+
+
+static void button_long_press_home_cb(void *arg,void *usr_data)
+{
+    ESP_LOGW("button_cb", "HOME_BUTTON_LONG_PRESS");
+    // 假如一直按住，则松开才执行后面的操作
+    while(gpio_get_level(GPIO_INPUT_HOME_BTN) == 1)
     {
-        /* LSB <--------------------------------------------------------------------------------> MSB */
-        // first uuid, 16bit, [12],[13] is the value
-        0xfb,
-        0x34,
-        0x9b,
-        0x5f,
-        0x80,
-        0x00,
-        0x00,
-        0x80,
-        0x00,
-        0x10,
-        0x00,
-        0x00,
-        0x12,
-        0x18,
-        0x00,
-        0x00,
-};
+        // 先关灯
+        LED_ON = false;
+        setLED(0, 0, 0, 0);
+        setLED(1, 0, 0, 0);
+        setLED(2, 0, 0, 0);
+        setLED(3, 0, 0, 0);
+        vTaskDelay(100);
+    }
+    SLEEP();
+}
 
 
-// GATT 广播数据
-static esp_ble_adv_data_t hidd_adv_data =
-    {
-        .set_scan_rsp = false,                          // 是否设置扫描回复数据
-        .include_name = true,                           // 是否包含设备名
-        .include_txpower = true,                        // 是否包含信号强度
-        .min_interval = 0x0006,                         // 从设备连接的最小间隔时间，单位为 1.25ms，0x0006 对应 7.5ms。
-        .max_interval = 0x0010,                         // 从设备连接的最大间隔时间，单位为 1.25ms，0x0010 对应 20ms。
-        .appearance = 0x03c4,                           // 设备外观标识，0x03c0 表示 HID 通用设备。03c4表示HID游戏手柄
-        .manufacturer_len = 0,                          // 厂商数据长度，0 表示没有厂商数据。
-        .p_manufacturer_data = NULL,                    // 指向厂商数据的指针，NULL 表示无厂商数据。
-        .service_data_len = 0,                          // 服务数据长度，0 表示没有服务数据。
-        .p_service_data = NULL,                         // 指向服务数据的指针，NULL 表示无服务数据。
-        .service_uuid_len = sizeof(hidd_service_uuid),  // 服务数据长度UUID
-        .p_service_uuid = (uint8_t *)hidd_service_uuid, // uuid指针
-        .flag = 0x7,                                    // 0b00000111
-                                                        // bit 0: 有限发现模式
-                                                        // bit 1: LE General Discoverable Mode同时支持通用发现模式
-                                                        // bit 2: BR/EDR Not Supported（不支持普通蓝牙）
-};
+esp_err_t setHomeButton(void)
+{
+    const button_config_t btn_cfg = {0};
+    const button_gpio_config_t btn_gpio_cfg = {
+        .gpio_num = GPIO_INPUT_HOME_BTN,
+        .active_level = 1,
+    };
+    button_handle_t gpio_btn = NULL;
+    iot_button_new_gpio_device(&btn_cfg, &btn_gpio_cfg, &gpio_btn);
+    // 设置属性
+    button_event_args_t args = {
+        .long_press.press_time = 1500,
+    };
+    iot_button_register_cb(gpio_btn, BUTTON_LONG_PRESS_START, &args, button_long_press_home_cb, NULL);
+    return ESP_OK;
+}
 
+void SLEEP(void)
+{
+    ESP_LOGI(HID_BLE_TAG, "Sleeping...");
+    // setLED函数同时会影响IO12单LED的初始化
+    setLED(0, 0, 30, 10);
+    vTaskDelay(pdMS_TO_TICKS(1000));
+    // 不要做这些操作，直接关机即可。这些操作的后果不确定
+    // esp_bluedroid_disable();
+    // esp_bluedroid_deinit();
+    // esp_bt_controller_disable();
+    // esp_bt_controller_deinit();
+    setLED(0, 30, 10, 0);
+    // 下拉输出powerkeep0
+    vTaskDelay(pdMS_TO_TICKS(1000));
+    setLED(0, 0, 0, 0);
+    vTaskDelay(pdMS_TO_TICKS(100));
+    gpio_config_t io_conf = {};
+    io_conf.intr_type = GPIO_INTR_DISABLE;
+    io_conf.mode = GPIO_MODE_OUTPUT;
+    io_conf.pin_bit_mask = BIT64(GPIO_OUTPUT_POWER_KEEP_IO);
+    io_conf.pull_down_en = true;                  // Disable pull-down
+    io_conf.pull_up_en = false;                     // Enable pull-up
+    gpio_config(&io_conf);
+    gpio_set_level(GPIO_OUTPUT_POWER_KEEP_IO, 0);
+    //vTaskDelay(pdMS_TO_TICKS(50));//硬件关机有延迟，防止再次进入主函数
+    
+}
+
+void START_FAIL(void)
+{ 
+    // 由于LED strip没有初始化，因此直接拉低电源保持
+    gpio_config_t io_conf = {};
+    io_conf.intr_type = GPIO_INTR_DISABLE;
+    io_conf.mode = GPIO_MODE_OUTPUT;
+    io_conf.pin_bit_mask = BIT64(GPIO_OUTPUT_POWER_KEEP_IO);
+    io_conf.pull_down_en = true;                  // Disable pull-down
+    io_conf.pull_up_en = false;                     // Enable pull-up
+    gpio_config(&io_conf);
+    gpio_set_level(GPIO_OUTPUT_POWER_KEEP_IO, 0);
+    //vTaskDelay(pdMS_TO_TICKS(50));//硬件关机有延迟，防止再次进入主函数
+}
 
 
 // 原始广播数据包
 uint8_t hidd_adv_data_raw[] = {
     0x02, ESP_BLE_AD_TYPE_FLAG, 0x06,           // Flags: LE General Discoverable Mode, BR/EDR Not Supported
     0x03, ESP_BLE_AD_TYPE_16SRV_PART, 0x12, 0x18,     // 部分16位UUID
-    0x0D, ESP_BLE_AD_TYPE_NAME_CMPL, 'E', 'S', 'P', '3', '2', 'g', 'a', 'm', 'e', 'P','a','d',
+    0x0D, ESP_BLE_AD_TYPE_NAME_CMPL, 'E', 'S', 'P', '3', '2', 'G', 'a', 'm', 'e', 'P','a','d',
     // 0x0D, 0x09,                 // Length of Device Name + 1 byte for length field
     // 'E', 'S', 'P', '3', '2', 'g', 'a', 'm', 'e', 'P','a','d', // Device Name
     0x02, ESP_BLE_AD_TYPE_TX_PWR, 0xEB,           // TX Power Level (0x00 corresponds to -21 dBm)
@@ -130,7 +228,7 @@ uint8_t hidd_adv_data_raw[] = {
 
 static uint8_t raw_scan_rsp_data[] = {
     /* Complete Local Name */
-    0x0D, ESP_BLE_AD_TYPE_NAME_CMPL, 'E', 'S', 'P', '3', '2', 'g', 'a', 'm', 'e', 'P','a','d',   // Length 13, Data Type ESP_BLE_AD_TYPE_NAME_CMPL, Data (ESP_GATTS_DEMO)
+    0x0D, ESP_BLE_AD_TYPE_NAME_CMPL, 'E', 'S', 'P', '3', '2', 'G', 'a', 'm', 'e', 'P','a','d',   // Length 13, Data Type ESP_BLE_AD_TYPE_NAME_CMPL, Data (ESP_GATTS_DEMO)
     0x03, ESP_BLE_AD_TYPE_16SRV_PART, 0x12, 0x18,
 };
 
@@ -146,12 +244,8 @@ static esp_ble_adv_params_t hidd_adv_params = {
     .adv_filter_policy = ADV_FILTER_ALLOW_SCAN_ANY_CON_ANY, // 广播过滤策略：不过滤
 };
 
-// ESP32 BLE HID设备的事件回调函数，处理蓝牙连接、断开、数据写入等事件。
-//  1. **ESP_HIDD_EVENT_REG_FINISH**：HID设备注册完成后设置设备名并配置广播数据。
-//  2. **ESP_HIDD_EVENT_BLE_CONNECT**：设备连接时记录连接ID。
-//  3. **ESP_HIDD_EVENT_BLE_DISCONNECT**：设备断开连接后重新开始广播。
-//  4. **ESP_HIDD_EVENT_BLE_VENDOR_REPORT_WRITE_EVT**：接收到厂商报告数据时打印日志。
-//  5. **ESP_HIDD_EVENT_BLE_LED_REPORT_WRITE_EVT**：接收到LED报告数据时打印日志。
+
+// GATT回调
 static void hidd_event_callback(esp_hidd_cb_event_t event, esp_hidd_cb_param_t *param)
 {
     // build_hidd_adv_data_raw();//构建自己的广播包raw
@@ -161,15 +255,7 @@ static void hidd_event_callback(esp_hidd_cb_event_t event, esp_hidd_cb_param_t *
     {
         if (param->init_finish.state == ESP_HIDD_INIT_OK)
         {
-            // esp_bd_addr_t rand_addr = {0x04,0x11,0x11,0x11,0x11,0x05};
             esp_ble_gap_set_device_name(HIDD_DEVICE_NAME);
-            // 该API不支持16位UUID
-            // if (ESP_OK == esp_ble_gap_config_adv_data(&hidd_adv_data))
-            // {
-            //     ESP_LOGI("HIDDcallback", "GAP Config Adv Data OK");
-            // }
-
-
             if(ESP_OK==esp_ble_gap_config_adv_data_raw(hidd_adv_data_raw, sizeof(hidd_adv_data_raw)))
             {
                 if(ESP_OK==esp_ble_gap_config_scan_rsp_data_raw(raw_scan_rsp_data, sizeof(raw_scan_rsp_data)))
@@ -222,14 +308,7 @@ static void hidd_event_callback(esp_hidd_cb_event_t event, esp_hidd_cb_param_t *
     return;
 }
 
-// GAP回调函数
-// 三种GAP事件处理函数，分别处理连接、加密、认证事件。
-//  ESP_GAP_BLE_ADV_DATA_SET_COMPLETE_EVT
-//  广播数据设置完成后启动 BLE 广播。
-// ESP_GAP_BLE_SEC_REQ_EVT
-// 收到安全请求时，打印设备地址并发送安全响应。
-// ESP_GAP_BLE_AUTH_CMPL_EVT
-// 认证完成后，记录安全连接标志，打印远程设备地址、地址类型、配对状态及失败原因
+// GAP回调
 static void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param)
 {
     switch (event)
@@ -288,110 +367,118 @@ static void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param
 
 
 
-
-
-
-
-
-
-
-
-
-
-/**
- * @brief HID演示任务函数
- *
- * 该任务负责定时发送HID音量控制指令，首先发送音量增大指令，
- * 然后在适当延迟后发送音量减小指令。只有在安全连接状态下才会发送指令。
- *
- * @param pvParameters 任务参数（未使用）
- */
-
-#if(gamePadMode == 0)
-void hid_demo_task(void *pvParameters)
-{
-    vTaskDelay(pdMS_TO_TICKS(1000));
-    while (1)
+void blink_task(void *pvParameter)
+{ 
+    bool led_on_off = true;
+    setLED(0, 0, 10, 0);
+    setLED(1, 10, 0, 0);
+    setLED(2, 10, 0, 10);
+    setLED(3, 10, 10, 0);
+    while(1)
     {
-        // 当前为安全连接时执行HID控制逻辑
-        if (sec_conn)
+        if(LED_ON == true)
         {
-            ESP_LOGI(HID_BLE_TAG, "Send the volume");
-            // 间隔5s
-            vTaskDelay(pdMS_TO_TICKS(3000));
-            // 发送音量增大
-            esp_hidd_send_consumer_value(hid_conn_id, HID_CONSUMER_VOLUME_UP, true);
-            vTaskDelay(pdMS_TO_TICKS(200));
-            // 关闭音量增大
-            esp_hidd_send_consumer_value(hid_conn_id, HID_CONSUMER_VOLUME_UP, false);
-            // 间隔5s
-            vTaskDelay(pdMS_TO_TICKS(3000));
-            // 发送音量减小
-            esp_hidd_send_consumer_value(hid_conn_id, HID_CONSUMER_VOLUME_DOWN, true);
-            vTaskDelay(pdMS_TO_TICKS(200));
-            // 关闭音量减小
-            esp_hidd_send_consumer_value(hid_conn_id, HID_CONSUMER_VOLUME_DOWN, false);
-        }
-        else
-        {
-            // 等待连接
-            vTaskDelay(pdMS_TO_TICKS(2000));
-            ESP_LOGI("HID_DEMO_TASK", "Waiting for connection...");
-        }
-    }
-}
 
-void mouse_move_task(void *pvParameters)
-{
-    // 初始偏移量
-    int8_t x = 5;
-    int8_t y = 5;
+            if (led_on_off) {
+                setLED(0, 0, 10, 0);
+                //ESP_LOGI("main", "LED ON!");
+            } 
+            else 
+            {
 
-    while (1)
-    {
-        // 仅在有连接的情况下发送
-        if (sec_conn)
-        {
-            ESP_LOGI(HID_BLE_TAG, "Sending mouse move: x=%d, y=%d", x, y);
-            esp_hidd_send_mouse_value(hid_conn_id, 0x00, x, y);
-        }
-
-        // 每3秒发送一次
-        vTaskDelay(pdMS_TO_TICKS(3000));
-    }
-}
-#elif(gamePadMode == 1)
-/**
- * @brief 模拟手柄按键任务函数
- *
- * 该任务负责定时发送HID特性值以模拟手柄按键按下。
- * 只有在安全连接状态下才会发送指令。
- *
- * @param pvParameters 任务参数（未使用）
- */
-void gamepad_button_task(void *pvParameters)
-{
-    // 示例输入报告
-    // uint8_t feature_value[11] = {4, 128, 128, 128, 128, 255, 0, 0, 0, 1, 0};
-
-    while (1)
-    {
-        if (sec_conn)
-        {
-            vTaskDelay(pdMS_TO_TICKS(200));
-            ESP_LOGI(HID_TASK_TAG, "Simulating gamepad button press");
-            esp_hidd_send_gamepad_report(hid_conn_id);
-            // 使用自定义函数发送输入报告
-            // esp_hidd_send_custom_report(hid_conn_id, HID_RPT_ID_MOUSE_IN, HID_REPORT_TYPE_INPUT, feature_value, sizeof(feature_value));
+                setLED(0, 0, 0, 0);
+                //ESP_LOGI("main", "LED OFF!");
+            }
+            
+            led_on_off = !led_on_off;
+            vTaskDelay(pdMS_TO_TICKS(400)); 
         }
         else
         {
             vTaskDelay(pdMS_TO_TICKS(1000));
+        }
+    }
+    
+}
+
+void gpio_read_task(void *pvParameter)
+{
+    int level_25, level_26, level_27, level_14;
+    int level_15, level_19;
+    int level_23, level_18;
+    int level_4, level_2, level_13, level_0, level_21, level_22;
+
+    while (1) {
+        // Toggle GPIO32
+
+        // Read input GPIO levels
+        level_25 = gpio_get_level(GPIO_INPUT_KEY_X);
+        level_26 = gpio_get_level(GPIO_INPUT_KEY_Y);
+        level_27 = gpio_get_level(GPIO_INPUT_KEY_A);
+        level_14 = gpio_get_level(GPIO_INPUT_KEY_B);
+
+
+        level_15 = gpio_get_level(GPIO_INPUT_LEFT_JOYSTICK_BTN);
+        level_19 = gpio_get_level(GPIO_INPUT_RIGHT_JOYSTICK_BTN);
+        
+        level_23 = gpio_get_level(GPIO_INPUT_LEFT_SHOULDER_BTN);
+        level_18 = gpio_get_level(GPIO_INPUT_RIGHT_SHOULDER_BTN);
+
+        level_4 = gpio_get_level(GPIO_INPUT_SELECT_BTN);
+        level_2 = gpio_get_level(GPIO_INPUT_START_BTN);
+        level_13 = gpio_get_level(GPIO_INPUT_HOME_BTN);
+        level_0 = gpio_get_level(GPIO_INPUT_IKEY_BTN);
+        level_21 = gpio_get_level(GPIO_INPUT_IOS_BTN);
+        level_22 = gpio_get_level(GPIO_INPUT_WINDOWS_BTN);
+
+        // Log levels
+        ESP_LOGI("ioTask", "X: %d | Y: %d | A: %d | B: %d",
+                 level_25, level_26, level_27, level_14);
+        ESP_LOGI("ioTask", "LS: %d | RS: %d",
+                 level_15, level_19);
+        ESP_LOGI("ioTask", "Shoulders - Left: %d | Right: %d",
+                 level_23, level_18);
+        ESP_LOGI("ioTask", "Special Keys - SELECT: %d | START: %d | HOME: %d | IKEY: %d | IOS: %d | WINDOWS: %d",
+                 level_4, level_2, level_13, level_0, level_21, level_22);
+
+        
+
+        // Delay 500ms
+        vTaskDelay(pdMS_TO_TICKS(300));
+    }
+}
+
+void adc_read_task(void *pvParameter)
+{
+    while (1) {
+        read_and_log_adc_values();
+        vTaskDelay(pdMS_TO_TICKS(300));
+    }
+}
+
+
+
+
+
+
+void gamepad_button_task(void *pvParameters)
+{
+
+    while (1)
+    {
+        if (sec_conn)
+        {
+            vTaskDelay(pdMS_TO_TICKS(80));
+            esp_hidd_send_gamepad_report(hid_conn_id);
+        }
+        else
+        {
+            vTaskDelay(pdMS_TO_TICKS(10000));
             ESP_LOGI(HID_TASK_TAG, "Waiting for connection...");
         }
     }
 }
-#endif
+
 esp_err_t ble_init(void)
 {
     // 初始化FLASH，NVS 初始化（自带函数）：用于存储蓝牙配对信息等。
@@ -403,12 +490,6 @@ esp_err_t ble_init(void)
         ret = nvs_flash_init();
     }
     ESP_ERROR_CHECK(ret);
-
-    // 删除所有配对信息
-    // esp_err_t err = esp_ble_gap_clear_bond_device();
-    // if (err == ESP_OK) {
-    //     ESP_LOGI("BLE", "已清除所有配对设备的信息");
-    // }
 
 
     // 初始化蓝牙控制器

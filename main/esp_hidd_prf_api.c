@@ -82,7 +82,7 @@ esp_err_t esp_hidd_profile_init(void)
     // 检查HID设备配置文件是否已初始化
     if (hidd_le_env.enabled)
     {
-        ESP_LOGE(HID_LE_PRF_TAG, "HID device profile already initialized");
+        // ESP_LOGE(HID_LE_PRF_TAG, "HID device profile already initialized");
         return ESP_FAIL;
     }
 
@@ -97,7 +97,7 @@ esp_err_t esp_hidd_profile_deinit(void)
     uint16_t hidd_svc_hdl = hidd_le_env.hidd_inst.att_tbl[HIDD_LE_IDX_SVC];
     if (!hidd_le_env.enabled)
     {
-        ESP_LOGE(HID_LE_PRF_TAG, "HID device profile already initialized");
+        // ESP_LOGE(HID_LE_PRF_TAG, "HID device profile already initialized");
         return ESP_OK;
     }
 
@@ -195,9 +195,9 @@ void esp_hidd_send_gamepad_report(uint16_t conn_id)
     buffer[8] = 0;
     buffer[9] = 0;
 
-    ESP_LOGI("gamepad", "Sending gamepad report: %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x",
-             buffer[0], buffer[1], buffer[2], buffer[3], buffer[4],
-             buffer[5], buffer[6], buffer[7], buffer[8], buffer[9]);
+    // ESP_LOGI("gamepad", "Sending gamepad report: %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x",
+    //          buffer[0], buffer[1], buffer[2], buffer[3], buffer[4],
+    //          buffer[5], buffer[6], buffer[7], buffer[8], buffer[9]);
 
     hid_dev_send_report(hidd_le_env.gatt_if, conn_id,
                         HID_RPT_ID_GAMEPAD_STICK_IN, HID_REPORT_TYPE_INPUT, HID_GAMEPAD_STICK_IN_RPT_LEN, buffer);
