@@ -89,7 +89,7 @@ void app_main(void)
             led_flash_semaphore = xSemaphoreCreateBinary();
             xTaskCreatePinnedToCore(blink_task, "blink_task", 2048, NULL, 5, NULL, 1);
             // 高优先级刷新，此刷新会判断信号量，因此不会太消耗性能
-            xTaskCreatePinnedToCore(LED_flash_task, "LED_flash_task", 2048, NULL, 8, NULL, 1);
+            xTaskCreatePinnedToCore(LED_flash_task, "LED_flash_task", 2048, NULL, 5, NULL, 1);
             // 先闪灯，让用户以为开机了
             while (gpio_get_level(GPIO_INPUT_HOME_BTN)){vTaskDelay(pdMS_TO_TICKS(100));}// 让出时间给LED任务} // 等待按键释放
             ESP_LOGI("main", "register home button--");
@@ -99,15 +99,27 @@ void app_main(void)
                 ble_sec_config();
             }
             ESP_LOGI("Main", "BLE HID Init OK");
+            while (1)
+            {
+                if(sec_conn == true)
+                {
+                    // GPIO与ADC读取任务
+                    // xTaskCreatePinnedToCore(gpio_read_task, "gpio_toggle_task", 4096, NULL, 6, NULL, 1);
+                    xTaskCreatePinnedToCore(adc_read_task, "adc_read_task", 4096, NULL, 7, NULL, 1);
+                    // 模拟手柄任务
+                    xTaskCreatePinnedToCore(&gamepad_button_task, "gamepad_button_task", 4096, NULL, 9, NULL, 1);
+                    // 使命完成，删除自己
+                    vTaskDelete(NULL);
+                }
+                else
+                {
+                    vTaskDelay(pdMS_TO_TICKS(500));
+                }
 
-            // GPIO与ADC读取任务
-            // xTaskCreatePinnedToCore(gpio_read_task, "gpio_toggle_task", 4096, NULL, 6, NULL, 1);
-            xTaskCreatePinnedToCore(adc_read_task, "adc_read_task", 4096, NULL, 7, NULL, 1);
-            // 模拟手柄任务
-            // xTaskCreate(&gamepad_button_task, "gamepad_button_task", 4096, NULL, 9, NULL);
+            }
+            
 
-            // 使命完成，删除自己
-            vTaskDelete(NULL);
+
         }
         else
         {
@@ -505,9 +517,10 @@ void adc_read_task(void *pvParameter)
     ESP_ERROR_CHECK(adc_continuous_start(ADC_init_handle));
 
     uint32_t log_counter = 0;
-    const uint32_t log_interval = 10;
+    const uint32_t log_interval = 20;
     adc_running = true;
-    while (adc_running)
+    // 连上了才读，否则会这是一个ESP32的Cache error错误，具体原因是"Cache disabled but cached memory region accessed"（缓存被禁用但访问了缓存内存区域）。从回溯信息看，错误发生在BLE连接过程中，当尝试读取ADC数据时触发。触发时机：在BLE连接事件(ESP_HIDD_EVENT_BLE_CONNECT)处理过程中。根本原因：中断处理程序中访问了被缓存的内存区域，而此时缓存已被禁用
+    while (adc_running && sec_conn)
     {
         // read_and_log_adc_values();
         vTaskDelay(pdMS_TO_TICKS(20));
@@ -523,10 +536,10 @@ void adc_read_task(void *pvParameter)
                 uint32_t chan_num = EXAMPLE_ADC_GET_CHANNEL(p);
                 uint32_t data = EXAMPLE_ADC_GET_DATA(p);
                 log_counter++;
-                if (log_counter % log_interval == 0 && chan_num == ADC_CHANNEL_LEFT_TRIGGER)
+                if (log_counter % log_interval == 0 && chan_num == ADC_CHANNEL_RIGHT_UP_DOWN)
                 {
                     float voltage = (float)data * 3.3 / 4095.0;
-                    // ESP_LOGI("ADCtask", "Unit: %s, Channel: %" PRIu32 ", Raw Value: %" PRIu32 ", Voltage: %.3fV", unit, chan_num, data, voltage);
+                    ESP_LOGI("ADCtask", "Unit: %s, Channel: %" PRIu32 ", Raw Value: %" PRIu32 ", Voltage: %.3fV", unit, chan_num, data, voltage);
                 }
             }
         }
