@@ -34,11 +34,10 @@
 #include "led_strip.h"
 #include "hardware_init.h"
 
-//todo:遗忘上一次连接的设备
-//todo:修改ADC库和ADC校准库
-//todo:修改为连续ADC
-//todo:修改开机检测与关机检测
-
+// todo:遗忘上一次连接的设备
+// todo:修改ADC库和ADC校准库
+// todo:修改为连续ADC
+// todo:修改开机检测与关机检测
 
 #define HID_BLE_TAG "BLEinfo"
 #define HID_TASK_TAG "TASKinfo"
@@ -60,31 +59,31 @@ bool shoule_startup = false;
 bool LED_ON = true;
 void app_main(void)
 {
-    vTaskDelay(pdMS_TO_TICKS(100));//等待boot日志输出完毕
-    while(1)
+    vTaskDelay(pdMS_TO_TICKS(100)); // 等待boot日志输出完毕
+    while (1)
     {
         ESP_LOGW("main", "Into MAIN");
-        if(ESP_OK == START_UP())//DEBUG模式下，始终返回ESP_OK
+        if (ESP_OK == START_UP()) // DEBUG模式下，始终返回ESP_OK
         {
             ESP_LOGI("main", "START_UP OK");
-            
-            init_all();//初始化除了HOME按键之外的外设
+
+            init_all(); // 初始化除了HOME按键之外的外设
             // LED任务
             LED_ON = true;
             xTaskCreatePinnedToCore(blink_task, "blink_task", 4096, NULL, 5, NULL, 1);
             // 先闪灯，让用户以为开机了
-            while(gpio_get_level(GPIO_INPUT_HOME_BTN))
+            while (gpio_get_level(GPIO_INPUT_HOME_BTN))
             {
-                vTaskDelay(pdMS_TO_TICKS(100));//让出时间给LED任务
-            }//等待按键释放
+                vTaskDelay(pdMS_TO_TICKS(100)); // 让出时间给LED任务
+            } // 等待按键释放
             ESP_LOGI("main", "register home button--");
-            setHomeButton();//注册home按键长按
+            setHomeButton(); // 注册home按键长按
             if (ESP_OK == ble_init())
             {
                 ble_sec_config();
             }
             ESP_LOGI("Main", "BLE HID Init OK");
-            
+
             // GPIO与ADC读取任务
             // xTaskCreatePinnedToCore(gpio_read_task, "gpio_toggle_task", 4096, NULL, 6, NULL, 1);
             xTaskCreatePinnedToCore(adc_read_task, "adc_read_task", 8192, NULL, 7, NULL, 1);
@@ -97,7 +96,6 @@ void app_main(void)
             {
                 vTaskDelay(pdMS_TO_TICKS(1000));
             }
-                
         }
         else
         {
@@ -107,48 +105,49 @@ void app_main(void)
     }
 }
 
-
 esp_err_t START_UP(void)
 {
-    #ifdef DEBUG_MODE
-        return ESP_OK;
-    #endif
+#ifdef DEBUG_MODE
+    return ESP_OK;
+#endif
     // 配置home按键下拉输入
     gpio_config_t home_btn_conf = {};
     home_btn_conf.intr_type = GPIO_INTR_DISABLE;
     home_btn_conf.mode = GPIO_MODE_INPUT;
     home_btn_conf.pin_bit_mask = BIT64(GPIO_INPUT_HOME_BTN);
-    home_btn_conf.pull_down_en = true;      // 下拉
+    home_btn_conf.pull_down_en = true; // 下拉
     home_btn_conf.pull_up_en = false;
-    if (gpio_config(&home_btn_conf) != ESP_OK) {
-        return ESP_FAIL;  // 配置GPIO失败
+    if (gpio_config(&home_btn_conf) != ESP_OK)
+    {
+        return ESP_FAIL; // 配置GPIO失败
     }
 
     // 阻塞方式检测按键是否持续高电平3秒
-    int64_t start_time = esp_timer_get_time();  // 获取起始时间(微秒)
+    int64_t start_time = esp_timer_get_time(); // 获取起始时间(微秒)
     int64_t required_duration = 1500000;       // 1.5秒 = 1,500,000微秒
-    while (true) {
+    while (true)
+    {
         // 读取当前按键状态
         int level = gpio_get_level(GPIO_INPUT_HOME_BTN);
-        
+
         // 如果按键为低电平，说明没有按下
-        if (level == 0) {
+        if (level == 0)
+        {
             return ESP_FAIL;
         }
         // 如果按键持续高电平达到3秒，返回成功
-        else if (esp_timer_get_time() - start_time >= required_duration) {
+        else if (esp_timer_get_time() - start_time >= required_duration)
+        {
             return ESP_OK;
         }
     }
 }
 
-
-
-static void button_long_press_home_cb(void *arg,void *usr_data)
+static void button_long_press_home_cb(void *arg, void *usr_data)
 {
     ESP_LOGW("button_cb", "HOME_BUTTON_LONG_PRESS");
     // 假如一直按住，则松开才执行后面的操作
-    while(gpio_get_level(GPIO_INPUT_HOME_BTN) == 1)
+    while (gpio_get_level(GPIO_INPUT_HOME_BTN) == 1)
     {
         // 先关灯
         LED_ON = false;
@@ -160,7 +159,6 @@ static void button_long_press_home_cb(void *arg,void *usr_data)
     }
     SLEEP();
 }
-
 
 esp_err_t setHomeButton(void)
 {
@@ -202,43 +200,57 @@ void SLEEP(void)
     io_conf.intr_type = GPIO_INTR_DISABLE;
     io_conf.mode = GPIO_MODE_OUTPUT;
     io_conf.pin_bit_mask = BIT64(GPIO_OUTPUT_POWER_KEEP_IO);
-    io_conf.pull_down_en = true;                  // Disable pull-down
-    io_conf.pull_up_en = false;                     // Enable pull-up
+    io_conf.pull_down_en = true; // Disable pull-down
+    io_conf.pull_up_en = false;  // Enable pull-up
     gpio_config(&io_conf);
     gpio_set_level(GPIO_OUTPUT_POWER_KEEP_IO, 0);
-    //vTaskDelay(pdMS_TO_TICKS(50));//硬件关机有延迟，防止再次进入主函数（不对，不能delay，一delay又开机了）
-    
+    // vTaskDelay(pdMS_TO_TICKS(50));//硬件关机有延迟，防止再次进入主函数（不对，不能delay，一delay又开机了）
 }
 
 void START_FAIL(void)
-{ 
+{
     // 由于LED strip没有初始化，因此直接拉低电源保持
     gpio_config_t io_conf = {};
     io_conf.intr_type = GPIO_INTR_DISABLE;
     io_conf.mode = GPIO_MODE_OUTPUT;
     io_conf.pin_bit_mask = BIT64(GPIO_OUTPUT_POWER_KEEP_IO);
-    io_conf.pull_down_en = true;                  // Disable pull-down
-    io_conf.pull_up_en = false;                     // Enable pull-up
+    io_conf.pull_down_en = true; // Disable pull-down
+    io_conf.pull_up_en = false;  // Enable pull-up
     gpio_config(&io_conf);
     gpio_set_level(GPIO_OUTPUT_POWER_KEEP_IO, 0);
-    //vTaskDelay(pdMS_TO_TICKS(50));//硬件关机有延迟，防止再次进入主函数（不对，不能delay，一delay又开机了）
+    // vTaskDelay(pdMS_TO_TICKS(50));//硬件关机有延迟，防止再次进入主函数（不对，不能delay，一delay又开机了）
 }
-
 
 // 原始广播数据包
 uint8_t hidd_adv_data_raw[] = {
-    0x02, ESP_BLE_AD_TYPE_FLAG, 0x06,           // Flags: LE General Discoverable Mode, BR/EDR Not Supported
-    0x03, ESP_BLE_AD_TYPE_16SRV_PART, 0x12, 0x18,     // 部分16位UUID
-    0x0D, ESP_BLE_AD_TYPE_NAME_CMPL, 'E', 'S', 'P', '3', '2', 'G', 'a', 'm', 'e', 'P','a','d',
+    0x02, ESP_BLE_AD_TYPE_FLAG, 0x06,             // Flags: LE General Discoverable Mode, BR/EDR Not Supported
+    0x03, ESP_BLE_AD_TYPE_16SRV_PART, 0x12, 0x18, // 部分16位UUID
+    0x0D, ESP_BLE_AD_TYPE_NAME_CMPL, 'E', 'S', 'P', '3', '2', 'G', 'a', 'm', 'e', 'P', 'a', 'd',
     // 0x0D, 0x09,                 // Length of Device Name + 1 byte for length field
     // 'E', 'S', 'P', '3', '2', 'g', 'a', 'm', 'e', 'P','a','d', // Device Name
-    0x02, ESP_BLE_AD_TYPE_TX_PWR, 0xEB,           // TX Power Level (0x00 corresponds to -21 dBm)
+    0x02, ESP_BLE_AD_TYPE_TX_PWR, 0xEB, // TX Power Level (0x00 corresponds to -21 dBm)
 };
 
 static uint8_t raw_scan_rsp_data[] = {
     /* Complete Local Name */
-    0x0D, ESP_BLE_AD_TYPE_NAME_CMPL, 'E', 'S', 'P', '3', '2', 'G', 'a', 'm', 'e', 'P','a','d',   // Length 13, Data Type ESP_BLE_AD_TYPE_NAME_CMPL, Data (ESP_GATTS_DEMO)
-    0x03, ESP_BLE_AD_TYPE_16SRV_PART, 0x12, 0x18,
+    0x0D,
+    ESP_BLE_AD_TYPE_NAME_CMPL,
+    'E',
+    'S',
+    'P',
+    '3',
+    '2',
+    'G',
+    'a',
+    'm',
+    'e',
+    'P',
+    'a',
+    'd', // Length 13, Data Type ESP_BLE_AD_TYPE_NAME_CMPL, Data (ESP_GATTS_DEMO)
+    0x03,
+    ESP_BLE_AD_TYPE_16SRV_PART,
+    0x12,
+    0x18,
 };
 
 // 广播参数
@@ -253,7 +265,6 @@ static esp_ble_adv_params_t hidd_adv_params = {
     .adv_filter_policy = ADV_FILTER_ALLOW_SCAN_ANY_CON_ANY, // 广播过滤策略：不过滤
 };
 
-
 // GATT回调
 static void hidd_event_callback(esp_hidd_cb_event_t event, esp_hidd_cb_param_t *param)
 {
@@ -265,10 +276,12 @@ static void hidd_event_callback(esp_hidd_cb_event_t event, esp_hidd_cb_param_t *
         if (param->init_finish.state == ESP_HIDD_INIT_OK)
         {
             esp_ble_gap_set_device_name(HIDD_DEVICE_NAME);
-            if(ESP_OK==esp_ble_gap_config_adv_data_raw(hidd_adv_data_raw, sizeof(hidd_adv_data_raw)))
+            if (ESP_OK == esp_ble_gap_config_adv_data_raw(hidd_adv_data_raw, sizeof(hidd_adv_data_raw)))
             {
-                if(ESP_OK==esp_ble_gap_config_scan_rsp_data_raw(raw_scan_rsp_data, sizeof(raw_scan_rsp_data)))
-                {ESP_LOGI("HIDDcallback","GAP Config Adv Data OK");}
+                if (ESP_OK == esp_ble_gap_config_scan_rsp_data_raw(raw_scan_rsp_data, sizeof(raw_scan_rsp_data)))
+                {
+                    ESP_LOGI("HIDDcallback", "GAP Config Adv Data OK");
+                }
             }
             else
             {
@@ -322,11 +335,11 @@ static void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param
 {
     switch (event)
     {
-    case ESP_GAP_BLE_ADV_DATA_SET_COMPLETE_EVT: // 设置广播数据成功事件，When advertising data set complete, the event comes    
+    case ESP_GAP_BLE_ADV_DATA_SET_COMPLETE_EVT: // 设置广播数据成功事件，When advertising data set complete, the event comes
         ESP_LOGI(HID_BLE_TAG, "ESP_GAP_BLE_ADV_DATA_SET_COMPLETE_EVT");
         esp_ble_gap_start_advertising(&hidd_adv_params);
         break;
-    case ESP_GAP_BLE_ADV_DATA_RAW_SET_COMPLETE_EVT: // 设置广播数据成功事件，When advertising data set complete, the event comes    
+    case ESP_GAP_BLE_ADV_DATA_RAW_SET_COMPLETE_EVT: // 设置广播数据成功事件，When advertising data set complete, the event comes
         ESP_LOGI(HID_BLE_TAG, "ESP_GAP_BLE_ADV_DATA_RAW_SET_COMPLETE_EVT");
         esp_ble_gap_start_advertising(&hidd_adv_params);
         break;
@@ -356,56 +369,39 @@ static void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param
     }
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 // -------------------------------------------------------------------- TASK -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
-
-
 void blink_task(void *pvParameter)
-{ 
+{
     bool led_on_off = true;
     setLED(0, 0, 10, 0);
     setLED(1, 10, 0, 0);
     setLED(2, 10, 0, 10);
     setLED(3, 10, 10, 0);
-    while(1)
+    while (1)
     {
-        if(LED_ON == true)
+        if (LED_ON == true)
         {
 
-            if (led_on_off) {
+            if (led_on_off)
+            {
                 setLED(0, 0, 10, 0);
-                //ESP_LOGI("main", "LED ON!");
-            } 
-            else 
+                // ESP_LOGI("main", "LED ON!");
+            }
+            else
             {
                 setLED(0, 0, 0, 0);
-                //ESP_LOGI("main", "LED OFF!");
+                // ESP_LOGI("main", "LED OFF!");
             }
-            
+
             led_on_off = !led_on_off;
-            vTaskDelay(pdMS_TO_TICKS(400)); 
+            vTaskDelay(pdMS_TO_TICKS(400));
         }
         else
         {
             vTaskDelay(pdMS_TO_TICKS(1000));
         }
     }
-    
 }
 
 void gpio_read_task(void *pvParameter)
@@ -415,7 +411,8 @@ void gpio_read_task(void *pvParameter)
     int level_23, level_18;
     int level_4, level_2, level_13, level_0, level_21, level_22;
 
-    while (1) {
+    while (1)
+    {
         // Toggle GPIO32
 
         // Read input GPIO levels
@@ -424,10 +421,9 @@ void gpio_read_task(void *pvParameter)
         level_27 = gpio_get_level(GPIO_INPUT_KEY_A);
         level_14 = gpio_get_level(GPIO_INPUT_KEY_B);
 
-
         level_15 = gpio_get_level(GPIO_INPUT_LEFT_JOYSTICK_BTN);
         level_19 = gpio_get_level(GPIO_INPUT_RIGHT_JOYSTICK_BTN);
-        
+
         level_23 = gpio_get_level(GPIO_INPUT_LEFT_SHOULDER_BTN);
         level_18 = gpio_get_level(GPIO_INPUT_RIGHT_SHOULDER_BTN);
 
@@ -447,8 +443,6 @@ void gpio_read_task(void *pvParameter)
                  level_23, level_18);
         ESP_LOGI("ioTask", "Special Keys - SELECT: %d | START: %d | HOME: %d | IKEY: %d | IOS: %d | WINDOWS: %d",
                  level_4, level_2, level_13, level_0, level_21, level_22);
-
-        
 
         // Delay 500ms
         vTaskDelay(pdMS_TO_TICKS(300));
@@ -474,7 +468,7 @@ void adc_read_task(void *pvParameter)
     uint8_t bufferADC[EXAMPLE_READ_LEN] = {0};
     memset(bufferADC, 0xcc, EXAMPLE_READ_LEN);
     s_task_handle = xTaskGetCurrentTaskHandle();
-        // 注册错误检查回调
+    // 注册错误检查回调
     adc_continuous_evt_cbs_t cbs = {
         .on_conv_done = s_conv_done_cb,
     };
@@ -482,34 +476,33 @@ void adc_read_task(void *pvParameter)
     // 开始转换
     ESP_ERROR_CHECK(adc_continuous_start(ADC_init_handle));
 
-
-
     uint32_t log_counter = 0;
     const uint32_t log_interval = 10;
 
-    while (1) {
+    while (1)
+    {
         // read_and_log_adc_values();
         vTaskDelay(pdMS_TO_TICKS(20));
         // 读取256个数据
         ret = adc_continuous_read(ADC_init_handle, bufferADC, EXAMPLE_READ_LEN, &ret_num, 0);
-        if (ret == ESP_OK) {
-                ESP_LOGI("TASK", "ret is %x, ret_num is %"PRIu32" bytes", ret, ret_num);
-                //ESP32的ADC连续读取模式将采集到的数据以特定格式存储在缓冲区中。每个ADC采样结果包含多个字节（通常是4字节），包含了通道号和采样值等信息。
-                for (int i = 0; i < ret_num; i += SOC_ADC_DIGI_RESULT_BYTES) {
-                    adc_digi_output_data_t *p = (adc_digi_output_data_t*)&bufferADC[i];
-                    uint32_t chan_num = EXAMPLE_ADC_GET_CHANNEL(p);
-                    uint32_t data = EXAMPLE_ADC_GET_DATA(p);
-                    log_counter++;
-                    if (log_counter % log_interval == 0 && chan_num == 0) 
-                    {
-                        ESP_LOGI("ADCtask", "Unit: %s, Channel: %"PRIu32", Value: %"PRIx32, unit, chan_num, data);
-                    }
+        if (ret == ESP_OK)
+        {
+            ESP_LOGI("TASK", "ret is %x, ret_num is %" PRIu32 " bytes", ret, ret_num);
+            // ESP32的ADC连续读取模式将采集到的数据以特定格式存储在缓冲区中。每个ADC采样结果包含多个字节（通常是4字节），包含了通道号和采样值等信息。
+            for (int i = 0; i < ret_num; i += SOC_ADC_DIGI_RESULT_BYTES)
+            {
+                adc_digi_output_data_t *p = (adc_digi_output_data_t *)&bufferADC[i];
+                uint32_t chan_num = EXAMPLE_ADC_GET_CHANNEL(p);
+                uint32_t data = EXAMPLE_ADC_GET_DATA(p);
+                log_counter++;
+                if (log_counter % log_interval == 0 && chan_num == 0)
+                {
+                    ESP_LOGI("ADCtask", "Unit: %s, Channel: %" PRIu32 ", Value: %" PRIx32, unit, chan_num, data);
                 }
+            }
         }
     }
 }
-
-
 
 void gamepad_button_task(void *pvParameters)
 {
@@ -540,7 +533,6 @@ esp_err_t ble_init(void)
         ret = nvs_flash_init();
     }
     ESP_ERROR_CHECK(ret);
-
 
     // 初始化蓝牙控制器
     ESP_ERROR_CHECK(esp_bt_controller_mem_release(ESP_BT_MODE_CLASSIC_BT));  // 经典蓝牙内存释放
@@ -603,5 +595,3 @@ esp_err_t ble_sec_config(void)
 
     return ESP_OK;
 }
-
-
