@@ -56,14 +56,13 @@ static void hidd_event_callback(esp_hidd_cb_event_t event, esp_hidd_cb_param_t *
 
 // LED更新的信号量
 SemaphoreHandle_t led_flash_semaphore = NULL;
-static TaskHandle_t blink_task_handle = NULL;
 
 bool led_running = false;
 bool adc_running = false;
 
 void app_main(void)
 {
-    vTaskDelay(pdMS_TO_TICKS(100)); // 等待boot日志输出完毕
+    // 第一步：拉高 powerKeep
     gpio_config_t io_conf = {};
     io_conf.intr_type = GPIO_INTR_DISABLE;
     io_conf.mode = GPIO_MODE_OUTPUT;
@@ -74,8 +73,12 @@ void app_main(void)
     gpio_set_level(GPIO_OUTPUT_POWER_KEEP_IO, 1);
 
 
+
+
+    // 使用 while1 是防止启动失败时，一次没关机成功
     while (1)
     {
+        vTaskDelay(pdMS_TO_TICKS(1000));
         ESP_LOGW("main", "Into MAIN");
         if (ESP_OK == START_UP()) // DEBUG模式下，始终返回ESP_OK
         {
@@ -84,16 +87,13 @@ void app_main(void)
             init_all(); // 初始化除了HOME按键之外的外设
             // LED任务
             led_flash_semaphore = xSemaphoreCreateBinary();
-            xTaskCreatePinnedToCore(blink_task, "blink_task", 4096, NULL, 5, NULL, 1);
+            xTaskCreatePinnedToCore(blink_task, "blink_task", 2048, NULL, 5, NULL, 1);
             // 高优先级刷新，此刷新会判断信号量，因此不会太消耗性能
-            xTaskCreatePinnedToCore(LED_flash_task, "LED_flash_task", 4096, NULL, 8, NULL, 1);
+            xTaskCreatePinnedToCore(LED_flash_task, "LED_flash_task", 2048, NULL, 8, NULL, 1);
             // 先闪灯，让用户以为开机了
-            while (gpio_get_level(GPIO_INPUT_HOME_BTN))
-            {
-                vTaskDelay(pdMS_TO_TICKS(100)); // 让出时间给LED任务
-            } // 等待按键释放
+            while (gpio_get_level(GPIO_INPUT_HOME_BTN)){vTaskDelay(pdMS_TO_TICKS(100));}// 让出时间给LED任务} // 等待按键释放
             ESP_LOGI("main", "register home button--");
-            setHomeButton(); // 注册home按键长按
+            setHomeButton(); // 释放后再注册home按键长按
             if (ESP_OK == ble_init())
             {
                 ble_sec_config();
@@ -102,21 +102,17 @@ void app_main(void)
 
             // GPIO与ADC读取任务
             // xTaskCreatePinnedToCore(gpio_read_task, "gpio_toggle_task", 4096, NULL, 6, NULL, 1);
-            xTaskCreatePinnedToCore(adc_read_task, "adc_read_task", 8192, NULL, 7, NULL, 1);
+            xTaskCreatePinnedToCore(adc_read_task, "adc_read_task", 4096, NULL, 7, NULL, 1);
             // 模拟手柄任务
             // xTaskCreate(&gamepad_button_task, "gamepad_button_task", 4096, NULL, 9, NULL);
 
-            vTaskDelay(pdMS_TO_TICKS(5000));
-            // SLEEP();
-            while (1)
-            {
-                vTaskDelay(pdMS_TO_TICKS(1000));
-            }
+            // 使命完成，删除自己
+            vTaskDelete(NULL);
         }
         else
         {
-            ESP_LOGW("main", "START_UP failed,closing...");
-            START_FAIL();
+            ESP_LOGI("STARTUP", "startup fail");
+            SLEEP();
         }
     }
 }
@@ -126,6 +122,7 @@ esp_err_t START_UP(void)
 #ifdef DEBUG_MODE
     return ESP_OK;
 #endif
+
     // 配置home按键下拉输入
     gpio_config_t home_btn_conf = {};
     home_btn_conf.intr_type = GPIO_INTR_DISABLE;
@@ -133,10 +130,7 @@ esp_err_t START_UP(void)
     home_btn_conf.pin_bit_mask = BIT64(GPIO_INPUT_HOME_BTN);
     home_btn_conf.pull_down_en = true; // 下拉
     home_btn_conf.pull_up_en = false;
-    if (gpio_config(&home_btn_conf) != ESP_OK)
-    {
-        return ESP_FAIL; // 配置GPIO失败
-    }
+
 
     // 阻塞方式检测按键是否持续高电平3秒
     int64_t start_time = esp_timer_get_time(); // 获取起始时间(微秒)
@@ -200,6 +194,7 @@ void SLEEP(void)
     ESP_LOGI(HID_BLE_TAG, "Sleeping...");
     // setLED函数同时会影响IO12单LED的初始化
     vTaskDelay(pdMS_TO_TICKS(50));
+    while (gpio_get_level(GPIO_INPUT_HOME_BTN)){}// 等待按键释放
     // 不要做这些操作，直接关机即可。这些操作的导致的延时后果不确定
     // esp_bluedroid_disable();
     // esp_bluedroid_deinit();
@@ -207,6 +202,9 @@ void SLEEP(void)
     // esp_bt_controller_deinit();
     // 关闭adc
     // adc_continuous_deinit(ADC_init_handle);
+
+
+
     // 下拉输出powerkeep0，拉低电源保持
     gpio_config_t io_conf = {};
     io_conf.intr_type = GPIO_INTR_DISABLE;
@@ -216,20 +214,25 @@ void SLEEP(void)
     io_conf.pull_up_en = false;  // Enable pull-up
     gpio_config(&io_conf);
     gpio_set_level(GPIO_OUTPUT_POWER_KEEP_IO, 0);
+
 }
 
-void START_FAIL(void)
-{
-    // 由于LED strip没有初始化，因此直接拉低电源保持
-    gpio_config_t io_conf = {};
-    io_conf.intr_type = GPIO_INTR_DISABLE;
-    io_conf.mode = GPIO_MODE_OUTPUT;
-    io_conf.pin_bit_mask = BIT64(GPIO_OUTPUT_POWER_KEEP_IO);
-    io_conf.pull_down_en = true; // Disable pull-down
-    io_conf.pull_up_en = false;  // Enable pull-up
-    gpio_config(&io_conf);
-    gpio_set_level(GPIO_OUTPUT_POWER_KEEP_IO, 0);
-}
+// void START_FAIL(void)
+// {
+//     while (gpio_get_level(GPIO_INPUT_HOME_BTN)){}// 等待按键释放
+    
+//     ESP_LOGW("main", "START_UP failed,closing...");
+//     // vTaskDelay(pdMS_TO_TICKS(100));
+//     // 由于LED strip没有初始化，因此直接拉低电源保持
+//     gpio_config_t io_conf = {};
+//     io_conf.intr_type = GPIO_INTR_DISABLE;
+//     io_conf.mode = GPIO_MODE_OUTPUT;
+//     io_conf.pin_bit_mask = BIT64(GPIO_OUTPUT_POWER_KEEP_IO);
+//     io_conf.pull_down_en = true; // Disable pull-down
+//     io_conf.pull_up_en = false;  // Enable pull-up
+//     gpio_config(&io_conf);
+//     gpio_set_level(GPIO_OUTPUT_POWER_KEEP_IO, 0);
+// }
 
 // 原始广播数据包
 uint8_t hidd_adv_data_raw[] = {
@@ -411,8 +414,6 @@ void blink_task(void *pvParameter)
         led_on_off = !led_on_off;
         vTaskDelay(pdMS_TO_TICKS(400));
     }
-    // 释放资源
-    // led_strip_del(led_strip);
     // 销毁任务
     vTaskDelete(NULL);
 }

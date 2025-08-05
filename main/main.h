@@ -9,7 +9,7 @@ esp_err_t ble_init(void);
 esp_err_t ble_sec_config(void);
 
 void SLEEP(void);
-void START_FAIL(void);
+// void START_FAIL(void);
 esp_err_t setHomeButton(void);
 esp_err_t START_UP(void);
 
