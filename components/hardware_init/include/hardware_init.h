@@ -17,6 +17,7 @@ extern led_strip_handle_t led_strip;
 
 void func(void);
 esp_err_t setLED(uint8_t index, uint8_t red, uint8_t green, uint8_t blue);
+esp_err_t flashLED(void);
 
 #define ADC_CHANNEL_RIGHT_UP_DOWN ADC_CHANNEL_0    // 右上下 (GPIO36)
 #define ADC_CHANNEL_RIGHT_LEFT_RIGHT ADC_CHANNEL_1 // 右左右 (GPIO37)

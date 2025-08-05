@@ -55,6 +55,8 @@ static void hidd_event_callback(esp_hidd_cb_event_t event, esp_hidd_cb_param_t *
 // #define HIDD_DEVICE_NAME            "MYGT Controller"
 
 bool shoule_startup = false;
+// LED更新的信号量
+SemaphoreHandle_t led_operation_semaphore = NULL;
 
 bool LED_ON = true;
 void app_main(void)
@@ -70,7 +72,9 @@ void app_main(void)
             init_all(); // 初始化除了HOME按键之外的外设
             // LED任务
             LED_ON = true;
+            led_operation_semaphore = xSemaphoreCreateBinary();
             xTaskCreatePinnedToCore(blink_task, "blink_task", 4096, NULL, 5, NULL, 1);
+            xTaskCreatePinnedToCore(LED_flash_task, "LED_flash_task", 4096, NULL, 5, NULL, 1);
             // 先闪灯，让用户以为开机了
             while (gpio_get_level(GPIO_INPUT_HOME_BTN))
             {
@@ -393,13 +397,29 @@ void blink_task(void *pvParameter)
                 setLED(0, 0, 0, 0);
                 // ESP_LOGI("main", "LED OFF!");
             }
-
+            // 更新信号量
+            if (led_operation_semaphore != NULL)
+            {
+                xSemaphoreGive(led_operation_semaphore);
+            }
             led_on_off = !led_on_off;
             vTaskDelay(pdMS_TO_TICKS(400));
         }
         else
         {
             vTaskDelay(pdMS_TO_TICKS(1000));
+        }
+    }
+}
+
+void LED_flash_task(void *pvParameter)
+{
+    while (1)
+    {
+        // 等待LED操作完成，一直阻塞直到信号量被释放
+        if (xSemaphoreTake(led_operation_semaphore, portMAX_DELAY) == pdTRUE)
+        {
+            flashLED();
         }
     }
 }
@@ -476,8 +496,8 @@ void adc_read_task(void *pvParameter)
     // 开始转换
     ESP_ERROR_CHECK(adc_continuous_start(ADC_init_handle));
 
-    uint32_t log_counter = 0;
-    const uint32_t log_interval = 10;
+    // uint32_t log_counter = 0;
+    // const uint32_t log_interval = 10;
 
     while (1)
     {
@@ -494,11 +514,11 @@ void adc_read_task(void *pvParameter)
                 adc_digi_output_data_t *p = (adc_digi_output_data_t *)&bufferADC[i];
                 uint32_t chan_num = EXAMPLE_ADC_GET_CHANNEL(p);
                 uint32_t data = EXAMPLE_ADC_GET_DATA(p);
-                log_counter++;
-                if (log_counter % log_interval == 0 && chan_num == 0)
-                {
-                    ESP_LOGI("ADCtask", "Unit: %s, Channel: %" PRIu32 ", Value: %" PRIx32, unit, chan_num, data);
-                }
+                // log_counter++;
+                // if (log_counter % log_interval == 0 && chan_num == 0)
+                // {
+                //     ESP_LOGI("ADCtask", "Unit: %s, Channel: %" PRIu32 ", Value: %" PRIx32, unit, chan_num, data);
+                // }
             }
         }
     }

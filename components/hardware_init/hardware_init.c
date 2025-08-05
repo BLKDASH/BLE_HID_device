@@ -58,8 +58,26 @@ static led_strip_handle_t configure_led(void)
 // 如果是多个led一起动，那么此处性能可以优化
 esp_err_t setLED(uint8_t index, uint8_t red, uint8_t green, uint8_t blue)
 {
-    ESP_ERROR_CHECK(led_strip_set_pixel(led_strip, index, red, green, blue));
-    ESP_ERROR_CHECK(led_strip_refresh(led_strip));
+    esp_err_t err;
+    
+    err = led_strip_set_pixel(led_strip, index, red, green, blue);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to set LED pixel, error: %d", err);
+        return err;
+    }
+    
+
+    return ESP_OK;
+}
+
+esp_err_t flashLED(void)
+{
+    esp_err_t err;
+    err = led_strip_refresh(led_strip);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to refresh LED strip, error: %d", err);
+        return err;
+    }
     return ESP_OK;
 }
 
