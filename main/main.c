@@ -54,14 +54,26 @@ static void hidd_event_callback(esp_hidd_cb_event_t event, esp_hidd_cb_param_t *
 #define HIDD_DEVICE_NAME "ESP32GamePad"
 // #define HIDD_DEVICE_NAME            "MYGT Controller"
 
-bool shoule_startup = false;
 // LED更新的信号量
-SemaphoreHandle_t led_operation_semaphore = NULL;
+SemaphoreHandle_t led_flash_semaphore = NULL;
+static TaskHandle_t blink_task_handle = NULL;
 
-bool LED_ON = true;
+bool led_running = false;
+bool adc_running = false;
+
 void app_main(void)
 {
     vTaskDelay(pdMS_TO_TICKS(100)); // 等待boot日志输出完毕
+    gpio_config_t io_conf = {};
+    io_conf.intr_type = GPIO_INTR_DISABLE;
+    io_conf.mode = GPIO_MODE_OUTPUT;
+    io_conf.pin_bit_mask = BIT64(GPIO_OUTPUT_POWER_KEEP_IO);
+    io_conf.pull_down_en = false; // Disable pull-down
+    io_conf.pull_up_en = true;  // Enable pull-up
+    gpio_config(&io_conf);
+    gpio_set_level(GPIO_OUTPUT_POWER_KEEP_IO, 1);
+
+
     while (1)
     {
         ESP_LOGW("main", "Into MAIN");
@@ -71,10 +83,10 @@ void app_main(void)
 
             init_all(); // 初始化除了HOME按键之外的外设
             // LED任务
-            LED_ON = true;
-            led_operation_semaphore = xSemaphoreCreateBinary();
+            led_flash_semaphore = xSemaphoreCreateBinary();
             xTaskCreatePinnedToCore(blink_task, "blink_task", 4096, NULL, 5, NULL, 1);
-            xTaskCreatePinnedToCore(LED_flash_task, "LED_flash_task", 4096, NULL, 5, NULL, 1);
+            // 高优先级刷新，此刷新会判断信号量，因此不会太消耗性能
+            xTaskCreatePinnedToCore(LED_flash_task, "LED_flash_task", 4096, NULL, 8, NULL, 1);
             // 先闪灯，让用户以为开机了
             while (gpio_get_level(GPIO_INPUT_HOME_BTN))
             {
@@ -128,7 +140,7 @@ esp_err_t START_UP(void)
 
     // 阻塞方式检测按键是否持续高电平3秒
     int64_t start_time = esp_timer_get_time(); // 获取起始时间(微秒)
-    int64_t required_duration = 1500000;       // 1.5秒 = 1,500,000微秒
+    int64_t required_duration = 1000000;       // 1秒 = 1,000,000微秒
     while (true)
     {
         // 读取当前按键状态
@@ -153,13 +165,15 @@ static void button_long_press_home_cb(void *arg, void *usr_data)
     // 假如一直按住，则松开才执行后面的操作
     while (gpio_get_level(GPIO_INPUT_HOME_BTN) == 1)
     {
-        // 先关灯
-        LED_ON = false;
+        // 先关灯、销毁任务
+        led_running = false;
         setLED(0, 0, 0, 0);
         setLED(1, 0, 0, 0);
         setLED(2, 0, 0, 0);
         setLED(3, 0, 0, 0);
-        vTaskDelay(100);
+        flashLED();
+        // 一次性操作，因此这里手动flash一下
+        // vTaskDelay(100);
     }
     SLEEP();
 }
@@ -185,21 +199,15 @@ void SLEEP(void)
 {
     ESP_LOGI(HID_BLE_TAG, "Sleeping...");
     // setLED函数同时会影响IO12单LED的初始化
-    vTaskDelay(pdMS_TO_TICKS(300));
+    vTaskDelay(pdMS_TO_TICKS(50));
     // 不要做这些操作，直接关机即可。这些操作的导致的延时后果不确定
     // esp_bluedroid_disable();
     // esp_bluedroid_deinit();
     // esp_bt_controller_disable();
     // esp_bt_controller_deinit();
-    setLED(0, 30, 10, 0);
-
-    vTaskDelay(pdMS_TO_TICKS(1000));
-    setLED(0, 0, 0, 0);
-    vTaskDelay(pdMS_TO_TICKS(100));
-    // 取消LED strip初始化
-    led_strip_del(led_strip);
-
-    // 下拉输出powerkeep0
+    // 关闭adc
+    // adc_continuous_deinit(ADC_init_handle);
+    // 下拉输出powerkeep0，拉低电源保持
     gpio_config_t io_conf = {};
     io_conf.intr_type = GPIO_INTR_DISABLE;
     io_conf.mode = GPIO_MODE_OUTPUT;
@@ -208,7 +216,6 @@ void SLEEP(void)
     io_conf.pull_up_en = false;  // Enable pull-up
     gpio_config(&io_conf);
     gpio_set_level(GPIO_OUTPUT_POWER_KEEP_IO, 0);
-    // vTaskDelay(pdMS_TO_TICKS(50));//硬件关机有延迟，防止再次进入主函数（不对，不能delay，一delay又开机了）
 }
 
 void START_FAIL(void)
@@ -222,7 +229,6 @@ void START_FAIL(void)
     io_conf.pull_up_en = false;  // Enable pull-up
     gpio_config(&io_conf);
     gpio_set_level(GPIO_OUTPUT_POWER_KEEP_IO, 0);
-    // vTaskDelay(pdMS_TO_TICKS(50));//硬件关机有延迟，防止再次进入主函数（不对，不能delay，一delay又开机了）
 }
 
 // 原始广播数据包
@@ -382,46 +388,47 @@ void blink_task(void *pvParameter)
     setLED(1, 10, 0, 0);
     setLED(2, 10, 0, 10);
     setLED(3, 10, 10, 0);
-    while (1)
+    led_running = true;
+    while (led_running)
     {
-        if (LED_ON == true)
-        {
 
-            if (led_on_off)
-            {
-                setLED(0, 0, 10, 0);
-                // ESP_LOGI("main", "LED ON!");
-            }
-            else
-            {
-                setLED(0, 0, 0, 0);
-                // ESP_LOGI("main", "LED OFF!");
-            }
-            // 更新信号量
-            if (led_operation_semaphore != NULL)
-            {
-                xSemaphoreGive(led_operation_semaphore);
-            }
-            led_on_off = !led_on_off;
-            vTaskDelay(pdMS_TO_TICKS(400));
+        if (led_on_off)
+        {
+            setLED(0, 0, 10, 0);
+            // ESP_LOGI("main", "LED ON!");
         }
         else
         {
-            vTaskDelay(pdMS_TO_TICKS(1000));
+            setLED(0, 0, 0, 0);
+            // ESP_LOGI("main", "LED OFF!");
         }
+        // 更新信号量
+        if (led_flash_semaphore != NULL)
+        {
+            xSemaphoreGive(led_flash_semaphore);
+            // ESP_LOGI("main", "LED Semaphore Give!");
+        }
+        led_on_off = !led_on_off;
+        vTaskDelay(pdMS_TO_TICKS(400));
     }
+    // 释放资源
+    // led_strip_del(led_strip);
+    // 销毁任务
+    vTaskDelete(NULL);
 }
 
 void LED_flash_task(void *pvParameter)
 {
+    // 这里不要去判断 led runing，万一来不及赋值，该任务就会被删除
     while (1)
     {
         // 等待LED操作完成，一直阻塞直到信号量被释放
-        if (xSemaphoreTake(led_operation_semaphore, portMAX_DELAY) == pdTRUE)
+        if (xSemaphoreTake(led_flash_semaphore, portMAX_DELAY) == pdTRUE)
         {
             flashLED();
         }
     }
+    vTaskDelete(NULL);
 }
 
 void gpio_read_task(void *pvParameter)
@@ -496,10 +503,10 @@ void adc_read_task(void *pvParameter)
     // 开始转换
     ESP_ERROR_CHECK(adc_continuous_start(ADC_init_handle));
 
-    // uint32_t log_counter = 0;
-    // const uint32_t log_interval = 10;
-
-    while (1)
+    uint32_t log_counter = 0;
+    const uint32_t log_interval = 10;
+    adc_running = true;
+    while (adc_running)
     {
         // read_and_log_adc_values();
         vTaskDelay(pdMS_TO_TICKS(20));
@@ -507,21 +514,25 @@ void adc_read_task(void *pvParameter)
         ret = adc_continuous_read(ADC_init_handle, bufferADC, EXAMPLE_READ_LEN, &ret_num, 0);
         if (ret == ESP_OK)
         {
-            ESP_LOGI("TASK", "ret is %x, ret_num is %" PRIu32 " bytes", ret, ret_num);
+            // ESP_LOGI("TASK", "ret is %x, ret_num is %" PRIu32 " bytes", ret, ret_num);
             // ESP32的ADC连续读取模式将采集到的数据以特定格式存储在缓冲区中。每个ADC采样结果包含多个字节（通常是4字节），包含了通道号和采样值等信息。
             for (int i = 0; i < ret_num; i += SOC_ADC_DIGI_RESULT_BYTES)
             {
                 adc_digi_output_data_t *p = (adc_digi_output_data_t *)&bufferADC[i];
                 uint32_t chan_num = EXAMPLE_ADC_GET_CHANNEL(p);
                 uint32_t data = EXAMPLE_ADC_GET_DATA(p);
-                // log_counter++;
-                // if (log_counter % log_interval == 0 && chan_num == 0)
-                // {
-                //     ESP_LOGI("ADCtask", "Unit: %s, Channel: %" PRIu32 ", Value: %" PRIx32, unit, chan_num, data);
-                // }
+                log_counter++;
+                if (log_counter % log_interval == 0 && chan_num == ADC_CHANNEL_LEFT_TRIGGER)
+                {
+                    float voltage = (float)data * 3.3 / 4095.0;
+                    // ESP_LOGI("ADCtask", "Unit: %s, Channel: %" PRIu32 ", Raw Value: %" PRIu32 ", Voltage: %.3fV", unit, chan_num, data, voltage);
+                }
             }
         }
     }
+    // adc_continuous_stop(ADC_init_handle);
+    // adc_continuous_deinit(ADC_init_handle);
+    vTaskDelete(NULL);
 }
 
 void gamepad_button_task(void *pvParameters)

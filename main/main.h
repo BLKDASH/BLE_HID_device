@@ -22,5 +22,9 @@ void adc_read_task(void *pvParameter);
 
 void gamepad_button_task(void *pvParameters);
 
+// 全局变量声明
+extern bool led_running;
+extern bool adc_running;
+
 
 #endif
