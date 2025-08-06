@@ -168,14 +168,6 @@ static void init_gpio(void)
     io_conf.pull_up_en = true;    // Enable pull-up
     gpio_config(&io_conf);
 
-    // 为HOME按键单独配置为拉低模式（已经在button中初始化）
-    // gpio_config_t home_btn_conf = {};
-    // home_btn_conf.intr_type = GPIO_INTR_DISABLE;
-    // home_btn_conf.mode = GPIO_MODE_INPUT;
-    // home_btn_conf.pin_bit_mask = BIT64(GPIO_INPUT_HOME_BTN);
-    // home_btn_conf.pull_down_en = true;             // Enable pull-down for HOME button
-    // home_btn_conf.pull_up_en = false;              // Disable pull-up for HOME button
-    // gpio_config(&home_btn_conf);
 }
 
 //-------------------------------------------------------------------------------------

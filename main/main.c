@@ -539,7 +539,6 @@ void gpio_read_task(void *pvParameter)
 
         level_4 = gpio_get_level(GPIO_INPUT_SELECT_BTN);
         level_2 = gpio_get_level(GPIO_INPUT_START_BTN);
-        level_13 = gpio_get_level(GPIO_INPUT_HOME_BTN);
         level_0 = gpio_get_level(GPIO_INPUT_IKEY_BTN);
         level_21 = gpio_get_level(GPIO_INPUT_IOS_BTN);
         level_22 = gpio_get_level(GPIO_INPUT_WINDOWS_BTN);
@@ -551,8 +550,8 @@ void gpio_read_task(void *pvParameter)
                  level_15, level_19);
         ESP_LOGI("ioTask", "Shoulders - Left: %d | Right: %d",
                  level_23, level_18);
-        ESP_LOGI("ioTask", "Special Keys - SELECT: %d | START: %d | HOME: %d | IKEY: %d | IOS: %d | WINDOWS: %d",
-                 level_4, level_2, level_13, level_0, level_21, level_22);
+        ESP_LOGI("ioTask", "Special Keys - SELECT: %d | START: %d | IKEY: %d | IOS: %d | WINDOWS: %d",
+                 level_4, level_2, level_0, level_21, level_22);
 
         // Delay 500ms
         vTaskDelay(pdMS_TO_TICKS(300));
@@ -569,7 +568,6 @@ static bool IRAM_ATTR s_conv_done_cb(adc_continuous_handle_t handle, const adc_c
     return (mustYield == pdTRUE);
 }
 
-// 使用handle，读取缓冲区buffer的值，然后依次赋值到result二维数组中，先入先出，最后进行均值滤波。raw data是uint32
 void adc_read_task(void *pvParameter)
 {
     char unit[] = EXAMPLE_ADC_UNIT_STR(EXAMPLE_ADC_UNIT);
@@ -578,12 +576,11 @@ void adc_read_task(void *pvParameter)
     uint8_t bufferADC[EXAMPLE_READ_LEN] = {0};
     memset(bufferADC, 0xcc, EXAMPLE_READ_LEN);
     s_task_handle = xTaskGetCurrentTaskHandle();
-    // 注册错误检查回调
+    // 错误检查回调
     adc_continuous_evt_cbs_t cbs = {
         .on_conv_done = s_conv_done_cb,
     };
     ESP_ERROR_CHECK(adc_continuous_register_event_callbacks(ADC_init_handle, &cbs, NULL));
-    // 开始转换
     ESP_ERROR_CHECK(adc_continuous_start(ADC_init_handle));
 
     uint32_t log_counter = 0;
@@ -601,7 +598,7 @@ void adc_read_task(void *pvParameter)
             if (ret == ESP_OK)
             {
                 // ESP_LOGI("TASK", "ret is %x, ret_num is %" PRIu32 " bytes", ret, ret_num);
-                // ESP32的ADC连续读取模式将采集到的数据以特定格式存储在缓冲区中。每个ADC采样结果包含多个字节（通常是4字节），包含了通道号和采样值等信息。
+                // 每个ADC采样结果包含多个字节（通常是4字节），包含了通道号和采样值等信息。
                 for (int i = 0; i < ret_num; i += SOC_ADC_DIGI_RESULT_BYTES)
                 {
                     adc_digi_output_data_t *p = (adc_digi_output_data_t *)&bufferADC[i];

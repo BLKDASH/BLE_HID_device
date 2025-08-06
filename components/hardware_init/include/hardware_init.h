@@ -69,12 +69,15 @@ extern adc_continuous_handle_t ADC_init_handle;
 // 超薄按键
 #define GPIO_INPUT_SELECT_BTN 4   // SELECT按键
 #define GPIO_INPUT_START_BTN 2    // START按键
-#define GPIO_INPUT_HOME_BTN 13    // HOME按键，开关机检测按键
+
 #define GPIO_INPUT_IKEY_BTN 0     // IKEY按键
 #define GPIO_INPUT_IOS_BTN 21     // IOS按键
 #define GPIO_INPUT_WINDOWS_BTN 22 // Windows按键
 
 #define GPIO_INPUT_ANDROID_BTN 4 // Android按键
+
+
+#define GPIO_INPUT_HOME_BTN 13    // HOME按键，开关机检测按键
 
 #define GPIO_OUTPUT_POWER_KEEP_IO 5
 
