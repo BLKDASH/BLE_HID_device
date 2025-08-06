@@ -33,6 +33,7 @@
 #include "button_gpio.h"
 #include "led_strip.h"
 #include "hardware_init.h"
+#include "processing.h"
 
 // todo:遗忘上一次连接的设备
 // todo:断连后重新连接，会导致崩溃（adc 缓冲区无法读取）
@@ -48,6 +49,8 @@ static bool sec_conn = false;
 
 // 设备状态
 static device_state_t current_device_state = DEVICE_STATE_INIT;
+
+MultiChannelBuffer *mcb = NULL;
 
 #define CHAR_DECLARATION_SIZE (sizeof(uint8_t))
 
@@ -83,6 +86,8 @@ void app_main(void)
         {
             ESP_LOGI("main", "START_UP OK");
 
+            // 创建多通道平均缓冲区，长度为10
+            mcb = mcb_init(10);
             init_all(); // 初始化除了HOME按键之外的外设
             // LED任务
             led_flash_semaphore = xSemaphoreCreateBinary();
@@ -107,6 +112,7 @@ void app_main(void)
                     // GPIO与ADC读取任务
                     // xTaskCreatePinnedToCore(gpio_read_task, "gpio_toggle_task", 4096, NULL, 6, NULL, 1);
                     xTaskCreatePinnedToCore(adc_read_task, "adc_read_task", 4096, NULL, 7, NULL, 1);
+                    xTaskCreatePinnedToCore(adc_aver_send, "adc_aver_send", 4096, NULL, 6, NULL, 1);
                     // 模拟手柄任务
                     xTaskCreatePinnedToCore(gamepad_button_task, "gamepad_button_task", 4096, NULL, 9, NULL, 1);
                     // 使命完成，删除自己
@@ -519,7 +525,7 @@ void gpio_read_task(void *pvParameter)
     int level_25, level_26, level_27, level_14;
     int level_15, level_19;
     int level_23, level_18;
-    int level_4, level_2, level_13, level_0, level_21, level_22;
+    int level_4, level_2, level_0, level_21, level_22;
 
     while (1)
     {
@@ -570,7 +576,6 @@ static bool IRAM_ATTR s_conv_done_cb(adc_continuous_handle_t handle, const adc_c
 
 void adc_read_task(void *pvParameter)
 {
-    char unit[] = EXAMPLE_ADC_UNIT_STR(EXAMPLE_ADC_UNIT);
     esp_err_t ret;
     uint32_t ret_num = 0;
     uint8_t bufferADC[EXAMPLE_READ_LEN] = {0};
@@ -583,9 +588,10 @@ void adc_read_task(void *pvParameter)
     ESP_ERROR_CHECK(adc_continuous_register_event_callbacks(ADC_init_handle, &cbs, NULL));
     ESP_ERROR_CHECK(adc_continuous_start(ADC_init_handle));
 
-    uint32_t log_counter = 0;
-    const uint32_t log_interval = 20;
+    // uint32_t log_counter = 0;
+    // const uint32_t log_interval = 20;
     adc_running = true;
+
     // 连上了才读，否则会这是一个ESP32的Cache error错误，具体原因是"Cache disabled but cached memory region accessed"（缓存被禁用但访问了缓存内存区域）。从回溯信息看，错误发生在BLE连接过程中，当尝试读取ADC数据时触发。触发时机：在BLE连接事件(ESP_HIDD_EVENT_BLE_CONNECT)处理过程中。根本原因：中断处理程序中访问了被缓存的内存区域，而此时缓存已被禁用
     while (adc_running)
     {
@@ -602,14 +608,15 @@ void adc_read_task(void *pvParameter)
                 for (int i = 0; i < ret_num; i += SOC_ADC_DIGI_RESULT_BYTES)
                 {
                     adc_digi_output_data_t *p = (adc_digi_output_data_t *)&bufferADC[i];
-                    uint32_t chan_num = EXAMPLE_ADC_GET_CHANNEL(p);
+                    uint8_t chan_num = (uint8_t)EXAMPLE_ADC_GET_CHANNEL(p);
                     uint32_t data = EXAMPLE_ADC_GET_DATA(p);
-                    log_counter++;
-                    if (log_counter % log_interval == 0 && chan_num == ADC_CHANNEL_RIGHT_UP_DOWN)
-                    {
-                        float voltage = (float)data * 3.3 / 4095.0;
-                        ESP_LOGI("ADCtask", "Unit: %s, Channel: %" PRIu32 ", Raw Value: %" PRIu32 ", Voltage: %.3fV", unit, chan_num, data, voltage);
-                    }
+                    float voltage = (float)data * 3.3 / 4095.0;
+                    mcb_push(mcb, chan_num, voltage);
+                    // if (log_counter % log_interval == 0 && chan_num == ADC_CHANNEL_RIGHT_UP_DOWN)
+                    // {
+                    //     float voltage = (float)data * 3.3 / 4095.0;
+                    //     ESP_LOGI("ADCtask", "Unit: %s, Channel: %" PRIu32 ", Raw Value: %" PRIu32 ", Voltage: %.3fV", unit, chan_num, data, voltage);
+                    // }
                 }
             }
             else if (ret != ESP_ERR_TIMEOUT)
@@ -626,6 +633,21 @@ void adc_read_task(void *pvParameter)
     // adc_continuous_stop(ADC_init_handle);
     // adc_continuous_deinit(ADC_init_handle);
     vTaskDelete(NULL);
+}
+
+void adc_aver_send(void *pvParameters)
+{
+    float all_avg[8];
+    while (1)
+    {
+        mcb_get_all_averages(mcb, all_avg);
+        printf("\r\n");
+        for (uint8_t i = 0; i < 1; i++)
+        {
+            printf("%.2f  ", all_avg[i]);
+        }
+        vTaskDelay(pdMS_TO_TICKS(40));
+    }
 }
 
 void gamepad_button_task(void *pvParameters)

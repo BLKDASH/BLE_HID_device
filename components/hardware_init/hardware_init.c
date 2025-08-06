@@ -65,7 +65,6 @@ esp_err_t setLED(uint8_t index, uint8_t red, uint8_t green, uint8_t blue)
         ESP_LOGE(TAG, "Failed to set LED pixel, error: %d", err);
         return err;
     }
-    
 
     return ESP_OK;
 }
