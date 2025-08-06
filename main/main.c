@@ -112,7 +112,7 @@ void app_main(void)
                     // GPIO与ADC读取任务
                     // xTaskCreatePinnedToCore(gpio_read_task, "gpio_toggle_task", 4096, NULL, 6, NULL, 1);
                     xTaskCreatePinnedToCore(adc_read_task, "adc_read_task", 4096, NULL, 7, NULL, 1);
-                    xTaskCreatePinnedToCore(adc_aver_send, "adc_aver_send", 4096, NULL, 6, NULL, 1);
+                    xTaskCreatePinnedToCore(adc_aver_send, "adc_aver_send", 2048, NULL, 6, NULL, 1);
                     // 模拟手柄任务
                     xTaskCreatePinnedToCore(gamepad_button_task, "gamepad_button_task", 4096, NULL, 9, NULL, 1);
                     // 使命完成，删除自己
@@ -642,9 +642,9 @@ void adc_aver_send(void *pvParameters)
     {
         mcb_get_all_averages(mcb, all_avg);
         printf("\r\n");
-        for (uint8_t i = 0; i < 1; i++)
+        for (uint8_t i = 0; i < 8; i++)
         {
-            printf("%.2f  ", all_avg[i]);
+            printf("%.3f  ", all_avg[i]);
         }
         vTaskDelay(pdMS_TO_TICKS(40));
     }
