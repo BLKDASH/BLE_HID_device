@@ -44,8 +44,12 @@
 
 // #define DEBUG_MODE
 
+// 蓝牙 connect 属性
 static uint16_t hid_conn_id = 0;
 static bool sec_conn = false;
+
+// 设备状态
+static device_state_t current_device_state = DEVICE_STATE_INIT;
 
 #define CHAR_DECLARATION_SIZE (sizeof(uint8_t))
 
@@ -68,12 +72,9 @@ void app_main(void)
     io_conf.mode = GPIO_MODE_OUTPUT;
     io_conf.pin_bit_mask = BIT64(GPIO_OUTPUT_POWER_KEEP_IO);
     io_conf.pull_down_en = false; // Disable pull-down
-    io_conf.pull_up_en = true;  // Enable pull-up
+    io_conf.pull_up_en = true;    // Enable pull-up
     gpio_config(&io_conf);
     gpio_set_level(GPIO_OUTPUT_POWER_KEEP_IO, 1);
-
-
-
 
     // 使用 while1 是防止启动失败时，一次没关机成功
     while (1)
@@ -88,10 +89,12 @@ void app_main(void)
             // LED任务
             led_flash_semaphore = xSemaphoreCreateBinary();
             xTaskCreatePinnedToCore(blink_task, "blink_task", 2048, NULL, 5, NULL, 1);
-            // 高优先级刷新，此刷新会判断信号量，因此不会太消耗性能
             xTaskCreatePinnedToCore(LED_flash_task, "LED_flash_task", 2048, NULL, 5, NULL, 1);
             // 先闪灯，让用户以为开机了
-            while (gpio_get_level(GPIO_INPUT_HOME_BTN)){vTaskDelay(pdMS_TO_TICKS(100));}// 让出时间给LED任务} // 等待按键释放
+            while (gpio_get_level(GPIO_INPUT_HOME_BTN))
+            {
+                vTaskDelay(pdMS_TO_TICKS(100));
+            } // 让出时间给LED任务} // 等待按键释放
             ESP_LOGI("main", "register home button--");
             setHomeButton(); // 释放后再注册home按键长按
             if (ESP_OK == ble_init())
@@ -101,7 +104,7 @@ void app_main(void)
             ESP_LOGI("Main", "BLE HID Init OK");
             while (1)
             {
-                if(sec_conn == true)
+                if (sec_conn == true)
                 {
                     // GPIO与ADC读取任务
                     // xTaskCreatePinnedToCore(gpio_read_task, "gpio_toggle_task", 4096, NULL, 6, NULL, 1);
@@ -115,11 +118,7 @@ void app_main(void)
                 {
                     vTaskDelay(pdMS_TO_TICKS(500));
                 }
-
             }
-            
-
-
         }
         else
         {
@@ -143,7 +142,6 @@ esp_err_t START_UP(void)
     home_btn_conf.pull_down_en = true; // 下拉
     home_btn_conf.pull_up_en = false;
 
-
     // 阻塞方式检测按键是否持续高电平3秒
     int64_t start_time = esp_timer_get_time(); // 获取起始时间(微秒)
     int64_t required_duration = 1000000;       // 1秒 = 1,000,000微秒
@@ -162,6 +160,7 @@ esp_err_t START_UP(void)
         {
             return ESP_OK;
         }
+        vTaskDelay(pdMS_TO_TICKS(10));
     }
 }
 
@@ -195,7 +194,7 @@ esp_err_t setHomeButton(void)
     iot_button_new_gpio_device(&btn_cfg, &btn_gpio_cfg, &gpio_btn);
     // 设置属性
     button_event_args_t args = {
-        .long_press.press_time = 1500,
+        .long_press.press_time = 2000,
     };
     iot_button_register_cb(gpio_btn, BUTTON_LONG_PRESS_START, &args, button_long_press_home_cb, NULL);
     return ESP_OK;
@@ -206,7 +205,9 @@ void SLEEP(void)
     ESP_LOGI(HID_BLE_TAG, "Sleeping...");
     // setLED函数同时会影响IO12单LED的初始化
     vTaskDelay(pdMS_TO_TICKS(50));
-    while (gpio_get_level(GPIO_INPUT_HOME_BTN)){}// 等待按键释放
+    while (gpio_get_level(GPIO_INPUT_HOME_BTN))
+    {
+    } // 等待按键释放
     // 不要做这些操作，直接关机即可。这些操作的导致的延时后果不确定
     // esp_bluedroid_disable();
     // esp_bluedroid_deinit();
@@ -214,8 +215,6 @@ void SLEEP(void)
     // esp_bt_controller_deinit();
     // 关闭adc
     // adc_continuous_deinit(ADC_init_handle);
-
-
 
     // 下拉输出powerkeep0，拉低电源保持
     gpio_config_t io_conf = {};
@@ -226,25 +225,8 @@ void SLEEP(void)
     io_conf.pull_up_en = false;  // Enable pull-up
     gpio_config(&io_conf);
     gpio_set_level(GPIO_OUTPUT_POWER_KEEP_IO, 0);
-
 }
 
-// void START_FAIL(void)
-// {
-//     while (gpio_get_level(GPIO_INPUT_HOME_BTN)){}// 等待按键释放
-    
-//     ESP_LOGW("main", "START_UP failed,closing...");
-//     // vTaskDelay(pdMS_TO_TICKS(100));
-//     // 由于LED strip没有初始化，因此直接拉低电源保持
-//     gpio_config_t io_conf = {};
-//     io_conf.intr_type = GPIO_INTR_DISABLE;
-//     io_conf.mode = GPIO_MODE_OUTPUT;
-//     io_conf.pin_bit_mask = BIT64(GPIO_OUTPUT_POWER_KEEP_IO);
-//     io_conf.pull_down_en = true; // Disable pull-down
-//     io_conf.pull_up_en = false;  // Enable pull-up
-//     gpio_config(&io_conf);
-//     gpio_set_level(GPIO_OUTPUT_POWER_KEEP_IO, 0);
-// }
 
 // 原始广播数据包
 uint8_t hidd_adv_data_raw[] = {
@@ -333,6 +315,7 @@ static void hidd_event_callback(esp_hidd_cb_event_t event, esp_hidd_cb_param_t *
     {
         sec_conn = false;
         ESP_LOGI("HIDDcallback", "ESP_HIDD_EVENT_BLE_DISCONNECT");
+        current_device_state = DEVICE_STATE_DISCONNECTED;
         // 断连后重新advertising
         esp_ble_gap_start_advertising(&hidd_adv_params);
         break;
@@ -376,7 +359,8 @@ static void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param
         esp_ble_gap_security_rsp(param->ble_security.ble_req.bd_addr, true);
         break;
     case ESP_GAP_BLE_AUTH_CMPL_EVT: // 认证完成事件
-        sec_conn = true;
+        ESP_LOGW("GAP","Auth OK");
+        current_device_state = DEVICE_STATE_CONNECTED;
         esp_bd_addr_t bd_addr;
         memcpy(bd_addr, param->ble_security.auth_cmpl.bd_addr, sizeof(esp_bd_addr_t)); // 复制地址
         ESP_LOGI(HID_BLE_TAG, "remote BD_ADDR: %08x%04x",
@@ -388,6 +372,7 @@ static void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param
         {
             ESP_LOGE(HID_BLE_TAG, "fail reason = 0x%x", param->ble_security.auth_cmpl.fail_reason);
         }
+        sec_conn = true;
         break;
     default:
         break;
@@ -406,25 +391,116 @@ void blink_task(void *pvParameter)
     led_running = true;
     while (led_running)
     {
+        switch (current_device_state)
+        {
+        case DEVICE_STATE_INIT:
+            if (led_on_off)
+            {
+                setLED(0, 0, 0, 10);
+                setLED(1, 0, 0, 10);
+                setLED(2, 0, 0, 10);
+                setLED(3, 0, 0, 10);
+            }
+            else
+            {
+                setLED(0, 0, 0, 0);
+                setLED(1, 0, 0, 0);
+                setLED(2, 0, 0, 0);
+                setLED(3, 0, 0, 0);
+            }
+            led_on_off = !led_on_off;
+            vTaskDelay(pdMS_TO_TICKS(500));
+            break;
 
-        if (led_on_off)
-        {
-            setLED(0, 0, 10, 0);
-            // ESP_LOGI("main", "LED ON!");
+        case DEVICE_STATE_ADVERTISING:
+            // 快闪 (200ms间隔)
+            if (led_on_off)
+            {
+                setLED(0, 0, 0, 15);
+                setLED(1, 0, 0, 0);
+                setLED(2, 0, 0, 15);
+                setLED(3, 0, 0, 0);
+            }
+            else
+            {
+                setLED(0, 0, 0, 0);
+                setLED(1, 0, 0, 15);
+                setLED(2, 0, 0, 0);
+                setLED(3, 0, 0, 15);
+            }
+            led_on_off = !led_on_off;
+            vTaskDelay(pdMS_TO_TICKS(200));
+            break;
+
+        case DEVICE_STATE_CONNECTED:
+            // 常亮不闪烁
+            setLED(0, 0, 15, 0);
+            setLED(1, 0, 15, 0);
+            setLED(2, 0, 15, 0);
+            setLED(3, 0, 15, 0);
+            vTaskDelay(pdMS_TO_TICKS(200));
+            break;
+
+        case DEVICE_STATE_DISCONNECTED:
+            // 慢闪 (500ms间隔)
+            if (led_on_off)
+            {
+                setLED(0, 15, 0, 0);
+                setLED(1, 0, 0, 0);
+                setLED(2, 15, 0, 0);
+                setLED(3, 0, 0, 0);
+            }
+            else
+            {
+                setLED(0, 0, 0, 0);
+                setLED(1, 15, 0, 0);
+                setLED(2, 0, 0, 0);
+                setLED(3, 15, 0, 0);
+            }
+            led_on_off = !led_on_off;
+            vTaskDelay(pdMS_TO_TICKS(500));
+            break;
+
+        case DEVICE_STATE_ERROR:
+            // 快速闪烁 (100ms间隔)
+            if (led_on_off)
+            {
+                setLED(0, 20, 0, 0);
+                setLED(1, 20, 0, 0);
+                setLED(2, 20, 0, 0);
+                setLED(3, 20, 0, 0);
+            }
+            else
+            {
+                setLED(0, 0, 0, 0);
+                setLED(1, 0, 0, 0);
+                setLED(2, 0, 0, 0);
+                setLED(3, 0, 0, 0);
+            }
+            led_on_off = !led_on_off;
+            vTaskDelay(pdMS_TO_TICKS(100));
+            break;
+
+        default:
+            // 默认处理
+            if (led_on_off)
+            {
+                setLED(0, 5, 5, 5);
+            }
+            else
+            {
+                setLED(0, 0, 0, 0);
+            }
+            led_on_off = !led_on_off;
+            vTaskDelay(pdMS_TO_TICKS(500));
+            break;
         }
-        else
-        {
-            setLED(0, 0, 0, 0);
-            // ESP_LOGI("main", "LED OFF!");
-        }
-        // 更新信号量
+        // 每次更新 led 后，更新刷新信号量
         if (led_flash_semaphore != NULL)
         {
             xSemaphoreGive(led_flash_semaphore);
             // ESP_LOGI("main", "LED Semaphore Give!");
         }
-        led_on_off = !led_on_off;
-        vTaskDelay(pdMS_TO_TICKS(400));
     }
     // 销毁任务
     vTaskDelete(NULL);
@@ -520,30 +596,42 @@ void adc_read_task(void *pvParameter)
     const uint32_t log_interval = 20;
     adc_running = true;
     // 连上了才读，否则会这是一个ESP32的Cache error错误，具体原因是"Cache disabled but cached memory region accessed"（缓存被禁用但访问了缓存内存区域）。从回溯信息看，错误发生在BLE连接过程中，当尝试读取ADC数据时触发。触发时机：在BLE连接事件(ESP_HIDD_EVENT_BLE_CONNECT)处理过程中。根本原因：中断处理程序中访问了被缓存的内存区域，而此时缓存已被禁用
-    while (adc_running && sec_conn)
-    {
-        // read_and_log_adc_values();
-        vTaskDelay(pdMS_TO_TICKS(20));
-        // 读取256个数据
-        ret = adc_continuous_read(ADC_init_handle, bufferADC, EXAMPLE_READ_LEN, &ret_num, 0);
-        if (ret == ESP_OK)
+    while (adc_running)
         {
-            // ESP_LOGI("TASK", "ret is %x, ret_num is %" PRIu32 " bytes", ret, ret_num);
-            // ESP32的ADC连续读取模式将采集到的数据以特定格式存储在缓冲区中。每个ADC采样结果包含多个字节（通常是4字节），包含了通道号和采样值等信息。
-            for (int i = 0; i < ret_num; i += SOC_ADC_DIGI_RESULT_BYTES)
+            // 只有在已连接状态下才读取ADC数据
+            if (sec_conn) 
             {
-                adc_digi_output_data_t *p = (adc_digi_output_data_t *)&bufferADC[i];
-                uint32_t chan_num = EXAMPLE_ADC_GET_CHANNEL(p);
-                uint32_t data = EXAMPLE_ADC_GET_DATA(p);
-                log_counter++;
-                if (log_counter % log_interval == 0 && chan_num == ADC_CHANNEL_RIGHT_UP_DOWN)
+                vTaskDelay(pdMS_TO_TICKS(20));
+                // 读取256个数据
+                ret = adc_continuous_read(ADC_init_handle, bufferADC, EXAMPLE_READ_LEN, &ret_num, 0);
+                if (ret == ESP_OK)
                 {
-                    float voltage = (float)data * 3.3 / 4095.0;
-                    ESP_LOGI("ADCtask", "Unit: %s, Channel: %" PRIu32 ", Raw Value: %" PRIu32 ", Voltage: %.3fV", unit, chan_num, data, voltage);
+                    // ESP_LOGI("TASK", "ret is %x, ret_num is %" PRIu32 " bytes", ret, ret_num);
+                    // ESP32的ADC连续读取模式将采集到的数据以特定格式存储在缓冲区中。每个ADC采样结果包含多个字节（通常是4字节），包含了通道号和采样值等信息。
+                    for (int i = 0; i < ret_num; i += SOC_ADC_DIGI_RESULT_BYTES)
+                    {
+                        adc_digi_output_data_t *p = (adc_digi_output_data_t *)&bufferADC[i];
+                        uint32_t chan_num = EXAMPLE_ADC_GET_CHANNEL(p);
+                        uint32_t data = EXAMPLE_ADC_GET_DATA(p);
+                        log_counter++;
+                        if (log_counter % log_interval == 0 && chan_num == ADC_CHANNEL_RIGHT_UP_DOWN)
+                        {
+                            float voltage = (float)data * 3.3 / 4095.0;
+                            ESP_LOGI("ADCtask", "Unit: %s, Channel: %" PRIu32 ", Raw Value: %" PRIu32 ", Voltage: %.3fV", unit, chan_num, data, voltage);
+                        }
+                    }
+                }
+                else if (ret != ESP_ERR_TIMEOUT) 
+                {
+                    ESP_LOGE("ADCtask", "ADC read failed with error: %d", ret);
                 }
             }
+            else 
+            {
+                // 如果未连接，则短暂延迟
+                vTaskDelay(pdMS_TO_TICKS(100));
+            }
         }
-    }
     // adc_continuous_stop(ADC_init_handle);
     // adc_continuous_deinit(ADC_init_handle);
     vTaskDelete(NULL);
