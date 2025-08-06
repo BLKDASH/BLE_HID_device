@@ -16,10 +16,13 @@
 // HID mouse input report length
 #define HID_MOUSE_IN_RPT_LEN 5
 
-// HID输入报文长度
+// HID cc 报文长度
 #define HID_CC_IN_RPT_LEN 3
 
-#define HID_GAMEPAD_STICK_IN_RPT_LEN 10
+// 全局游戏手柄报告缓冲区定义
+uint8_t gamepad_report_buffer[HID_GAMEPAD_STICK_IN_RPT_LEN] = {0};
+
+
 
 /**
  * @brief 注册HID设备的回调函数并初始化GATT服务应用。
@@ -122,87 +125,31 @@ uint16_t esp_hidd_get_version(void)
     return HIDD_VERSION;
 }
 
-#if(gamePadMode == 0)
-void esp_hidd_send_consumer_value(uint16_t conn_id, uint8_t key_cmd, bool key_pressed)
-{
-    // 定义buffer，初始化为0
-    uint8_t buffer[HID_CC_IN_RPT_LEN] = {0};
-    if (key_pressed)
-    {
-        // 如果按键按下，根据CMD构建报文，并返回至buffer中
-        hid_consumer_build_report(buffer, key_cmd);
-    }
-    // 如果没有按下，那么buffer被重置为0
-    ESP_LOGI("esp_hidd_send_consumer_value", "buffer[0] = %x, buffer[1] = %x, buffer[2] = %x, size = %d", buffer[0], buffer[1], buffer[2], sizeof(buffer));
-    // BUFFER已填充完毕
-    // 最后封包并发送
-    hid_dev_send_report(hidd_le_env.gatt_if, conn_id,
-                        HID_RPT_ID_CC_IN, HID_REPORT_TYPE_INPUT, HID_CC_IN_RPT_LEN, buffer);
-    return;
-}
 
-void esp_hidd_send_keyboard_value(uint16_t conn_id, key_mask_t special_key_mask, uint8_t *keyboard_cmd, uint8_t num_key)
-{
-    if (num_key > HID_KEYBOARD_IN_RPT_LEN - 2)
-    {
-        ESP_LOGE(HID_LE_PRF_TAG, "%s(), the number key should not be more than %d", __func__, HID_KEYBOARD_IN_RPT_LEN);
-        return;
-    }
 
-    uint8_t buffer[HID_KEYBOARD_IN_RPT_LEN] = {0};
 
-    buffer[0] = special_key_mask;
 
-    for (int i = 0; i < num_key; i++)
-    {
-        buffer[i + 2] = keyboard_cmd[i];
-    }
 
-    ESP_LOGD(HID_LE_PRF_TAG, "the key vaule = %d,%d,%d, %d, %d, %d,%d, %d", buffer[0], buffer[1], buffer[2], buffer[3], buffer[4], buffer[5], buffer[6], buffer[7]);
-    hid_dev_send_report(hidd_le_env.gatt_if, conn_id,
-                        HID_RPT_ID_KEY_IN, HID_REPORT_TYPE_INPUT, HID_KEYBOARD_IN_RPT_LEN, buffer);
-    return;
-}
 
-void esp_hidd_send_mouse_value(uint16_t conn_id, uint8_t mouse_button, int8_t mickeys_x, int8_t mickeys_y)
-{
-    uint8_t buffer[HID_MOUSE_IN_RPT_LEN];
 
-    buffer[0] = mouse_button; // Buttons
-    buffer[1] = mickeys_x;    // X
-    buffer[2] = mickeys_y;    // Y
-    buffer[3] = 0;            // Wheel
-    buffer[4] = 0;            // AC Pan
 
-    hid_dev_send_report(hidd_le_env.gatt_if, conn_id,
-                        HID_RPT_ID_MOUSE_IN, HID_REPORT_TYPE_INPUT, HID_MOUSE_IN_RPT_LEN, buffer);
-    return;
-}
 
-#elif(gamePadMode == 1)
 void esp_hidd_send_gamepad_report(uint16_t conn_id)
 {
-    uint8_t buffer[HID_GAMEPAD_STICK_IN_RPT_LEN];
-    static uint8_t testi = 0;
-    buffer[0] = 128;
-    buffer[1] = testi++;
-    buffer[2] = 128;
-    buffer[3] = 128;
-    buffer[4] = 255;
-    buffer[5] = 0;
-    buffer[6] = 0;
-    buffer[7] = 0;
-    buffer[8] = 0;
-    buffer[9] = 0;
+    gamepad_report_buffer[0] = 128;
+    gamepad_report_buffer[1] = 128;
+    gamepad_report_buffer[2] = 128;
+    gamepad_report_buffer[3] = 128;
+    gamepad_report_buffer[4] = 255;
+    gamepad_report_buffer[5] = 0;
+    gamepad_report_buffer[6] = 0;
+    gamepad_report_buffer[7] = 0;
+    gamepad_report_buffer[8] = 0;
+    gamepad_report_buffer[9] = 0;
 
-    // ESP_LOGI("gamepad", "Sending gamepad report: %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x",
-    //          buffer[0], buffer[1], buffer[2], buffer[3], buffer[4],
-    //          buffer[5], buffer[6], buffer[7], buffer[8], buffer[9]);
 
     hid_dev_send_report(hidd_le_env.gatt_if, conn_id,
-                        HID_RPT_ID_GAMEPAD_STICK_IN, HID_REPORT_TYPE_INPUT, HID_GAMEPAD_STICK_IN_RPT_LEN, buffer);
+                        HID_RPT_ID_GAMEPAD_STICK_IN, HID_REPORT_TYPE_INPUT, HID_GAMEPAD_STICK_IN_RPT_LEN, gamepad_report_buffer);
 
     return;
 }
-
-#endif
