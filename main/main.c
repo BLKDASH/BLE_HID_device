@@ -35,9 +35,7 @@
 #include "hardware_init.h"
 
 // todo:遗忘上一次连接的设备
-// todo:修改ADC库和ADC校准库
-// todo:修改为连续ADC
-// todo:修改开机检测与关机检测
+// todo:断连后重新连接，会导致崩溃（adc 缓冲区无法读取）
 
 #define HID_BLE_TAG "BLEinfo"
 #define HID_TASK_TAG "TASKinfo"
@@ -170,15 +168,9 @@ static void button_long_press_home_cb(void *arg, void *usr_data)
     // 假如一直按住，则松开才执行后面的操作
     while (gpio_get_level(GPIO_INPUT_HOME_BTN) == 1)
     {
-        // 先关灯、销毁任务
-        led_running = false;
-        setLED(0, 0, 0, 0);
-        setLED(1, 0, 0, 0);
-        setLED(2, 0, 0, 0);
-        setLED(3, 0, 0, 0);
-        flashLED();
-        // 一次性操作，因此这里手动flash一下
-        // vTaskDelay(100);
+        // 先关灯
+        current_device_state = DEVICE_STATE_SLEEP;
+        vTaskDelay(100);
     }
     SLEEP();
 }
@@ -481,6 +473,12 @@ void blink_task(void *pvParameter)
             vTaskDelay(pdMS_TO_TICKS(100));
             break;
 
+        case DEVICE_STATE_SLEEP:
+            setLED(0, 0, 0, 0);
+            setLED(1, 0, 0, 0);
+            setLED(2, 0, 0, 0);
+            setLED(3, 0, 0, 0);
+            vTaskDelay(pdMS_TO_TICKS(200));
         default:
             // 默认处理
             if (led_on_off)
