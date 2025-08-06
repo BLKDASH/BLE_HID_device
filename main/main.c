@@ -108,7 +108,7 @@ void app_main(void)
                     // xTaskCreatePinnedToCore(gpio_read_task, "gpio_toggle_task", 4096, NULL, 6, NULL, 1);
                     xTaskCreatePinnedToCore(adc_read_task, "adc_read_task", 4096, NULL, 7, NULL, 1);
                     // 模拟手柄任务
-                    xTaskCreatePinnedToCore(&gamepad_button_task, "gamepad_button_task", 4096, NULL, 9, NULL, 1);
+                    xTaskCreatePinnedToCore(gamepad_button_task, "gamepad_button_task", 4096, NULL, 9, NULL, 1);
                     // 使命完成，删除自己
                     vTaskDelete(NULL);
                 }
