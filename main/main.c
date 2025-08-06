@@ -139,6 +139,7 @@ esp_err_t START_UP(void)
     home_btn_conf.pin_bit_mask = BIT64(GPIO_INPUT_HOME_BTN);
     home_btn_conf.pull_down_en = true; // 下拉
     home_btn_conf.pull_up_en = false;
+    gpio_config(&home_btn_conf);
 
     // 阻塞方式检测按键是否持续高电平3秒
     int64_t start_time = esp_timer_get_time(); // 获取起始时间(微秒)
@@ -158,7 +159,7 @@ esp_err_t START_UP(void)
         {
             return ESP_OK;
         }
-        vTaskDelay(pdMS_TO_TICKS(10));
+        vTaskDelay(pdMS_TO_TICKS(50));
     }
 }
 
@@ -218,7 +219,6 @@ void SLEEP(void)
     gpio_config(&io_conf);
     gpio_set_level(GPIO_OUTPUT_POWER_KEEP_IO, 0);
 }
-
 
 // 原始广播数据包
 uint8_t hidd_adv_data_raw[] = {
@@ -351,7 +351,7 @@ static void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param
         esp_ble_gap_security_rsp(param->ble_security.ble_req.bd_addr, true);
         break;
     case ESP_GAP_BLE_AUTH_CMPL_EVT: // 认证完成事件
-        ESP_LOGW("GAP","Auth OK");
+        ESP_LOGW("GAP", "Auth OK");
         current_device_state = DEVICE_STATE_CONNECTED;
         esp_bd_addr_t bd_addr;
         memcpy(bd_addr, param->ble_security.auth_cmpl.bd_addr, sizeof(esp_bd_addr_t)); // 复制地址
@@ -479,17 +479,13 @@ void blink_task(void *pvParameter)
             setLED(2, 0, 0, 0);
             setLED(3, 0, 0, 0);
             vTaskDelay(pdMS_TO_TICKS(200));
+            break;
+
         default:
-            // 默认处理
-            if (led_on_off)
-            {
-                setLED(0, 5, 5, 5);
-            }
-            else
-            {
-                setLED(0, 0, 0, 0);
-            }
-            led_on_off = !led_on_off;
+            setLED(0, 0, 0, 0);
+            setLED(1, 0, 0, 0);
+            setLED(2, 0, 0, 0);
+            setLED(3, 0, 0, 0);
             vTaskDelay(pdMS_TO_TICKS(500));
             break;
         }
@@ -595,41 +591,41 @@ void adc_read_task(void *pvParameter)
     adc_running = true;
     // 连上了才读，否则会这是一个ESP32的Cache error错误，具体原因是"Cache disabled but cached memory region accessed"（缓存被禁用但访问了缓存内存区域）。从回溯信息看，错误发生在BLE连接过程中，当尝试读取ADC数据时触发。触发时机：在BLE连接事件(ESP_HIDD_EVENT_BLE_CONNECT)处理过程中。根本原因：中断处理程序中访问了被缓存的内存区域，而此时缓存已被禁用
     while (adc_running)
+    {
+        // 只有在已连接状态下才读取ADC数据
+        if (sec_conn)
         {
-            // 只有在已连接状态下才读取ADC数据
-            if (sec_conn) 
+            vTaskDelay(pdMS_TO_TICKS(20));
+            // 读取256个数据
+            ret = adc_continuous_read(ADC_init_handle, bufferADC, EXAMPLE_READ_LEN, &ret_num, 0);
+            if (ret == ESP_OK)
             {
-                vTaskDelay(pdMS_TO_TICKS(20));
-                // 读取256个数据
-                ret = adc_continuous_read(ADC_init_handle, bufferADC, EXAMPLE_READ_LEN, &ret_num, 0);
-                if (ret == ESP_OK)
+                // ESP_LOGI("TASK", "ret is %x, ret_num is %" PRIu32 " bytes", ret, ret_num);
+                // ESP32的ADC连续读取模式将采集到的数据以特定格式存储在缓冲区中。每个ADC采样结果包含多个字节（通常是4字节），包含了通道号和采样值等信息。
+                for (int i = 0; i < ret_num; i += SOC_ADC_DIGI_RESULT_BYTES)
                 {
-                    // ESP_LOGI("TASK", "ret is %x, ret_num is %" PRIu32 " bytes", ret, ret_num);
-                    // ESP32的ADC连续读取模式将采集到的数据以特定格式存储在缓冲区中。每个ADC采样结果包含多个字节（通常是4字节），包含了通道号和采样值等信息。
-                    for (int i = 0; i < ret_num; i += SOC_ADC_DIGI_RESULT_BYTES)
+                    adc_digi_output_data_t *p = (adc_digi_output_data_t *)&bufferADC[i];
+                    uint32_t chan_num = EXAMPLE_ADC_GET_CHANNEL(p);
+                    uint32_t data = EXAMPLE_ADC_GET_DATA(p);
+                    log_counter++;
+                    if (log_counter % log_interval == 0 && chan_num == ADC_CHANNEL_RIGHT_UP_DOWN)
                     {
-                        adc_digi_output_data_t *p = (adc_digi_output_data_t *)&bufferADC[i];
-                        uint32_t chan_num = EXAMPLE_ADC_GET_CHANNEL(p);
-                        uint32_t data = EXAMPLE_ADC_GET_DATA(p);
-                        log_counter++;
-                        if (log_counter % log_interval == 0 && chan_num == ADC_CHANNEL_RIGHT_UP_DOWN)
-                        {
-                            float voltage = (float)data * 3.3 / 4095.0;
-                            ESP_LOGI("ADCtask", "Unit: %s, Channel: %" PRIu32 ", Raw Value: %" PRIu32 ", Voltage: %.3fV", unit, chan_num, data, voltage);
-                        }
+                        float voltage = (float)data * 3.3 / 4095.0;
+                        ESP_LOGI("ADCtask", "Unit: %s, Channel: %" PRIu32 ", Raw Value: %" PRIu32 ", Voltage: %.3fV", unit, chan_num, data, voltage);
                     }
                 }
-                else if (ret != ESP_ERR_TIMEOUT) 
-                {
-                    ESP_LOGE("ADCtask", "ADC read failed with error: %d", ret);
-                }
             }
-            else 
+            else if (ret != ESP_ERR_TIMEOUT)
             {
-                // 如果未连接，则短暂延迟
-                vTaskDelay(pdMS_TO_TICKS(100));
+                ESP_LOGE("ADCtask", "ADC read failed with error: %d", ret);
             }
         }
+        else
+        {
+            // 如果未连接，则短暂延迟
+            vTaskDelay(pdMS_TO_TICKS(100));
+        }
+    }
     // adc_continuous_stop(ADC_init_handle);
     // adc_continuous_deinit(ADC_init_handle);
     vTaskDelete(NULL);
