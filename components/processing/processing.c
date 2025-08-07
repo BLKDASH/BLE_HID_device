@@ -14,7 +14,7 @@ MultiChannelBuffer* mcb_init(uint32_t buffer_size) {
     
     // 初始化8个通道
     for (uint8_t i = 0; i < 8; i++) {
-        mcb->channels[i].buffer = (float*)malloc(sizeof(float) * buffer_size);
+        mcb->channels[i].buffer = (uint32_t*)malloc(sizeof(uint32_t) * buffer_size);
         if (!mcb->channels[i].buffer) {
             // 内存分配失败时，释放已分配的资源
             for (uint8_t j = 0; j < i; j++) {
@@ -34,7 +34,7 @@ MultiChannelBuffer* mcb_init(uint32_t buffer_size) {
 }
 
 // 向指定通道插入数据（channel: 0-7）
-void mcb_push(MultiChannelBuffer *mcb, uint8_t channel, float data) {
+void mcb_push(MultiChannelBuffer *mcb, uint8_t channel, uint32_t data) {
     // 检查参数有效性
     if (!mcb || channel >= 8) return;
     
@@ -56,14 +56,14 @@ void mcb_push(MultiChannelBuffer *mcb, uint8_t channel, float data) {
 }
 
 // 获取指定通道的平均值（channel: 0-7）
-float mcb_get_average(MultiChannelBuffer *mcb, uint8_t channel) {
+uint32_t mcb_get_average(MultiChannelBuffer *mcb, uint8_t channel) {
     // 检查参数有效性
     if (!mcb || channel >= 8 || mcb->channels[channel].count == 0) {
         return 0.0f;
     }
     
     ChannelBuffer *cb = &mcb->channels[channel];
-    float sum = 0.0f;
+    uint32_t sum = 0;
     
     // 计算该通道所有有效数据的总和
     for (uint32_t i = 0; i < cb->count; i++) {
@@ -75,7 +75,7 @@ float mcb_get_average(MultiChannelBuffer *mcb, uint8_t channel) {
 }
 
 // 获取所有通道的平均值数组
-void mcb_get_all_averages(MultiChannelBuffer *mcb, float averages[8]) {
+void mcb_get_all_averages(MultiChannelBuffer *mcb, uint32_t averages[8]) {
     if (!mcb || !averages) return;
     
     for (uint8_t i = 0; i < 8; i++) {

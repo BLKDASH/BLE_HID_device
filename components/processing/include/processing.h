@@ -5,7 +5,7 @@
 
 // 单个通道的环形缓冲区结构体（内部使用，外部不需要直接操作）
 typedef struct {
-    float *buffer;       // 存储数据的数组
+    uint32_t *buffer;       // 存储数据的数组
     uint32_t size;       // 缓冲区容量
     uint32_t count;      // 当前有效数据数量
     uint32_t head;       // 指向最新数据的索引
@@ -35,7 +35,7 @@ MultiChannelBuffer* mcb_init(uint32_t buffer_size);
  * @param channel 通道号（0-7）
  * @param data 要插入的数据
  */
-void mcb_push(MultiChannelBuffer *mcb, uint8_t channel, float data);
+void mcb_push(MultiChannelBuffer *mcb, uint8_t channel, uint32_t data);
 
 /**
  * @brief 获取指定通道的平均值
@@ -43,14 +43,14 @@ void mcb_push(MultiChannelBuffer *mcb, uint8_t channel, float data);
  * @param channel 通道号（0-7）
  * @return 通道数据的平均值，无效情况返回0.0f
  */
-float mcb_get_average(MultiChannelBuffer *mcb, uint8_t channel);
+uint32_t mcb_get_average(MultiChannelBuffer *mcb, uint8_t channel);
 
 /**
  * @brief 获取所有通道的平均值
  * @param mcb 多通道缓冲区指针
  * @param averages 存储平均值的数组（至少8个元素）
  */
-void mcb_get_all_averages(MultiChannelBuffer *mcb, float averages[8]);
+void mcb_get_all_averages(MultiChannelBuffer *mcb, uint32_t averages[8]);
 
 /**
  * @brief 获取指定通道的当前数据数量

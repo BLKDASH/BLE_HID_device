@@ -25,15 +25,17 @@
 #include "led_strip.h"
 #include "hardware_init.h"
 #include "processing.h"
+#include "calibration.h"
 
 // todo:遗忘上一次连接的设备
 // todo:断连后重新连接，会导致崩溃（adc 缓冲区无法读取）
 // todo:把按键注册为 iot button
 // todo:重新组织代码结构
+// todo:开辟 EEPROM 空间
 
 #define HID_TASK_TAG "TASKinfo"
 // adc多通道均值缓冲区
-// 结构：
+// 结构（channel 对应索引）：
 // #define ADC_CHANNEL_RIGHT_UP_DOWN ADC_CHANNEL_0    // 右上下 (GPIO36)
 // #define ADC_CHANNEL_RIGHT_LEFT_RIGHT ADC_CHANNEL_1 // 右左右 (GPIO37)
 // #define ADC_CHANNEL_LEFT_UP_DOWN ADC_CHANNEL_2     // 左上下 (GPIO38)
@@ -92,6 +94,7 @@ void app_main(void)
 
             while (1)
             {
+                // 等待连接
                 if (sec_conn == true)
                 {
                     // GPIO与ADC读取任务
@@ -463,9 +466,9 @@ void adc_read_task(void *pvParameter)
                     adc_digi_output_data_t *p = (adc_digi_output_data_t *)&bufferADC[i];
                     uint8_t chan_num = (uint8_t)EXAMPLE_ADC_GET_CHANNEL(p);
                     uint32_t data = EXAMPLE_ADC_GET_DATA(p);
-                    float voltage = (float)data * 3.3 / 4095.0;
+                    // float voltage = (float)data * 3.3 / 4095.0;
                     // 推入 mcb
-                    mcb_push(mcb, chan_num, voltage);
+                    mcb_push(mcb, chan_num, data);
                 }
             }
             else if (ret != ESP_ERR_TIMEOUT)
@@ -484,14 +487,14 @@ void adc_read_task(void *pvParameter)
 
 void adc_aver_send(void *pvParameters)
 {
-    float all_avg[8];
+    uint32_t all_avg[8];
     while (1)
     {
         mcb_get_all_averages(mcb, all_avg);
         printf("\r\n");
         for (uint8_t i = 0; i < 8; i++)
         {
-            printf("%.3f  ", all_avg[i]);
+            printf("%ld  ", all_avg[i]);
         }
         vTaskDelay(pdMS_TO_TICKS(40));
     }

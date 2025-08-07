@@ -1,11 +1,3 @@
-/*
- * SPDX-FileCopyrightText: 2021-2022 Espressif Systems (Shanghai) CO LTD
- *
- * SPDX-License-Identifier: Unlicense OR CC0-1.0
- */
-
-
-
 #ifndef __HID_DEVICE_LE_PRF__
 #define __HID_DEVICE_LE_PRF__
 #include <stdbool.h>
