@@ -80,6 +80,12 @@ extern adc_continuous_handle_t ADC_init_handle;
 
 #define GPIO_OUTPUT_POWER_KEEP_IO 5
 
+
+#define BUTTON_PRESSED 0
+#define BUTTON_RELEASED 1
+#define BUTTON_HOME_PRESSED 1
+#define BUTTON_HOME_RELEASED 0
+
 extern uint16_t hid_conn_id;
 extern bool sec_conn;
 esp_err_t ble_init(void);

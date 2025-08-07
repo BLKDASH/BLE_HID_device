@@ -10,8 +10,6 @@
 #include "esp_event.h"
 #include "esp_log.h"
 
-
-
 #include "driver/gpio.h"
 #include "driver/rtc_io.h"
 #include "esp_sleep.h"
@@ -35,20 +33,7 @@
 
 #define HID_TASK_TAG "TASKinfo"
 
-// #define DEBUG_MODE
-
-// 蓝牙 connect 属性
-
-
-
 MultiChannelBuffer *mcb = NULL;
-
-#define CHAR_DECLARATION_SIZE (sizeof(uint8_t))
-
-static void hidd_event_callback(esp_hidd_cb_event_t event, esp_hidd_cb_param_t *param);
-
-
-// #define HIDD_DEVICE_NAME            "MYGT Controller"
 
 // LED更新的信号量
 SemaphoreHandle_t led_flash_semaphore = NULL;
@@ -64,15 +49,14 @@ void app_main(void)
     io_conf.mode = GPIO_MODE_OUTPUT;
     io_conf.pin_bit_mask = BIT64(GPIO_OUTPUT_POWER_KEEP_IO);
     io_conf.pull_down_en = false; // Disable pull-down
-    io_conf.pull_up_en = true;    // Enable pull-up
+    io_conf.pull_up_en = false;    // Enable pull-up
     gpio_config(&io_conf);
     gpio_set_level(GPIO_OUTPUT_POWER_KEEP_IO, 1);
 
     // 使用 while1 是防止启动失败时，一次没关机成功
     while (1)
     {
-        vTaskDelay(pdMS_TO_TICKS(1000));
-        ESP_LOGW("main", "Into MAIN");
+        ESP_LOGW("main", "Into MAIN while");
         if (ESP_OK == START_UP()) // DEBUG模式下，始终返回ESP_OK
         {
             ESP_LOGI("main", "START_UP OK");
@@ -85,17 +69,13 @@ void app_main(void)
             xTaskCreatePinnedToCore(blink_task, "blink_task", 2048, NULL, 5, NULL, 1);
             xTaskCreatePinnedToCore(LED_flash_task, "LED_flash_task", 2048, NULL, 5, NULL, 1);
             // 先闪灯，让用户以为开机了
-            while (gpio_get_level(GPIO_INPUT_HOME_BTN))
+            while (gpio_get_level(GPIO_INPUT_HOME_BTN)==BUTTON_HOME_PRESSED)
             {
                 vTaskDelay(pdMS_TO_TICKS(100));
             } // 让出时间给LED任务} // 等待按键释放
             ESP_LOGI("main", "register home button--");
             setHomeButton(); // 释放后再注册home按键长按
-            if (ESP_OK == ble_init())
-            {
-                ble_sec_config();
-            }
-            ESP_LOGI("Main", "BLE HID Init OK");
+
             while (1)
             {
                 if (sec_conn == true)
@@ -125,10 +105,6 @@ void app_main(void)
 
 esp_err_t START_UP(void)
 {
-#ifdef DEBUG_MODE
-    return ESP_OK;
-#endif
-
     // 配置home按键下拉输入
     gpio_config_t home_btn_conf = {};
     home_btn_conf.intr_type = GPIO_INTR_DISABLE;
@@ -147,7 +123,7 @@ esp_err_t START_UP(void)
         int level = gpio_get_level(GPIO_INPUT_HOME_BTN);
 
         // 如果按键为低电平，说明没有按下
-        if (level == 0)
+        if (level == BUTTON_HOME_RELEASED)
         {
             return ESP_FAIL;
         }
@@ -156,7 +132,7 @@ esp_err_t START_UP(void)
         {
             return ESP_OK;
         }
-        vTaskDelay(pdMS_TO_TICKS(50));
+        vTaskDelay(pdMS_TO_TICKS(10));
     }
 }
 
@@ -164,12 +140,14 @@ static void button_long_press_home_cb(void *arg, void *usr_data)
 {
     ESP_LOGW("button_cb", "HOME_BUTTON_LONG_PRESS");
     // 假如一直按住，则松开才执行后面的操作
-    while (gpio_get_level(GPIO_INPUT_HOME_BTN) == 1)
+    while (gpio_get_level(GPIO_INPUT_HOME_BTN) == BUTTON_HOME_PRESSED)
     {
-        // 先关灯
         current_device_state = DEVICE_STATE_SLEEP;
         vTaskDelay(100);
     }
+    // 防止用户在触发回调后突然松手，因此再来一次
+    current_device_state = DEVICE_STATE_SLEEP;
+    vTaskDelay(100);
     SLEEP();
 }
 
@@ -195,9 +173,10 @@ void SLEEP(void)
     ESP_LOGI("SLEEP", "Sleeping...");
     // setLED函数同时会影响IO12单LED的初始化
     vTaskDelay(pdMS_TO_TICKS(50));
-    while (gpio_get_level(GPIO_INPUT_HOME_BTN))
+    while (gpio_get_level(GPIO_INPUT_HOME_BTN)==BUTTON_HOME_PRESSED)
     {
     } // 等待按键释放
+
     // 不要做这些操作，直接关机即可。这些操作的导致的延时后果不确定
     // esp_bluedroid_disable();
     // esp_bluedroid_deinit();
@@ -206,28 +185,30 @@ void SLEEP(void)
     // 关闭adc
     // adc_continuous_deinit(ADC_init_handle);
 
-    // 下拉输出powerkeep0，拉低电源保持
-    gpio_config_t io_conf = {};
-    io_conf.intr_type = GPIO_INTR_DISABLE;
-    io_conf.mode = GPIO_MODE_OUTPUT;
-    io_conf.pin_bit_mask = BIT64(GPIO_OUTPUT_POWER_KEEP_IO);
-    io_conf.pull_down_en = true; // Disable pull-down
-    io_conf.pull_up_en = false;  // Enable pull-up
-    gpio_config(&io_conf);
-    gpio_set_level(GPIO_OUTPUT_POWER_KEEP_IO, 0);
+    // 下拉输出powerkeep0，拉低电源保持，阻塞式不断执行直到电源断电为止
+    while (1)
+    {
+        gpio_config_t io_conf = {};
+        io_conf.intr_type = GPIO_INTR_DISABLE;
+        io_conf.mode = GPIO_MODE_OUTPUT;
+        io_conf.pin_bit_mask = BIT64(GPIO_OUTPUT_POWER_KEEP_IO);
+        io_conf.pull_down_en = true; // Disable pull-down
+        io_conf.pull_up_en = false;  // Enable pull-up
+        gpio_config(&io_conf);
+
+        gpio_set_level(GPIO_OUTPUT_POWER_KEEP_IO, 0);
+    }
 }
-
-
 
 // -------------------------------------------------------------------- TASK -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 void blink_task(void *pvParameter)
 {
     bool led_on_off = true;
-    setLED(0, 0, 10, 0);
-    setLED(1, 10, 0, 0);
-    setLED(2, 10, 0, 10);
-    setLED(3, 10, 10, 0);
+    setLED(0, 0, 0, 0);
+    setLED(1, 0, 0, 0);
+    setLED(2, 0, 0, 0);
+    setLED(3, 0, 0, 0);
     led_running = true;
     while (led_running)
     {
@@ -236,10 +217,10 @@ void blink_task(void *pvParameter)
         case DEVICE_STATE_INIT:
             if (led_on_off)
             {
-                setLED(0, 0, 0, 10);
-                setLED(1, 0, 0, 10);
-                setLED(2, 0, 0, 10);
-                setLED(3, 0, 0, 10);
+                setLED(0, 0, 10, 10);
+                setLED(1, 0, 0, 0);
+                setLED(2, 0, 0, 0);
+                setLED(3, 0, 0, 0);
             }
             else
             {
@@ -249,11 +230,10 @@ void blink_task(void *pvParameter)
                 setLED(3, 0, 0, 0);
             }
             led_on_off = !led_on_off;
-            vTaskDelay(pdMS_TO_TICKS(500));
+            vTaskDelay(pdMS_TO_TICKS(300));
             break;
 
         case DEVICE_STATE_ADVERTISING:
-            // 快闪 (200ms间隔)
             if (led_on_off)
             {
                 setLED(0, 0, 0, 15);
@@ -416,6 +396,7 @@ static bool IRAM_ATTR s_conv_done_cb(adc_continuous_handle_t handle, const adc_c
     return (mustYield == pdTRUE);
 }
 
+// adc 读取raw任务
 void adc_read_task(void *pvParameter)
 {
     esp_err_t ret;
@@ -430,8 +411,6 @@ void adc_read_task(void *pvParameter)
     ESP_ERROR_CHECK(adc_continuous_register_event_callbacks(ADC_init_handle, &cbs, NULL));
     ESP_ERROR_CHECK(adc_continuous_start(ADC_init_handle));
 
-    // uint32_t log_counter = 0;
-    // const uint32_t log_interval = 20;
     adc_running = true;
 
     // 连上了才读，否则会这是一个ESP32的Cache error错误，具体原因是"Cache disabled but cached memory region accessed"（缓存被禁用但访问了缓存内存区域）。从回溯信息看，错误发生在BLE连接过程中，当尝试读取ADC数据时触发。触发时机：在BLE连接事件(ESP_HIDD_EVENT_BLE_CONNECT)处理过程中。根本原因：中断处理程序中访问了被缓存的内存区域，而此时缓存已被禁用
@@ -453,12 +432,8 @@ void adc_read_task(void *pvParameter)
                     uint8_t chan_num = (uint8_t)EXAMPLE_ADC_GET_CHANNEL(p);
                     uint32_t data = EXAMPLE_ADC_GET_DATA(p);
                     float voltage = (float)data * 3.3 / 4095.0;
+                    // 推入 mcb
                     mcb_push(mcb, chan_num, voltage);
-                    // if (log_counter % log_interval == 0 && chan_num == ADC_CHANNEL_RIGHT_UP_DOWN)
-                    // {
-                    //     float voltage = (float)data * 3.3 / 4095.0;
-                    //     ESP_LOGI("ADCtask", "Unit: %s, Channel: %" PRIu32 ", Raw Value: %" PRIu32 ", Voltage: %.3fV", unit, chan_num, data, voltage);
-                    // }
                 }
             }
             else if (ret != ESP_ERR_TIMEOUT)
@@ -472,8 +447,6 @@ void adc_read_task(void *pvParameter)
             vTaskDelay(pdMS_TO_TICKS(100));
         }
     }
-    // adc_continuous_stop(ADC_init_handle);
-    // adc_continuous_deinit(ADC_init_handle);
     vTaskDelete(NULL);
 }
 
@@ -509,5 +482,3 @@ void gamepad_button_task(void *pvParameters)
         }
     }
 }
-
-

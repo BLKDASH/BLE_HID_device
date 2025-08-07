@@ -9,7 +9,6 @@
 
 #include "esp_adc/adc_continuous.h"
 
-
 #include "nvs_flash.h"
 #include "esp_bt.h"
 #include "esp_hidd_prf_api.h"
@@ -22,9 +21,7 @@
 #include "esp_bt_main.h"
 #include "esp_bt_device.h"
 
-
-
-//LED-----------------------------------------------------------------------------------------
+// LED-----------------------------------------------------------------------------------------
 
 // New LED configuration options
 #define LED_DEFAULT_BRIGHTNESS 0  // Default brightness level (percentage)
@@ -64,9 +61,10 @@ static led_strip_handle_t configure_led(void)
 esp_err_t setLED(uint8_t index, uint8_t red, uint8_t green, uint8_t blue)
 {
     esp_err_t err;
-    
+
     err = led_strip_set_pixel(led_strip, index, red, green, blue);
-    if (err != ESP_OK) {
+    if (err != ESP_OK)
+    {
         ESP_LOGE(TAG, "Failed to set LED pixel, error: %d", err);
         return err;
     }
@@ -78,20 +76,19 @@ esp_err_t flashLED(void)
 {
     esp_err_t err;
     err = led_strip_refresh(led_strip);
-    if (err != ESP_OK) {
+    if (err != ESP_OK)
+    {
         ESP_LOGE(TAG, "Failed to refresh LED strip, error: %d", err);
         return err;
     }
     return ESP_OK;
 }
 
-//ADC ----------------------------------------------------------------------------------------------
+// ADC ----------------------------------------------------------------------------------------------
 
 adc_continuous_handle_t ADC_init_handle = NULL;
 
 static adc_channel_t channel[8] = {ADC_CHANNEL_RIGHT_UP_DOWN, ADC_CHANNEL_RIGHT_LEFT_RIGHT, ADC_CHANNEL_LEFT_UP_DOWN, ADC_CHANNEL_LEFT_LEFT_RIGHT, ADC_CHANNEL_LEFT_TRIGGER, ADC_CHANNEL_RIGHT_TRIGGER, ADC_CHANNEL_BATTERY, ADC_CHANNEL_DPAD};
-
-static TaskHandle_t s_task_handle;
 
 static void continuous_adc_init(adc_channel_t *channel, uint8_t channel_num, adc_continuous_handle_t *out_handle)
 {
@@ -117,10 +114,9 @@ static void continuous_adc_init(adc_channel_t *channel, uint8_t channel_num, adc
         adc_pattern[i].channel = channel[i] & 0x7;
         adc_pattern[i].unit = EXAMPLE_ADC_UNIT;
         adc_pattern[i].bit_width = EXAMPLE_ADC_BIT_WIDTH;
-
-        ESP_LOGI(TAG, "adc_pattern[%d].atten is :%" PRIx8, i, adc_pattern[i].atten);
-        ESP_LOGI(TAG, "adc_pattern[%d].channel is :%" PRIx8, i, adc_pattern[i].channel);
-        ESP_LOGI(TAG, "adc_pattern[%d].unit is :%" PRIx8, i, adc_pattern[i].unit);
+        // ESP_LOGI(TAG, "adc_pattern[%d].atten is :%" PRIx8, i, adc_pattern[i].atten);
+        // ESP_LOGI(TAG, "adc_pattern[%d].channel is :%" PRIx8, i, adc_pattern[i].channel);
+        // ESP_LOGI(TAG, "adc_pattern[%d].unit is :%" PRIx8, i, adc_pattern[i].unit);
     }
     dig_cfg.adc_pattern = adc_pattern;
     ESP_ERROR_CHECK(adc_continuous_config(handle, &dig_cfg));
@@ -144,7 +140,7 @@ static adc_continuous_handle_t convert_adc_values(uint8_t arr[][AVERAGE_LEN], in
     return handle;
 }
 
-//GPIO -----------------------------------------------------------------------------------------------------
+// GPIO -----------------------------------------------------------------------------------------------------
 
 // GPIO初始化
 static void init_gpio(void)
@@ -162,15 +158,14 @@ static void init_gpio(void)
     io_conf.pull_down_en = false; // Disable pull-down
     io_conf.pull_up_en = true;    // Enable pull-up
     gpio_config(&io_conf);
-
 }
-//BLE --------------------------------------------------------------------------------------------------------------------
+// BLE --------------------------------------------------------------------------------------------------------------------
 
 #define HID_BLE_TAG "BLEinfo"
 #define HIDD_DEVICE_NAME "ESP32GamePad"
 uint16_t hid_conn_id = 0;
 bool sec_conn = false;
- // 原始广播数据包
+// 原始广播数据包
 static uint8_t hidd_adv_data_raw[] = {
     0x02, ESP_BLE_AD_TYPE_FLAG, 0x06,             // Flags: LE General Discoverable Mode, BR/EDR Not Supported
     0x03, ESP_BLE_AD_TYPE_16SRV_PART, 0x12, 0x18, // 部分16位UUID
@@ -385,7 +380,16 @@ device_state_t current_device_state = DEVICE_STATE_INIT;
 void init_all(void)
 {
     led_strip = configure_led();
+    if (led_strip != NULL)
+    {
+        ESP_LOGI("init", "ws1812 Init OK");
+    }
     // init_adc();
     init_gpio();
     ADC_init_handle = convert_adc_values(resultAvr, ADC_CHANNEL_COUNT);
+    if (ESP_OK == ble_init())
+    {
+        ble_sec_config();
+    }
+    ESP_LOGI("init", "BLE HID Init OK");
 }
