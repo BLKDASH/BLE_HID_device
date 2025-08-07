@@ -101,7 +101,7 @@ static void continuous_adc_init(adc_channel_t *channel, uint8_t channel_num, adc
     ESP_ERROR_CHECK(adc_continuous_new_handle(&adc_config, &handle));
 
     adc_continuous_config_t dig_cfg = {
-        .sample_freq_hz = 20 * 1000,
+        .sample_freq_hz = 20 * 1000, // 10kHz 采样
         .conv_mode = EXAMPLE_ADC_CONV_MODE,
         .format = EXAMPLE_ADC_OUTPUT_TYPE,
     };

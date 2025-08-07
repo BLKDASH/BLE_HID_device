@@ -32,11 +32,22 @@
 // todo:重新组织代码结构
 
 #define HID_TASK_TAG "TASKinfo"
-
+// adc多通道均值缓冲区
+// 结构：
+// #define ADC_CHANNEL_RIGHT_UP_DOWN ADC_CHANNEL_0    // 右上下 (GPIO36)
+// #define ADC_CHANNEL_RIGHT_LEFT_RIGHT ADC_CHANNEL_1 // 右左右 (GPIO37)
+// #define ADC_CHANNEL_LEFT_UP_DOWN ADC_CHANNEL_2     // 左上下 (GPIO38)
+// #define ADC_CHANNEL_LEFT_LEFT_RIGHT ADC_CHANNEL_3  // 左左右 (GPIO39)
+// #define ADC_CHANNEL_LEFT_TRIGGER ADC_CHANNEL_4     // 左板机 (GPIO32)
+// #define ADC_CHANNEL_RIGHT_TRIGGER ADC_CHANNEL_5    // 右板机 (GPIO33)
+// #define ADC_CHANNEL_BATTERY ADC_CHANNEL_6          // 电池电压 (GPIO34)
+// #define ADC_CHANNEL_DPAD ADC_CHANNEL_7             // 十字键 (GPIO35)
 MultiChannelBuffer *mcb = NULL;
 
 // LED更新的信号量
 SemaphoreHandle_t led_flash_semaphore = NULL;
+// 关机信号量
+SemaphoreHandle_t shutdown_semaphore = NULL;
 
 bool led_running = false;
 bool adc_running = false;
@@ -49,7 +60,7 @@ void app_main(void)
     io_conf.mode = GPIO_MODE_OUTPUT;
     io_conf.pin_bit_mask = BIT64(GPIO_OUTPUT_POWER_KEEP_IO);
     io_conf.pull_down_en = false; // Disable pull-down
-    io_conf.pull_up_en = false;    // Enable pull-up
+    io_conf.pull_up_en = false;   // Enable pull-up
     gpio_config(&io_conf);
     gpio_set_level(GPIO_OUTPUT_POWER_KEEP_IO, 1);
 
@@ -62,19 +73,22 @@ void app_main(void)
             ESP_LOGI("main", "START_UP OK");
 
             // 创建多通道平均缓冲区，长度为10
-            mcb = mcb_init(10);
+            mcb = mcb_init(20);
             init_all(); // 初始化除了HOME按键之外的外设
             // LED任务
             led_flash_semaphore = xSemaphoreCreateBinary();
             xTaskCreatePinnedToCore(blink_task, "blink_task", 2048, NULL, 5, NULL, 1);
             xTaskCreatePinnedToCore(LED_flash_task, "LED_flash_task", 2048, NULL, 5, NULL, 1);
             // 先闪灯，让用户以为开机了
-            while (gpio_get_level(GPIO_INPUT_HOME_BTN)==BUTTON_HOME_PRESSED)
+            while (gpio_get_level(GPIO_INPUT_HOME_BTN) == BUTTON_HOME_PRESSED)
             {
                 vTaskDelay(pdMS_TO_TICKS(100));
             } // 让出时间给LED任务} // 等待按键释放
             ESP_LOGI("main", "register home button--");
+            // 创建关机任务
+            shutdown_semaphore = xSemaphoreCreateBinary();
             setHomeButton(); // 释放后再注册home按键长按
+            xTaskCreatePinnedToCore(shutdown_task, "shutdown_task", 4096, NULL, 5, NULL, 1);
 
             while (1)
             {
@@ -82,7 +96,9 @@ void app_main(void)
                 {
                     // GPIO与ADC读取任务
                     // xTaskCreatePinnedToCore(gpio_read_task, "gpio_toggle_task", 4096, NULL, 6, NULL, 1);
+                    // 高优先级保证实时性
                     xTaskCreatePinnedToCore(adc_read_task, "adc_read_task", 4096, NULL, 7, NULL, 1);
+                    // 可以是低优先级，反正每次处理的都是最新数据
                     xTaskCreatePinnedToCore(adc_aver_send, "adc_aver_send", 2048, NULL, 6, NULL, 1);
                     // 模拟手柄任务
                     xTaskCreatePinnedToCore(gamepad_button_task, "gamepad_button_task", 4096, NULL, 9, NULL, 1);
@@ -136,19 +152,14 @@ esp_err_t START_UP(void)
     }
 }
 
+// 回调函数中不能有 TaskDelay 等阻塞的操作
 static void button_long_press_home_cb(void *arg, void *usr_data)
 {
     ESP_LOGW("button_cb", "HOME_BUTTON_LONG_PRESS");
-    // 假如一直按住，则松开才执行后面的操作
-    while (gpio_get_level(GPIO_INPUT_HOME_BTN) == BUTTON_HOME_PRESSED)
-    {
-        current_device_state = DEVICE_STATE_SLEEP;
-        vTaskDelay(100);
-    }
-    // 防止用户在触发回调后突然松手，因此再来一次
-    current_device_state = DEVICE_STATE_SLEEP;
-    vTaskDelay(100);
-    SLEEP();
+    // 发送关机信号量
+    xSemaphoreGive(shutdown_semaphore);
+    // current_device_state = DEVICE_STATE_SLEEP;
+
 }
 
 esp_err_t setHomeButton(void)
@@ -170,11 +181,12 @@ esp_err_t setHomeButton(void)
 
 void SLEEP(void)
 {
+    current_device_state = DEVICE_STATE_SLEEP;
     ESP_LOGI("SLEEP", "Sleeping...");
     // setLED函数同时会影响IO12单LED的初始化
     vTaskDelay(pdMS_TO_TICKS(50));
-    while (gpio_get_level(GPIO_INPUT_HOME_BTN)==BUTTON_HOME_PRESSED)
-    {
+    while (gpio_get_level(GPIO_INPUT_HOME_BTN) == BUTTON_HOME_PRESSED)
+    {vTaskDelay(pdMS_TO_TICKS(10));
     } // 等待按键释放
 
     // 不要做这些操作，直接关机即可。这些操作的导致的延时后果不确定
@@ -201,6 +213,26 @@ void SLEEP(void)
 }
 
 // -------------------------------------------------------------------- TASK -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+// 关机任务
+void shutdown_task(void *pvParameter)
+{
+    while (1)
+    {
+        // 判断关机信号量
+        if (xSemaphoreTake(shutdown_semaphore, portMAX_DELAY) == pdTRUE)
+        {
+            ESP_LOGI("SHUTDOWN", "Shutdown signal received");
+            // 假如一直按住，则松开才执行后面的操作
+            while (gpio_get_level(GPIO_INPUT_HOME_BTN) == BUTTON_HOME_PRESSED)
+            {
+                current_device_state = DEVICE_STATE_SLEEP;
+                vTaskDelay(10);
+            }
+            SLEEP();
+
+        }
+    }
+}
 
 void blink_task(void *pvParameter)
 {
@@ -220,7 +252,7 @@ void blink_task(void *pvParameter)
                 setLED(0, 0, 10, 10);
                 setLED(1, 0, 0, 0);
                 setLED(2, 0, 0, 0);
-                setLED(3, 0, 0, 0);
+                setLED(3, 10, 10, 0);
             }
             else
             {

@@ -15,7 +15,7 @@ esp_err_t START_UP(void);
 
 
 
-
+void shutdown_task(void *pvParameter);
 void blink_task(void *pvParameter);
 void LED_flash_task(void *pvParameter);
 
