@@ -14,16 +14,7 @@ esp_err_t setHomeButton(void);
 esp_err_t START_UP(void);
 
 
-typedef enum {
-    DEVICE_STATE_INIT,           // 初始化状态
-    DEVICE_STATE_ADVERTISING,    // 广播中
-    DEVICE_STATE_CONNECTING,     // 连接中
-    DEVICE_STATE_CONNECTED,      // 已连接
-    DEVICE_STATE_DISCONNECTING,  // 断开连接中
-    DEVICE_STATE_DISCONNECTED,   // 已断开连接
-    DEVICE_STATE_ERROR,          // 错误状态
-    DEVICE_STATE_SLEEP,          // 睡眠状态
-} device_state_t;
+
 
 void blink_task(void *pvParameter);
 void LED_flash_task(void *pvParameter);
