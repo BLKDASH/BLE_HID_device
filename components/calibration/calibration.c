@@ -61,7 +61,7 @@ esp_err_t read_adc_cali_data(uint8_t index, uint32_t *out_value) {
     nvs_handle_t handle;
     esp_err_t err = nvs_open(UINT32_NAMESPACE, NVS_READONLY, &handle);
     if (err != ESP_OK) {
-        ESP_LOGE(TAG, "打开命名空间失败（%s）: %s", UINT32_NAMESPACE, esp_err_to_name(err));
+        ESP_LOGE(TAG, "打开命名空间失败(%s): %s", UINT32_NAMESPACE, esp_err_to_name(err));
         return err;
     }
 
@@ -73,7 +73,7 @@ esp_err_t read_adc_cali_data(uint8_t index, uint32_t *out_value) {
     if (err == ESP_OK) {
         ESP_LOGI(TAG, "读取%s成功: %lu", key, *out_value);
     } else if (err == ESP_ERR_NVS_NOT_FOUND) {
-        ESP_LOGW(TAG, "%s尚未初始化（首次运行？）", key);
+        ESP_LOGW(TAG, "%s尚未初始化(首次运行?)", key);
     } else {
         ESP_LOGE(TAG, "读取%s失败: %s", key, esp_err_to_name(err));
     }
@@ -125,7 +125,7 @@ esp_err_t nvs_get_boot_count(uint64_t *out_count) {
         return err;
     }
 
-    ESP_LOGI(TAG, "当前开机次数: %llu", count);
+    // ESP_LOGI(TAG, "当前开机次数: %llu", count);
     nvs_close(handle);
     return ESP_OK;
 }

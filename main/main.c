@@ -77,6 +77,14 @@ void app_main(void)
             // 创建多通道平均缓冲区，长度为10
             mcb = mcb_init(20);
             init_all(); // 初始化除了HOME按键之外的外设
+            // 读取开机次数
+            uint64_t boot_count;
+            esp_err_t err = nvs_get_boot_count(&boot_count);
+            if (err == ESP_OK)
+            {
+                ESP_LOGI("main", "系统启动完成，当前是第%llu次开机", boot_count);
+            }
+
             // LED任务
             led_flash_semaphore = xSemaphoreCreateBinary();
             xTaskCreatePinnedToCore(blink_task, "blink_task", 2048, NULL, 5, NULL, 1);
@@ -162,7 +170,6 @@ static void button_long_press_home_cb(void *arg, void *usr_data)
     // 发送关机信号量
     xSemaphoreGive(shutdown_semaphore);
     // current_device_state = DEVICE_STATE_SLEEP;
-
 }
 
 esp_err_t setHomeButton(void)
@@ -189,7 +196,8 @@ void SLEEP(void)
     // setLED函数同时会影响IO12单LED的初始化
     vTaskDelay(pdMS_TO_TICKS(50));
     while (gpio_get_level(GPIO_INPUT_HOME_BTN) == BUTTON_HOME_PRESSED)
-    {vTaskDelay(pdMS_TO_TICKS(10));
+    {
+        vTaskDelay(pdMS_TO_TICKS(10));
     } // 等待按键释放
 
     // 不要做这些操作，直接关机即可。这些操作的导致的延时后果不确定
@@ -232,7 +240,6 @@ void shutdown_task(void *pvParameter)
                 vTaskDelay(10);
             }
             SLEEP();
-
         }
     }
 }
@@ -342,6 +349,25 @@ void blink_task(void *pvParameter)
             setLED(2, 0, 0, 0);
             setLED(3, 0, 0, 0);
             vTaskDelay(pdMS_TO_TICKS(200));
+            break;
+
+        case DEVICE_STATE_CALI:
+            if (led_on_off)
+            {
+                setLED(0, 20, 10, 5);
+                setLED(1, 0, 0, 0);
+                setLED(2, 0, 0, 0);
+                setLED(3, 0, 0, 0);
+            }
+            else
+            {
+                setLED(0, 0, 0, 0);
+                setLED(1, 0, 0, 0);
+                setLED(2, 0, 0, 0);
+                setLED(3, 0, 0, 0);
+            }
+            led_on_off = !led_on_off;
+            vTaskDelay(pdMS_TO_TICKS(100));
             break;
 
         default:
