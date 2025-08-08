@@ -50,9 +50,15 @@ MultiChannelBuffer *mcb = NULL;
 SemaphoreHandle_t led_flash_semaphore = NULL;
 // 关机信号量
 SemaphoreHandle_t shutdown_semaphore = NULL;
+// 校准信号量
+SemaphoreHandle_t calibration_semaphore = NULL;
 
 bool led_running = false;
 bool adc_running = false;
+
+// 摇杆校准数据
+joystick_calibration_data_t left_joystick_cal_data;
+joystick_calibration_data_t right_joystick_cal_data;
 
 void app_main(void)
 {
@@ -85,6 +91,11 @@ void app_main(void)
                 ESP_LOGI("main", "系统启动完成，当前是第%llu次开机", boot_count);
             }
 
+            calibration_semaphore = xSemaphoreCreateBinary();
+            read_joystick_calibration_data(0, &left_joystick_cal_data);   // 左摇杆
+            read_joystick_calibration_data(1, &right_joystick_cal_data);    //右摇杆
+
+
             // LED任务
             led_flash_semaphore = xSemaphoreCreateBinary();
             xTaskCreatePinnedToCore(blink_task, "blink_task", 2048, NULL, 5, NULL, 1);
@@ -99,6 +110,9 @@ void app_main(void)
             shutdown_semaphore = xSemaphoreCreateBinary();
             setHomeButton(); // 释放后再注册home按键长按
             xTaskCreatePinnedToCore(shutdown_task, "shutdown_task", 4096, NULL, 5, NULL, 1);
+
+            // 创建摇杆校准任务
+            xTaskCreatePinnedToCore(joystick_calibration_task, "calibration_task", 4096, NULL, 5, NULL, 1);
 
             while (1)
             {
@@ -542,4 +556,17 @@ void gamepad_button_task(void *pvParameters)
             ESP_LOGI(HID_TASK_TAG, "Waiting for connection...");
         }
     }
+}
+
+
+void joystick_calibration_task(void *pvParameter)
+{
+    while (1)
+    {
+        if(xSemaphoreTake(calibration_semaphore, portMAX_DELAY) == pdTRUE)
+        {
+            
+        }
+    }
+    
 }
