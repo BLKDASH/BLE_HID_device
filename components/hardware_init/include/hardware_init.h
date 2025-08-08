@@ -15,7 +15,6 @@ extern led_strip_handle_t led_strip;
 // 10MHz resolution, 1 tick = 0.1us
 #define LED_STRIP_RMT_RES_HZ (10 * 1000000)
 
-void func(void);
 esp_err_t setLED(uint8_t index, uint8_t red, uint8_t green, uint8_t blue);
 esp_err_t flashLED(void);
 
@@ -69,15 +68,41 @@ extern adc_continuous_handle_t ADC_init_handle;
 // 超薄按键
 #define GPIO_INPUT_SELECT_BTN 4   // SELECT按键
 #define GPIO_INPUT_START_BTN 2    // START按键
-#define GPIO_INPUT_HOME_BTN 13    // HOME按键，开关机检测按键
+
 #define GPIO_INPUT_IKEY_BTN 0     // IKEY按键
 #define GPIO_INPUT_IOS_BTN 21     // IOS按键
 #define GPIO_INPUT_WINDOWS_BTN 22 // Windows按键
 
 #define GPIO_INPUT_ANDROID_BTN 4 // Android按键
 
+
+#define GPIO_INPUT_HOME_BTN 13    // HOME按键，开关机检测按键
+
 #define GPIO_OUTPUT_POWER_KEEP_IO 5
 
+
+#define BUTTON_PRESSED 0
+#define BUTTON_RELEASED 1
+#define BUTTON_HOME_PRESSED 1
+#define BUTTON_HOME_RELEASED 0
+
+extern uint16_t hid_conn_id;
+extern bool sec_conn;
+esp_err_t ble_init(void);
+esp_err_t ble_sec_config(void);
+
+typedef enum {
+    DEVICE_STATE_INIT,           // 初始化状态
+    DEVICE_STATE_ADVERTISING,    // 广播中
+    DEVICE_STATE_CONNECTING,     // 连接中
+    DEVICE_STATE_CONNECTED,      // 已连接
+    DEVICE_STATE_DISCONNECTING,  // 断开连接中
+    DEVICE_STATE_DISCONNECTED,   // 已断开连接
+    DEVICE_STATE_ERROR,          // 错误状态
+    DEVICE_STATE_SLEEP,          // 睡眠状态
+    DEVICE_STATE_CALI,           // 校准状态
+} device_state_t;
+extern device_state_t current_device_state; 
 void init_all(void);
 
 #endif

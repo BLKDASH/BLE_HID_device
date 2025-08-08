@@ -1,11 +1,3 @@
-/*
- * SPDX-FileCopyrightText: 2021-2022 Espressif Systems (Shanghai) CO LTD
- *
- * SPDX-License-Identifier: Unlicense OR CC0-1.0
- */
-
-
-
 #ifndef __HID_DEVICE_LE_PRF__
 #define __HID_DEVICE_LE_PRF__
 #include <stdbool.h>
@@ -14,7 +6,7 @@
 #include "esp_hidd_prf_api.h"
 #include "esp_gap_ble_api.h"
 #include "hid_dev.h"
-#include "main.h"
+
 
 #define SUPPORT_REPORT_VENDOR                 false
 //HID BLE profile log tag
@@ -35,11 +27,7 @@
 
 // Number of HID reports defined in the service
 
-#if(gamePadMode == 0)
-#define HID_NUM_REPORTS          9
-#elif(gamePadMode == 1)
 #define HID_NUM_REPORTS          5
-#endif
 
 // HID Report IDs for the service
 

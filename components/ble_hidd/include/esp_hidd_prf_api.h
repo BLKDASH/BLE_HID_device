@@ -1,16 +1,9 @@
-/*
- * SPDX-FileCopyrightText: 2021-2022 Espressif Systems (Shanghai) CO LTD
- *
- * SPDX-License-Identifier: Unlicense OR CC0-1.0
- */
-
 #ifndef __ESP_HIDD_API_H__
 #define __ESP_HIDD_API_H__
 
 #include "esp_bt_defs.h"
 #include "esp_gatt_defs.h"
 #include "esp_err.h"
-#include "main.h"
 
 #define HID_GAMEPAD_STICK_IN_RPT_LEN 10
 
@@ -160,16 +153,15 @@ esp_err_t esp_hidd_profile_deinit(void);
  * @return          Most 8bit significant is Great version, Least 8bit is Sub version
  *
  */
-uint16_t esp_hidd_get_version(void);
-#if(gamePadMode == 0)
+
 void esp_hidd_send_consumer_value(uint16_t conn_id, uint8_t key_cmd, bool key_pressed);
 
 void esp_hidd_send_keyboard_value(uint16_t conn_id, key_mask_t special_key_mask, uint8_t *keyboard_cmd, uint8_t num_key);
 
 void esp_hidd_send_mouse_value(uint16_t conn_id, uint8_t mouse_button, int8_t mickeys_x, int8_t mickeys_y);
-#elif(gamePadMode == 1)
+
 void esp_hidd_send_gamepad_report(uint16_t conn_id);
-#endif
+
 
 
 #ifdef __cplusplus
