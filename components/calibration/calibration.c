@@ -277,18 +277,32 @@ esp_err_t store_joystick_calibration_data(uint8_t joystick_id, const joystick_ca
     return ESP_OK;
 }
 
-
 // 读取摇杆校准数据
-esp_err_t read_joystick_calibration_data(uint8_t joystick_id, joystick_calibration_data_t* out_data) {
-    if (joystick_id >= 2 || out_data == NULL) {
+esp_err_t read_joystick_calibration_data(uint8_t joystick_id, joystick_calibration_data_t *out_data)
+{
+    if (joystick_id >= 2 || out_data == NULL)
+    {
         ESP_LOGE(TAG, "无效的摇杆ID或空指针");
         return ESP_ERR_INVALID_ARG;
     }
 
     nvs_handle_t handle;
     esp_err_t err = nvs_open(CALIBRATION_NAMESPACE, NVS_READONLY, &handle);
-    if (err != ESP_OK) {
+    if (err != ESP_OK)
+    {
         ESP_LOGE(TAG, "打开命名空间失败(%s): %s", CALIBRATION_NAMESPACE, esp_err_to_name(err));
+
+        // 如果是首次运行，设置默认值
+        if (err == ESP_ERR_NVS_NOT_FOUND)
+        {
+            out_data->center_x = 600;
+            out_data->center_y = 600;
+            out_data->min_x = 0;
+            out_data->min_y = 0;
+            out_data->max_x = 1400;
+            out_data->max_y = 1400;
+            ESP_LOGW(TAG, "摇杆%d尚未校准，使用默认值", joystick_id);
+        }
         return err;
     }
 
@@ -301,16 +315,18 @@ esp_err_t read_joystick_calibration_data(uint8_t joystick_id, joystick_calibrati
     char center_y_key[30];
     snprintf(center_x_key, sizeof(center_x_key), "%s_center_x", base_key);
     snprintf(center_y_key, sizeof(center_y_key), "%s_center_y", base_key);
-    
+
     err = nvs_get_u32(handle, center_x_key, &out_data->center_x);
-    if (err != ESP_OK && err != ESP_ERR_NVS_NOT_FOUND) {
+    if (err != ESP_OK && err != ESP_ERR_NVS_NOT_FOUND)
+    {
         ESP_LOGE(TAG, "读取%s失败: %s", center_x_key, esp_err_to_name(err));
         nvs_close(handle);
         return err;
     }
-    
+
     err = nvs_get_u32(handle, center_y_key, &out_data->center_y);
-    if (err != ESP_OK && err != ESP_ERR_NVS_NOT_FOUND) {
+    if (err != ESP_OK && err != ESP_ERR_NVS_NOT_FOUND)
+    {
         ESP_LOGE(TAG, "读取%s失败: %s", center_y_key, esp_err_to_name(err));
         nvs_close(handle);
         return err;
@@ -321,16 +337,18 @@ esp_err_t read_joystick_calibration_data(uint8_t joystick_id, joystick_calibrati
     char min_y_key[30];
     snprintf(min_x_key, sizeof(min_x_key), "%s_min_x", base_key);
     snprintf(min_y_key, sizeof(min_y_key), "%s_min_y", base_key);
-    
+
     err = nvs_get_u32(handle, min_x_key, &out_data->min_x);
-    if (err != ESP_OK && err != ESP_ERR_NVS_NOT_FOUND) {
+    if (err != ESP_OK && err != ESP_ERR_NVS_NOT_FOUND)
+    {
         ESP_LOGE(TAG, "读取%s失败: %s", min_x_key, esp_err_to_name(err));
         nvs_close(handle);
         return err;
     }
-    
+
     err = nvs_get_u32(handle, min_y_key, &out_data->min_y);
-    if (err != ESP_OK && err != ESP_ERR_NVS_NOT_FOUND) {
+    if (err != ESP_OK && err != ESP_ERR_NVS_NOT_FOUND)
+    {
         ESP_LOGE(TAG, "读取%s失败: %s", min_y_key, esp_err_to_name(err));
         nvs_close(handle);
         return err;
@@ -341,33 +359,24 @@ esp_err_t read_joystick_calibration_data(uint8_t joystick_id, joystick_calibrati
     char max_y_key[30];
     snprintf(max_x_key, sizeof(max_x_key), "%s_max_x", base_key);
     snprintf(max_y_key, sizeof(max_y_key), "%s_max_y", base_key);
-    
+
     err = nvs_get_u32(handle, max_x_key, &out_data->max_x);
-    if (err != ESP_OK && err != ESP_ERR_NVS_NOT_FOUND) {
+    if (err != ESP_OK && err != ESP_ERR_NVS_NOT_FOUND)
+    {
         ESP_LOGE(TAG, "读取%s失败: %s", max_x_key, esp_err_to_name(err));
         nvs_close(handle);
         return err;
     }
-    
+
     err = nvs_get_u32(handle, max_y_key, &out_data->max_y);
-    if (err != ESP_OK && err != ESP_ERR_NVS_NOT_FOUND) {
+    if (err != ESP_OK && err != ESP_ERR_NVS_NOT_FOUND)
+    {
         ESP_LOGE(TAG, "读取%s失败: %s", max_y_key, esp_err_to_name(err));
         nvs_close(handle);
         return err;
     }
 
-    // 如果是首次运行，设置默认值
-    if (err == ESP_ERR_NVS_NOT_FOUND) {
-        out_data->center_x = 2048;
-        out_data->center_y = 2048;
-        out_data->min_x = 0;
-        out_data->min_y = 0;
-        out_data->max_x = 4095;
-        out_data->max_y = 4095;
-        ESP_LOGW(TAG, "摇杆%d尚未校准，使用默认值", joystick_id);
-    } else {
-        ESP_LOGI(TAG, "读取摇杆%d校准数据成功", joystick_id);
-    }
+    ESP_LOGI(TAG, "读取摇杆%d校准数据成功", joystick_id);
 
     nvs_close(handle);
     return ESP_OK;

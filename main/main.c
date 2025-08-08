@@ -119,6 +119,8 @@ void app_main(void)
                 // 等待连接
                 if (sec_conn == true)
                 {
+                    //（排查这里的缓存读取错误）
+                    // todo:为了保证任务的合理运行，此处不应该在创建任务前进行判断 sec_conn == true
                     // GPIO与ADC读取任务
                     // xTaskCreatePinnedToCore(gpio_read_task, "gpio_toggle_task", 4096, NULL, 6, NULL, 1);
                     // 高优先级保证实时性
@@ -525,12 +527,17 @@ void adc_read_task(void *pvParameter)
     vTaskDelete(NULL);
 }
 
+
+// 摇杆校准数据
+// joystick_calibration_data_t left_joystick_cal_data;
+// joystick_calibration_data_t right_joystick_cal_data;
 void adc_aver_send(void *pvParameters)
 {
     uint32_t all_avg[8];
     while (1)
     {
         mcb_get_all_averages(mcb, all_avg);
+        // 此处可以直接认为，平均后的值为 ADC 的原始数据
         printf("\r\n");
         for (uint8_t i = 0; i < 8; i++)
         {
@@ -565,7 +572,7 @@ void joystick_calibration_task(void *pvParameter)
     {
         if(xSemaphoreTake(calibration_semaphore, portMAX_DELAY) == pdTRUE)
         {
-            
+
         }
     }
     
