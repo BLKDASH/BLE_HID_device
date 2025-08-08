@@ -81,7 +81,7 @@ void app_main(void)
             ESP_LOGI("main", "START_UP OK");
 
             // 创建多通道平均缓冲区，长度为10
-            mcb = mcb_init(20);
+            mcb = mcb_init(10);
             init_all(); // 初始化除了HOME按键之外的外设
             // 读取开机次数
             uint64_t boot_count;
@@ -92,9 +92,8 @@ void app_main(void)
             }
 
             calibration_semaphore = xSemaphoreCreateBinary();
-            read_joystick_calibration_data(0, &left_joystick_cal_data);   // 左摇杆
-            read_joystick_calibration_data(1, &right_joystick_cal_data);    //右摇杆
-
+            read_joystick_calibration_data(0, &left_joystick_cal_data);  // 左摇杆
+            read_joystick_calibration_data(1, &right_joystick_cal_data); // 右摇杆
 
             // LED任务
             led_flash_semaphore = xSemaphoreCreateBinary();
@@ -119,11 +118,11 @@ void app_main(void)
                 // 等待连接
                 if (sec_conn == true)
                 {
-                    //（排查这里的缓存读取错误）
-                    // todo:为了保证任务的合理运行，此处不应该在创建任务前进行判断 sec_conn == true
-                    // GPIO与ADC读取任务
-                    // xTaskCreatePinnedToCore(gpio_read_task, "gpio_toggle_task", 4096, NULL, 6, NULL, 1);
-                    // 高优先级保证实时性
+                    // （排查这里的缓存读取错误）
+                    //  todo:为了保证任务的合理运行，此处不应该在创建任务前进行判断 sec_conn == true
+                    //  GPIO与ADC读取任务
+                    //  xTaskCreatePinnedToCore(gpio_read_task, "gpio_toggle_task", 4096, NULL, 6, NULL, 1);
+                    //  高优先级保证实时性
                     xTaskCreatePinnedToCore(adc_read_task, "adc_read_task", 4096, NULL, 7, NULL, 1);
                     // 可以是低优先级，反正每次处理的都是最新数据
                     xTaskCreatePinnedToCore(adc_aver_send, "adc_aver_send", 2048, NULL, 6, NULL, 1);
@@ -263,6 +262,7 @@ void shutdown_task(void *pvParameter)
 void blink_task(void *pvParameter)
 {
     bool led_on_off = true;
+    int led_ring = 0;
     setLED(0, 0, 0, 0);
     setLED(1, 0, 0, 0);
     setLED(2, 0, 0, 0);
@@ -273,124 +273,119 @@ void blink_task(void *pvParameter)
         switch (current_device_state)
         {
         case DEVICE_STATE_INIT:
-            if (led_on_off)
-            {
-                setLED(0, 0, 10, 10);
-                setLED(1, 0, 0, 0);
-                setLED(2, 0, 0, 0);
-                setLED(3, 10, 10, 0);
-            }
-            else
-            {
-                setLED(0, 0, 0, 0);
-                setLED(1, 0, 0, 0);
-                setLED(2, 0, 0, 0);
-                setLED(3, 0, 0, 0);
-            }
+            setLED(0, 0, led_on_off ? 10 : 0, led_on_off ? 10 : 0);
+            setLED(1, 0, 0, 0);
+            setLED(2, 0, 0, 0);
+            setLED(3, led_on_off ? 10 : 0, led_on_off ? 10 : 0, 0);
             led_on_off = !led_on_off;
             vTaskDelay(pdMS_TO_TICKS(300));
             break;
 
         case DEVICE_STATE_ADVERTISING:
-            if (led_on_off)
-            {
-                setLED(0, 0, 0, 15);
-                setLED(1, 0, 0, 0);
-                setLED(2, 0, 0, 15);
-                setLED(3, 0, 0, 0);
-            }
-            else
-            {
-                setLED(0, 0, 0, 0);
-                setLED(1, 0, 0, 15);
-                setLED(2, 0, 0, 0);
-                setLED(3, 0, 0, 15);
-            }
+            setLED(0, 0, 0, led_on_off ? 15 : 0);
+            setLED(1, 0, 0, led_on_off ? 0 : 15);
+            setLED(2, 0, 0, led_on_off ? 15 : 0);
+            setLED(3, 0, 0, led_on_off ? 0 : 15);
             led_on_off = !led_on_off;
             vTaskDelay(pdMS_TO_TICKS(200));
             break;
 
         case DEVICE_STATE_CONNECTED:
-            // 常亮不闪烁
-            setLED(0, 0, 15, 0);
-            setLED(1, 0, 15, 0);
-            setLED(2, 0, 15, 0);
-            setLED(3, 0, 15, 0);
+            // 常亮绿色
+            for (int i = 0; i < 4; i++)
+            {
+                setLED(i, 0, 15, 0);
+            }
             vTaskDelay(pdMS_TO_TICKS(200));
             break;
 
         case DEVICE_STATE_DISCONNECTED:
             // 慢闪 (500ms间隔)
-            if (led_on_off)
-            {
-                setLED(0, 15, 0, 0);
-                setLED(1, 0, 0, 0);
-                setLED(2, 15, 0, 0);
-                setLED(3, 0, 0, 0);
-            }
-            else
-            {
-                setLED(0, 0, 0, 0);
-                setLED(1, 15, 0, 0);
-                setLED(2, 0, 0, 0);
-                setLED(3, 15, 0, 0);
-            }
+            uint8_t red = led_on_off ? 15 : 0;
+            uint8_t green = 0;
+            uint8_t blue = 0;
+
+            setLED(0, led_on_off ? red : 0, green, blue);
+            setLED(1, led_on_off ? 0 : red, green, blue);
+            setLED(2, led_on_off ? red : 0, green, blue);
+            setLED(3, led_on_off ? 0 : red, green, blue);
+
             led_on_off = !led_on_off;
             vTaskDelay(pdMS_TO_TICKS(500));
             break;
 
         case DEVICE_STATE_ERROR:
-            // 快速闪烁 (100ms间隔)
-            if (led_on_off)
+            uint8_t r = led_on_off ? 20 : 0;
+            uint8_t g = 0;
+            uint8_t b = 0;
+            for (int i = 0; i < 4; i++)
             {
-                setLED(0, 20, 0, 0);
-                setLED(1, 20, 0, 0);
-                setLED(2, 20, 0, 0);
-                setLED(3, 20, 0, 0);
+                setLED(i, r, g, b);
             }
-            else
-            {
-                setLED(0, 0, 0, 0);
-                setLED(1, 0, 0, 0);
-                setLED(2, 0, 0, 0);
-                setLED(3, 0, 0, 0);
-            }
+
             led_on_off = !led_on_off;
             vTaskDelay(pdMS_TO_TICKS(100));
             break;
 
         case DEVICE_STATE_SLEEP:
-            setLED(0, 0, 0, 0);
-            setLED(1, 0, 0, 0);
-            setLED(2, 0, 0, 0);
-            setLED(3, 0, 0, 0);
+            for (int i = 0; i < 4; i++)
+            {
+                setLED(i, 0, 0, 0);
+            }
             vTaskDelay(pdMS_TO_TICKS(200));
             break;
 
-        case DEVICE_STATE_CALI:
-            if (led_on_off)
+        case DEVICE_STATE_CALI_START:
+            for (int i = 0; i < 4; i++)
             {
-                setLED(0, 20, 10, 5);
-                setLED(1, 0, 0, 0);
-                setLED(2, 0, 0, 0);
-                setLED(3, 0, 0, 0);
+                if (i == 0 && led_on_off)
+                {
+                    setLED(i, 20, 10, 5);
+                }
+                else
+                {
+                    setLED(i, 0, 0, 0);
+                }
             }
-            else
+            led_on_off = !led_on_off; // 切换亮暗状态
+            vTaskDelay(pdMS_TO_TICKS(100));
+            break;
+
+        case DEVICE_STATE_CALI_RING:
+            // 循环闪烁
+            for (int i = 0; i < 4; i++)
             {
-                setLED(0, 0, 0, 0);
-                setLED(1, 0, 0, 0);
-                setLED(2, 0, 0, 0);
-                setLED(3, 0, 0, 0);
+                if (i == led_ring)
+                {
+                    setLED(i, 5, 5, 5); // 点亮当前LED
+                }
+                else
+                {
+                    setLED(i, 0, 0, 0); // 熄灭其他LED
+                }
+            }
+            // 更新下一个要点亮的LED索引（循环0-3）
+            led_ring = (led_ring + 1) % 4;
+            // 延迟100ms
+            vTaskDelay(pdMS_TO_TICKS(100));
+            break;
+
+        case DEVICE_STATE_CALI_DONE:
+            // 快闪灯0
+            setLED(0, led_on_off ? 20 : 0, led_on_off ? 10 : 0, led_on_off ? 5 : 0);
+            for (int i = 1; i < 4; i++)
+            {
+                setLED(i, 0, 0, 0);
             }
             led_on_off = !led_on_off;
             vTaskDelay(pdMS_TO_TICKS(100));
             break;
 
         default:
-            setLED(0, 0, 0, 0);
-            setLED(1, 0, 0, 0);
-            setLED(2, 0, 0, 0);
-            setLED(3, 0, 0, 0);
+            for (int i = 0; i < 4; i++)
+            {
+                setLED(i, 0, 0, 0);
+            }
             vTaskDelay(pdMS_TO_TICKS(500));
             break;
         }
@@ -527,7 +522,6 @@ void adc_read_task(void *pvParameter)
     vTaskDelete(NULL);
 }
 
-
 // 摇杆校准数据
 // joystick_calibration_data_t left_joystick_cal_data;
 // joystick_calibration_data_t right_joystick_cal_data;
@@ -536,14 +530,18 @@ void adc_aver_send(void *pvParameters)
     uint32_t all_avg[8];
     while (1)
     {
-        mcb_get_all_averages(mcb, all_avg);
-        // 此处可以直接认为，平均后的值为 ADC 的原始数据
-        printf("\r\n");
-        for (uint8_t i = 0; i < 8; i++)
+        // 当正在进行环形校准时不要进行此操作，防止耗时
+        if (current_device_state != DEVICE_STATE_CALI_RING)
         {
-            printf("%ld  ", all_avg[i]);
+            mcb_get_all_averages(mcb, all_avg);
+            // 此处可以直接认为，平均后的值为 ADC 的原始数据
+            printf("\r\n");
+            for (uint8_t i = 0; i < 8; i++)
+            {
+                printf("%ld  ", all_avg[i]);
+            }
+            vTaskDelay(pdMS_TO_TICKS(40));
         }
-        vTaskDelay(pdMS_TO_TICKS(40));
     }
 }
 
@@ -565,15 +563,73 @@ void gamepad_button_task(void *pvParameters)
     }
 }
 
-
 void joystick_calibration_task(void *pvParameter)
 {
     while (1)
     {
-        if(xSemaphoreTake(calibration_semaphore, portMAX_DELAY) == pdTRUE)
+        if (xSemaphoreTake(calibration_semaphore, portMAX_DELAY) == pdTRUE)
         {
+            ESP_LOGI("CALIBRATION", "开始摇杆校准");
+            // 保存当前设备状态，以便校准结束后恢复
+            device_state_t prev_state = current_device_state;
+            current_device_state = DEVICE_STATE_CALI_START;
+            vTaskDelay(pdMS_TO_TICKS(1000));
+            current_device_state = DEVICE_STATE_CALI_RING;
 
+            // 初始化最大最小值
+            uint32_t max_values[4] = {0, 0, 0, 0};             // 通道0,1,2,3的最大值
+            uint32_t min_values[4] = {4095, 4095, 4095, 4095}; // 通道0,1,2,3的最小值
+
+            uint32_t all_avg[8];
+            uint32_t start_time = xTaskGetTickCount();
+            uint32_t duration_ticks = pdMS_TO_TICKS(5000); // 5秒
+
+            // 持续读取5秒数据
+            while ((xTaskGetTickCount() - start_time) < duration_ticks)
+            {
+                mcb_get_all_averages(mcb, all_avg);
+
+                // 更新通道0-3的最大最小值
+                for (int i = 0; i < 4; i++)
+                {
+                    if (all_avg[i] > max_values[i])
+                    {
+                        max_values[i] = all_avg[i];
+                    }
+                    if (all_avg[i] < min_values[i])
+                    {
+                        min_values[i] = all_avg[i];
+                    }
+                }
+
+                vTaskDelay(pdMS_TO_TICKS(10)); // 稍微延时以避免占用过多CPU
+            }
+
+            // 保存校准数据
+            // all_avg[0] 对应右摇杆Y轴 (max -> max_y, min -> min_y)
+            right_joystick_cal_data.max_y = max_values[0];
+            right_joystick_cal_data.min_y = min_values[0];
+
+            // all_avg[1] 对应右摇杆X轴 (max -> max_x, min -> min_x)
+            right_joystick_cal_data.max_x = max_values[1];
+            right_joystick_cal_data.min_x = min_values[1];
+
+            // all_avg[2] 对应左摇杆Y轴 (max -> max_y, min -> min_y)
+            left_joystick_cal_data.max_y = max_values[2];
+            left_joystick_cal_data.min_y = min_values[2];
+
+            // all_avg[3] 对应左摇杆X轴 (max -> max_x, min -> min_x)
+            left_joystick_cal_data.max_x = max_values[3];
+            left_joystick_cal_data.min_x = min_values[3];
+
+            // 存储校准数据到NVS
+            store_joystick_calibration_data(1, &right_joystick_cal_data); // 右摇杆ID=1
+            store_joystick_calibration_data(0, &left_joystick_cal_data);  // 左摇杆ID=0
+
+            current_device_state = DEVICE_STATE_CALI_DONE;
+
+            current_device_state = prev_state;
+            xSemaphoreGive(calibration_semaphore); // 归还信号量，等待下一次校准
         }
     }
-    
 }

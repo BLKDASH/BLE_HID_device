@@ -100,7 +100,10 @@ typedef enum {
     DEVICE_STATE_DISCONNECTED,   // 已断开连接
     DEVICE_STATE_ERROR,          // 错误状态
     DEVICE_STATE_SLEEP,          // 睡眠状态
-    DEVICE_STATE_CALI,           // 校准状态
+    DEVICE_STATE_CALI_START,     // 校准状态
+    DEVICE_STATE_CALI_RING,      // 转圈校准中
+    DEVICE_STATE_CALI_DONE,      // 校准完成
+
 } device_state_t;
 extern device_state_t current_device_state; 
 void init_all(void);
