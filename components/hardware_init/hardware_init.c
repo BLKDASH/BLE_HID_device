@@ -44,25 +44,60 @@ EventGroupHandle_t other_button_event_group = NULL;
 static const char *TAG = "hardware_init";
 static led_strip_handle_t configure_led(void)
 {
+    // led_strip_config_t strip_config = {
+    //     .strip_gpio_num = LED_STRIP_BLINK_GPIO,                      // The GPIO of ws2812_input
+    //     .max_leds = LED_STRIP_LED_NUMBERS,                           // The number of LEDs
+    //     .color_component_format = LED_STRIP_COLOR_COMPONENT_FMT_GRB, // Pixel format of ws2812
+    //     .led_model = LED_MODEL_WS2812,                               // LED strip model
+    //     .flags.invert_out = false,                                   // not invert the output signal
+    // };
+
+    // // RMT configuration for ws2812
+    // led_strip_rmt_config_t rmt_config = {
+    //     .clk_src = RMT_CLK_SRC_DEFAULT,        // different clock source can lead to different power consumption
+    //     .resolution_hz = LED_STRIP_RMT_RES_HZ, // RMT counter clock frequency
+    //     .flags.with_dma = false,               // DMA feature is available on ESP target like ESP32-S3
+    // };
+
+    // // LED Strip object handle
+    // led_strip_handle_t led_strip;
+    // ESP_ERROR_CHECK(led_strip_new_rmt_device(&strip_config, &rmt_config, &led_strip));
+    // ESP_LOGI(TAG, "Created LED strip object with RMT backend");
+
+
+    // SPI 模式
+    // LED strip general initialization, according to your led board design
     led_strip_config_t strip_config = {
-        .strip_gpio_num = LED_STRIP_BLINK_GPIO,                      // The GPIO of ws2812_input
-        .max_leds = LED_STRIP_LED_NUMBERS,                           // The number of LEDs
-        .color_component_format = LED_STRIP_COLOR_COMPONENT_FMT_GRB, // Pixel format of ws2812
-        .led_model = LED_MODEL_WS2812,                               // LED strip model
-        .flags.invert_out = false,                                   // not invert the output signal
+        .strip_gpio_num = LED_STRIP_BLINK_GPIO, // The GPIO that connected to the LED strip's data line
+        .max_leds = LED_STRIP_LED_NUMBERS,      // The number of LEDs in the strip,
+        .led_model = LED_MODEL_WS2812,        // LED strip model
+        // set the color order of the strip: GRB
+        .color_component_format = {
+            .format = {
+                .r_pos = 1, // red is the second byte in the color data
+                .g_pos = 0, // green is the first byte in the color data
+                .b_pos = 2, // blue is the third byte in the color data
+                .num_components = 3, // total 3 color components
+            },
+        },
+        .flags = {
+            .invert_out = false, // don't invert the output signal
+        }
     };
 
-    // RMT configuration for ws2812
-    led_strip_rmt_config_t rmt_config = {
-        .clk_src = RMT_CLK_SRC_DEFAULT,        // different clock source can lead to different power consumption
-        .resolution_hz = LED_STRIP_RMT_RES_HZ, // RMT counter clock frequency
-        .flags.with_dma = false,               // DMA feature is available on ESP target like ESP32-S3
+    // LED strip backend configuration: SPI
+    led_strip_spi_config_t spi_config = {
+        .clk_src = SPI_CLK_SRC_DEFAULT, // different clock source can lead to different power consumption
+        .spi_bus = SPI2_HOST,           // SPI bus ID
+        .flags = {
+            .with_dma = false, // Using DMA can improve performance and help drive more LEDs
+        }
     };
 
     // LED Strip object handle
     led_strip_handle_t led_strip;
-    ESP_ERROR_CHECK(led_strip_new_rmt_device(&strip_config, &rmt_config, &led_strip));
-    ESP_LOGI(TAG, "Created LED strip object with RMT backend");
+    ESP_ERROR_CHECK(led_strip_new_spi_device(&strip_config, &spi_config, &led_strip));
+    ESP_LOGI(TAG, "Created LED strip object with SPI backend");
     return led_strip;
 }
 

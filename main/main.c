@@ -714,12 +714,12 @@ void all_buttons_monitor_task(void *pvParameter)
         }
         if (xyab_bits & XYAB_KEY_B_PRESSED)
         {
-            xyab_button_value |= 0x02; // B 按下
+            xyab_button_value |= 0x02; // B 按下 
         }
 
         // 更新 gamepad_report_buffer[5]
         gamepad_report_buffer[5] = xyab_button_value;
-        
+
         // 打印XYAB按键状态
         // ESP_LOGI("XYAB_MONITOR", "XYAB Key States: X=%s, Y=%s, A=%s, B=%s",
         //          (xyab_bits & XYAB_KEY_X_PRESSED) ? "1" : "0",
