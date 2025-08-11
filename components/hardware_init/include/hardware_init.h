@@ -73,9 +73,9 @@ extern adc_continuous_handle_t ADC_init_handle;
 #define GPIO_INPUT_IOS_BTN 21     // IOS按键
 #define GPIO_INPUT_WINDOWS_BTN 22 // Windows按键
 
+
+
 #define GPIO_INPUT_ANDROID_BTN 4 // Android按键
-
-
 #define GPIO_INPUT_HOME_BTN 13    // HOME按键，开关机检测按键
 
 #define GPIO_OUTPUT_POWER_KEEP_IO 5
@@ -91,6 +91,28 @@ extern bool sec_conn;
 esp_err_t ble_init(void);
 esp_err_t ble_sec_config(void);
 
+// XYAB按键事件组
+extern EventGroupHandle_t xyab_button_event_group;
+// 其他按键事件组
+extern EventGroupHandle_t other_button_event_group;
+
+// XYAB按键事件位定义
+#define XYAB_KEY_X_PRESSED    (1 << 0)
+#define XYAB_KEY_Y_PRESSED    (1 << 1)
+#define XYAB_KEY_A_PRESSED    (1 << 2)
+#define XYAB_KEY_B_PRESSED    (1 << 3)
+
+// 其他按键事件位定义
+#define LEFT_JOYSTICK_BTN_PRESSED    (1 << 0)
+#define RIGHT_JOYSTICK_BTN_PRESSED   (1 << 1)
+#define LEFT_SHOULDER_BTN_PRESSED    (1 << 2)
+#define RIGHT_SHOULDER_BTN_PRESSED   (1 << 3)
+#define SELECT_BTN_PRESSED           (1 << 4)
+#define START_BTN_PRESSED            (1 << 5)
+#define IKEY_BTN_PRESSED             (1 << 6)
+#define IOS_BTN_PRESSED              (1 << 7)
+#define WINDOWS_BTN_PRESSED          (1 << 8)
+
 typedef enum {
     DEVICE_STATE_INIT,           // 初始化状态
     DEVICE_STATE_ADVERTISING,    // 广播中
@@ -100,7 +122,10 @@ typedef enum {
     DEVICE_STATE_DISCONNECTED,   // 已断开连接
     DEVICE_STATE_ERROR,          // 错误状态
     DEVICE_STATE_SLEEP,          // 睡眠状态
-    DEVICE_STATE_CALI,           // 校准状态
+    DEVICE_STATE_CALI_START,     // 校准状态
+    DEVICE_STATE_CALI_RING,      // 转圈校准中
+    DEVICE_STATE_CALI_DONE,      // 校准完成
+
 } device_state_t;
 extern device_state_t current_device_state; 
 void init_all(void);
