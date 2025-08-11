@@ -379,5 +379,10 @@ esp_err_t read_joystick_calibration_data(uint8_t joystick_id, joystick_calibrati
     ESP_LOGI(TAG, "读取摇杆%d校准数据成功", joystick_id);
 
     nvs_close(handle);
+    
+    // 打印校准数据
+    ESP_LOGI(TAG, "摇杆%d校准数据: center_x=%lu, center_y=%lu, min_x=%lu, min_y=%lu, max_x=%lu, max_y=%lu", 
+             joystick_id, out_data->center_x, out_data->center_y, 
+             out_data->min_x, out_data->min_y, out_data->max_x, out_data->max_y);
     return ESP_OK;
 }

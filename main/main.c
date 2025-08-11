@@ -342,7 +342,7 @@ void blink_task(void *pvParameter)
             {
                 if (i == 0 && led_on_off)
                 {
-                    setLED(i, 20, 10, 5);
+                    setLED(i, 20, 10, 0);
                 }
                 else
                 {
@@ -374,7 +374,7 @@ void blink_task(void *pvParameter)
 
         case DEVICE_STATE_CALI_DONE:
             // 快闪灯0
-            setLED(0, led_on_off ? 20 : 0, led_on_off ? 10 : 0, led_on_off ? 5 : 0);
+            setLED(0, 0, led_on_off ? 10 : 0, led_on_off ? 5 : 0);
             for (int i = 1; i < 4; i++)
             {
                 setLED(i, 0, 0, 0);
@@ -568,7 +568,7 @@ void joystick_calibration_task(void *pvParameter)
             // 保存当前设备状态，以便校准结束后恢复
             // device_state_t prev_state = current_device_state;
             current_device_state = DEVICE_STATE_CALI_START;
-            vTaskDelay(pdMS_TO_TICKS(1000));
+            vTaskDelay(pdMS_TO_TICKS(2000));
             current_device_state = DEVICE_STATE_CALI_RING;
 
             // 初始化最大最小值
@@ -622,7 +622,7 @@ void joystick_calibration_task(void *pvParameter)
             store_joystick_calibration_data(0, &left_joystick_cal_data);  // 左摇杆ID=0
 
             current_device_state = DEVICE_STATE_CALI_DONE;
-            vTaskDelay(pdMS_TO_TICKS(1000));
+            vTaskDelay(pdMS_TO_TICKS(2000));
             // 等待用户松手
             // 获取稳定值作为中心点
             uint32_t center_sum[4] = {0, 0, 0, 0}; // 用于累加各通道值
@@ -671,6 +671,7 @@ void joystick_calibration_task(void *pvParameter)
 
             current_device_state = DEVICE_STATE_SLEEP;
             xSemaphoreGive(calibration_semaphore); // 归还信号量
+            vTaskDelay(pdMS_TO_TICKS(1000));
             esp_restart();
         }
     }
