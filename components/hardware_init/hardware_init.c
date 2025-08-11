@@ -20,6 +20,7 @@
 #include "esp_gatt_defs.h"
 #include "esp_bt_main.h"
 #include "esp_bt_device.h"
+#include "button_gpio.h"
 
 // LED-----------------------------------------------------------------------------------------
 
@@ -31,6 +32,9 @@
 
 // Global LED handle
 led_strip_handle_t led_strip = NULL;
+
+// XYAB按键事件组
+EventGroupHandle_t xyab_button_event_group = NULL;
 
 static const char *TAG = "hardware_init";
 static led_strip_handle_t configure_led(void)
@@ -142,19 +146,145 @@ static adc_continuous_handle_t convert_adc_values(uint8_t arr[][AVERAGE_LEN], in
 
 // GPIO -----------------------------------------------------------------------------------------------------
 
+// XYAB按键回调函数
+static void key_x_pressed_cb(void *arg, void *usr_data)
+{
+    if (xyab_button_event_group != NULL) {
+        xEventGroupSetBits(xyab_button_event_group, XYAB_KEY_X_PRESSED);
+    }
+}
+
+static void key_x_released_cb(void *arg, void *usr_data)
+{
+    if (xyab_button_event_group != NULL) {
+        xEventGroupClearBits(xyab_button_event_group, XYAB_KEY_X_PRESSED);
+    }
+}
+
+static void key_y_pressed_cb(void *arg, void *usr_data)
+{
+    if (xyab_button_event_group != NULL) {
+        xEventGroupSetBits(xyab_button_event_group, XYAB_KEY_Y_PRESSED);
+    }
+}
+
+static void key_y_released_cb(void *arg, void *usr_data)
+{
+    if (xyab_button_event_group != NULL) {
+        xEventGroupClearBits(xyab_button_event_group, XYAB_KEY_Y_PRESSED);
+    }
+}
+
+static void key_a_pressed_cb(void *arg, void *usr_data)
+{
+    if (xyab_button_event_group != NULL) {
+        xEventGroupSetBits(xyab_button_event_group, XYAB_KEY_A_PRESSED);
+    }
+}
+
+static void key_a_released_cb(void *arg, void *usr_data)
+{
+    if (xyab_button_event_group != NULL) {
+        xEventGroupClearBits(xyab_button_event_group, XYAB_KEY_A_PRESSED);
+    }
+}
+
+static void key_b_pressed_cb(void *arg, void *usr_data)
+{
+    if (xyab_button_event_group != NULL) {
+        xEventGroupSetBits(xyab_button_event_group, XYAB_KEY_B_PRESSED);
+    }
+}
+
+static void key_b_released_cb(void *arg, void *usr_data)
+{
+    if (xyab_button_event_group != NULL) {
+        xEventGroupClearBits(xyab_button_event_group, XYAB_KEY_B_PRESSED);
+    }
+}
+
 // GPIO初始化
 static void init_gpio(void)
 {
-    // 上拉输入按键。按下为0
+    // 创建XYAB按键事件组
+    if (xyab_button_event_group == NULL) {
+        xyab_button_event_group = xEventGroupCreate();
+        if (xyab_button_event_group == NULL) {
+            ESP_LOGE(TAG, "Failed to create XYAB button event group");
+            return;
+        }
+    }
+
+    // 初始化XYAB按键
+    const button_config_t btn_cfg = {0};
+    
+    // 初始化按键X
+    const button_gpio_config_t btn_gpio_cfg_x = {
+        .gpio_num = GPIO_INPUT_KEY_X,
+        .active_level = 0,  // 按下为低电平
+    };
+    button_handle_t gpio_btn_x = NULL;
+    esp_err_t ret = iot_button_new_gpio_device(&btn_cfg, &btn_gpio_cfg_x, &gpio_btn_x);
+    if (ret != ESP_OK || gpio_btn_x == NULL) {
+        ESP_LOGE(TAG, "Failed to create button X");
+    } else {
+        iot_button_register_cb(gpio_btn_x, BUTTON_PRESS_DOWN, NULL, key_x_pressed_cb, NULL);
+        iot_button_register_cb(gpio_btn_x, BUTTON_PRESS_UP, NULL, key_x_released_cb, NULL);
+    }
+    
+    // 初始化按键Y
+    const button_gpio_config_t btn_gpio_cfg_y = {
+        .gpio_num = GPIO_INPUT_KEY_Y,
+        .active_level = 0,  // 按下为低电平
+    };
+    button_handle_t gpio_btn_y = NULL;
+    ret = iot_button_new_gpio_device(&btn_cfg, &btn_gpio_cfg_y, &gpio_btn_y);
+    if (ret != ESP_OK || gpio_btn_y == NULL) {
+        ESP_LOGE(TAG, "Failed to create button Y");
+    } else {
+        iot_button_register_cb(gpio_btn_y, BUTTON_PRESS_DOWN, NULL, key_y_pressed_cb, NULL);
+        iot_button_register_cb(gpio_btn_y, BUTTON_PRESS_UP, NULL, key_y_released_cb, NULL);
+    }
+    
+    // 初始化按键A
+    const button_gpio_config_t btn_gpio_cfg_a = {
+        .gpio_num = GPIO_INPUT_KEY_A,
+        .active_level = 0,  // 按下为低电平
+    };
+    button_handle_t gpio_btn_a = NULL;
+    ret = iot_button_new_gpio_device(&btn_cfg, &btn_gpio_cfg_a, &gpio_btn_a);
+    if (ret != ESP_OK || gpio_btn_a == NULL) {
+        ESP_LOGE(TAG, "Failed to create button A");
+    } else {
+        iot_button_register_cb(gpio_btn_a, BUTTON_PRESS_DOWN, NULL, key_a_pressed_cb, NULL);
+        iot_button_register_cb(gpio_btn_a, BUTTON_PRESS_UP, NULL, key_a_released_cb, NULL);
+    }
+    
+    // 初始化按键B
+    const button_gpio_config_t btn_gpio_cfg_b = {
+        .gpio_num = GPIO_INPUT_KEY_B,
+        .active_level = 0,  // 按下为低电平
+    };
+    button_handle_t gpio_btn_b = NULL;
+    ret = iot_button_new_gpio_device(&btn_cfg, &btn_gpio_cfg_b, &gpio_btn_b);
+    if (ret != ESP_OK || gpio_btn_b == NULL) {
+        ESP_LOGE(TAG, "Failed to create button B");
+    } else {
+        iot_button_register_cb(gpio_btn_b, BUTTON_PRESS_DOWN, NULL, key_b_pressed_cb, NULL);
+        iot_button_register_cb(gpio_btn_b, BUTTON_PRESS_UP, NULL, key_b_released_cb, NULL);
+    }
+
+
+    
+    // 其他按键仍使用原来的GPIO输入配置
     gpio_config_t io_conf = {};
     io_conf.intr_type = GPIO_INTR_DISABLE; // Disable interrupt
     io_conf.mode = GPIO_MODE_INPUT;        // Set as input
     // 详情查看init.h
-    io_conf.pin_bit_mask = BIT64(GPIO_INPUT_KEY_X) | BIT64(GPIO_INPUT_KEY_Y) |
-                           BIT64(GPIO_INPUT_KEY_A) | BIT64(GPIO_INPUT_KEY_B) |
-                           BIT64(GPIO_INPUT_LEFT_JOYSTICK_BTN) | BIT64(GPIO_INPUT_RIGHT_JOYSTICK_BTN) |
+    io_conf.pin_bit_mask = BIT64(GPIO_INPUT_LEFT_JOYSTICK_BTN) | BIT64(GPIO_INPUT_RIGHT_JOYSTICK_BTN) |
                            BIT64(GPIO_INPUT_LEFT_SHOULDER_BTN) | BIT64(GPIO_INPUT_RIGHT_SHOULDER_BTN) |
-                           BIT64(GPIO_INPUT_SELECT_BTN) | BIT64(GPIO_INPUT_START_BTN) | BIT64(GPIO_INPUT_IKEY_BTN) | BIT64(GPIO_INPUT_IOS_BTN) | BIT64(GPIO_INPUT_WINDOWS_BTN);
+                           BIT64(GPIO_INPUT_SELECT_BTN) | BIT64(GPIO_INPUT_START_BTN) | 
+                           BIT64(GPIO_INPUT_IKEY_BTN) | BIT64(GPIO_INPUT_IOS_BTN) | BIT64(GPIO_INPUT_WINDOWS_BTN);
     io_conf.pull_down_en = false; // Disable pull-down
     io_conf.pull_up_en = true;    // Enable pull-up
     gpio_config(&io_conf);

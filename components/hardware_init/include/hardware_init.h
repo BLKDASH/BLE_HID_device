@@ -91,6 +91,15 @@ extern bool sec_conn;
 esp_err_t ble_init(void);
 esp_err_t ble_sec_config(void);
 
+// XYAB按键事件组
+extern EventGroupHandle_t xyab_button_event_group;
+
+// XYAB按键事件位定义
+#define XYAB_KEY_X_PRESSED    (1 << 0)
+#define XYAB_KEY_Y_PRESSED    (1 << 1)
+#define XYAB_KEY_A_PRESSED    (1 << 2)
+#define XYAB_KEY_B_PRESSED    (1 << 3)
+
 typedef enum {
     DEVICE_STATE_INIT,           // 初始化状态
     DEVICE_STATE_ADVERTISING,    // 广播中

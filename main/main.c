@@ -112,6 +112,9 @@ void app_main(void)
 
             // 创建摇杆校准任务
             xTaskCreatePinnedToCore(joystick_calibration_task, "calibration_task", 4096, NULL, 5, NULL, 1);
+            
+            // 创建XYAB按键状态监控任务
+            xTaskCreatePinnedToCore(xyab_button_monitor_task, "xyab_button_monitor", 2048, NULL, 5, NULL, 1);
 
             while (1)
             {
@@ -711,5 +714,25 @@ void joystick_calibration_task(void *pvParameter)
 
             xSemaphoreGive(calibration_semaphore); // 归还信号量，等待下一次校准
         }
+    }
+}
+
+void xyab_button_monitor_task(void *pvParameter)
+{
+    ESP_LOGI("XYAB_MONITOR", "XYAB Button Monitor Task Started");
+    
+    while (1) {
+        // 等待100ms
+        vTaskDelay(pdMS_TO_TICKS(100));
+        
+        // 读取事件组状态
+        EventBits_t bits = xEventGroupGetBits(xyab_button_event_group);
+        
+        // 打印按键状态
+        ESP_LOGI("XYAB_MONITOR", "Key States: X=%s, Y=%s, A=%s, B=%s",
+                 (bits & XYAB_KEY_X_PRESSED) ? "PRESSED" : "RELEASED",
+                 (bits & XYAB_KEY_Y_PRESSED) ? "PRESSED" : "RELEASED",
+                 (bits & XYAB_KEY_A_PRESSED) ? "PRESSED" : "RELEASED",
+                 (bits & XYAB_KEY_B_PRESSED) ? "PRESSED" : "RELEASED");
     }
 }
