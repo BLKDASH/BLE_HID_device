@@ -24,7 +24,7 @@ void adc_read_task(void *pvParameter);
 void adc_aver_send(void *pvParameters);
 void gamepad_button_task(void *pvParameters);
 void joystick_calibration_task(void *pvParameter);
-void xyab_button_monitor_task(void *pvParameter);
+void all_buttons_monitor_task(void *pvParameter);
 
 // 全局变量声明
 extern bool led_running;
