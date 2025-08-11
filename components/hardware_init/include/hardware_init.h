@@ -31,6 +31,12 @@ esp_err_t flashLED(void);
 // void init_adc(void);
 // int read_adc_channel_voltage(adc_channel_t channel);
 // void read_and_log_adc_values(void);
+
+// 新增ADC采样控制函数
+esp_err_t start_adc_sampling(void);
+esp_err_t stop_adc_sampling(void);
+esp_err_t deinit_adc(void);
+
 // ADC配置
 #define EXAMPLE_ADC_UNIT ADC_UNIT_1
 #define _EXAMPLE_ADC_UNIT_STR(unit) #unit

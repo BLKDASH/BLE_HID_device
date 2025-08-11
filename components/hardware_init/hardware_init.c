@@ -146,6 +146,59 @@ static adc_continuous_handle_t convert_adc_values(uint8_t arr[][AVERAGE_LEN], in
     return handle;
 }
 
+// 添加全局变量来跟踪ADC是否正在运行
+extern bool adc_running;
+
+
+// 添加函数用于启动ADC采集
+esp_err_t start_adc_sampling(void)
+{
+    if (ADC_init_handle == NULL) {
+        // 初始化ADC
+        ADC_init_handle = convert_adc_values(resultAvr, ADC_CHANNEL_COUNT);
+    }
+    if (ADC_init_handle != NULL) {
+        // 启动ADC连续读取
+        esp_err_t err = adc_continuous_start(ADC_init_handle);
+        if (err == ESP_OK) {
+            adc_running = true;
+        }
+        return err;
+    }
+    
+    return ESP_FAIL;
+}
+
+// 添加函数用于停止ADC采集
+esp_err_t stop_adc_sampling(void)
+{
+    if (ADC_init_handle != NULL && adc_running) {
+        esp_err_t err = adc_continuous_stop(ADC_init_handle);
+        if (err == ESP_OK) {
+            adc_running = false;
+        }
+        return err;
+    }
+    
+    return ESP_OK;
+}
+
+// 添加函数用于反初始化ADC
+esp_err_t deinit_adc(void)
+{
+    if (ADC_init_handle != NULL) {
+        if (adc_running) {
+            adc_continuous_stop(ADC_init_handle);
+        }
+        esp_err_t err = adc_continuous_deinit(ADC_init_handle);
+        ADC_init_handle = NULL;
+        adc_running = false;
+        return err;
+    }
+    
+    return ESP_OK;
+}
+
 // GPIO -----------------------------------------------------------------------------------------------------
 
 // XYAB按键事件位定义

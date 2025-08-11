@@ -29,8 +29,7 @@
 
 // todo:遗忘上一次连接的设备
 // todo:断连后重新连接，会导致崩溃（adc 缓冲区无法读取）
-// todo:把按键注册为 iot button
-// todo:重新组织代码结构
+// todo:加入校准入口
 
 #define HID_TASK_TAG "TASKinfo"
 // adc多通道均值缓冲区
@@ -82,6 +81,10 @@ void app_main(void)
             // 创建多通道平均缓冲区，长度为10
             mcb = mcb_init(10);
             init_all(); // 初始化除了HOME按键之外的外设
+            
+            // 启动ADC采样，这样校准任务也可以使用ADC数据
+            start_adc_sampling();
+            
             // 读取开机次数
             uint64_t boot_count;
             esp_err_t err = nvs_get_boot_count(&boot_count);
@@ -107,10 +110,10 @@ void app_main(void)
             // 创建关机任务
             shutdown_semaphore = xSemaphoreCreateBinary();
             setHomeButton(); // 释放后再注册home按键长按
-            xTaskCreatePinnedToCore(shutdown_task, "shutdown_task", 4096, NULL, 5, NULL, 1);
+            xTaskCreatePinnedToCore(shutdown_task, "shutdown_task", 2048, NULL, 5, NULL, 1);
 
             // 创建摇杆校准任务
-            xTaskCreatePinnedToCore(joystick_calibration_task, "calibration_task", 4096, NULL, 5, NULL, 1);
+            xTaskCreatePinnedToCore(joystick_calibration_task, "calibration_task", 8192, NULL, 10, NULL, 1);
             
             // 创建XYAB按键状态监控任务
             // xTaskCreatePinnedToCore(xyab_button_monitor_task, "xyab_button_monitor", 2048, NULL, 5, NULL, 1);
@@ -121,11 +124,8 @@ void app_main(void)
                 if (sec_conn == true)
                 {
                     // （排查这里的缓存读取错误）
-                    //  todo:为了保证任务的合理运行，此处不应该在创建任务前进行判断 sec_conn == true
-                    //  GPIO与ADC读取任务
-                    //  xTaskCreatePinnedToCore(gpio_read_task, "gpio_toggle_task", 4096, NULL, 6, NULL, 1);
                     //  高优先级保证实时性
-                    xTaskCreatePinnedToCore(adc_read_task, "adc_read_task", 4096, NULL, 7, NULL, 1);
+                    xTaskCreatePinnedToCore(adc_read_task, "adc_read_task", 8192, NULL, 7, NULL, 1);
                     // 可以是低优先级，反正每次处理的都是最新数据
                     xTaskCreatePinnedToCore(adc_aver_send, "adc_aver_send", 2048, NULL, 6, NULL, 1);
                     // 模拟手柄任务
@@ -423,142 +423,65 @@ void LED_flash_task(void *pvParameter)
     vTaskDelete(NULL);
 }
 
-void gpio_read_task(void *pvParameter)
-{
-    int level_25, level_26, level_27, level_14;
-    int level_15, level_19;
-    int level_23, level_18;
-    int level_4, level_2, level_0, level_21, level_22;
 
-    while (1)
-    {
-        // Toggle GPIO32
 
-        // Read input GPIO levels
-        level_25 = gpio_get_level(GPIO_INPUT_KEY_X);
-        level_26 = gpio_get_level(GPIO_INPUT_KEY_Y);
-        level_27 = gpio_get_level(GPIO_INPUT_KEY_A);
-        level_14 = gpio_get_level(GPIO_INPUT_KEY_B);
-
-        level_15 = gpio_get_level(GPIO_INPUT_LEFT_JOYSTICK_BTN);
-        level_19 = gpio_get_level(GPIO_INPUT_RIGHT_JOYSTICK_BTN);
-
-        level_23 = gpio_get_level(GPIO_INPUT_LEFT_SHOULDER_BTN);
-        level_18 = gpio_get_level(GPIO_INPUT_RIGHT_SHOULDER_BTN);
-
-        level_4 = gpio_get_level(GPIO_INPUT_SELECT_BTN);
-        level_2 = gpio_get_level(GPIO_INPUT_START_BTN);
-        level_0 = gpio_get_level(GPIO_INPUT_IKEY_BTN);
-        level_21 = gpio_get_level(GPIO_INPUT_IOS_BTN);
-        level_22 = gpio_get_level(GPIO_INPUT_WINDOWS_BTN);
-
-        // Log levels
-        ESP_LOGI("ioTask", "X: %d | Y: %d | A: %d | B: %d",
-                 level_25, level_26, level_27, level_14);
-        ESP_LOGI("ioTask", "LS: %d | RS: %d",
-                 level_15, level_19);
-        ESP_LOGI("ioTask", "Shoulders - Left: %d | Right: %d",
-                 level_23, level_18);
-        ESP_LOGI("ioTask", "Special Keys - SELECT: %d | START: %d | IKEY: %d | IOS: %d | WINDOWS: %d",
-                 level_4, level_2, level_0, level_21, level_22);
-
-        // Delay 500ms
-        vTaskDelay(pdMS_TO_TICKS(300));
-    }
-}
-
-static TaskHandle_t s_task_handle;
-static bool IRAM_ATTR s_conv_done_cb(adc_continuous_handle_t handle, const adc_continuous_evt_data_t *edata, void *user_data)
-{
-    BaseType_t mustYield = pdFALSE;
-    // 在中断中通知任务 ADC 已经完成足够次数的转换
-    vTaskNotifyGiveFromISR(s_task_handle, &mustYield);
-    // 如果转换完成，进行上下文切换（让步）
-    return (mustYield == pdTRUE);
-}
 
 // adc 读取raw任务
-void adc_read_task(void *pvParameter)
+
+// ADC读取任务，现在即使在蓝牙未连接时也能运行，但只在连接时处理数据
+void adc_read_task(void *pvParameters)
 {
-    esp_err_t ret;
+    ESP_LOGI("adc_read_task", "ADC读取任务启动");
+    
+    adc_continuous_handle_t handle = ADC_init_handle;
     uint32_t ret_num = 0;
-    uint8_t bufferADC[EXAMPLE_READ_LEN] = {0};
-    memset(bufferADC, 0xcc, EXAMPLE_READ_LEN);
-    s_task_handle = xTaskGetCurrentTaskHandle();
-    // 错误检查回调
-    adc_continuous_evt_cbs_t cbs = {
-        .on_conv_done = s_conv_done_cb,
-    };
-    ESP_ERROR_CHECK(adc_continuous_register_event_callbacks(ADC_init_handle, &cbs, NULL));
-    ESP_ERROR_CHECK(adc_continuous_start(ADC_init_handle));
-
-    adc_running = true;
-
-    // 连上了才读，否则会这是一个ESP32的Cache error错误，具体原因是"Cache disabled but cached memory region accessed"（缓存被禁用但访问了缓存内存区域）。从回溯信息看，错误发生在BLE连接过程中，当尝试读取ADC数据时触发。触发时机：在BLE连接事件(ESP_HIDD_EVENT_BLE_CONNECT)处理过程中。根本原因：中断处理程序中访问了被缓存的内存区域，而此时缓存已被禁用
-    // 增加额外的状态稳定检查，确保连接完全稳定后再读取ADC
-    bool conn_stable = false;
-    uint32_t conn_time = 0;
-
-    while (adc_running)
-    {
-        // 只有在已连接状态下才读取ADC数据
-        if (sec_conn)
-        {
-            // 检查连接是否稳定，避免在连接刚建立时就读取ADC数据
-            if (!conn_stable)
-            {
-                if (conn_time == 0)
-                {
-                    conn_time = xTaskGetTickCount();
-                }
-                else if ((xTaskGetTickCount() - conn_time) > pdMS_TO_TICKS(100))
-                {
-                    // 连接稳定超过100ms，可以安全读取ADC
-                    conn_stable = true;
-                    conn_time = 0;
-                }
-            }
-
-            if (conn_stable)
-            {
-                vTaskDelay(pdMS_TO_TICKS(20));
-                // 读取256个数据
-                ret = adc_continuous_read(ADC_init_handle, bufferADC, EXAMPLE_READ_LEN, &ret_num, 0);
-                if (ret == ESP_OK)
-                {
-                    // ESP_LOGI("TASK", "ret is %x, ret_num is %" PRIu32 " bytes", ret, ret_num);
-                    // 每个ADC采样结果包含多个字节（通常是4字节），包含了通道号和采样值等信息。
-                    for (int i = 0; i < ret_num; i += SOC_ADC_DIGI_RESULT_BYTES)
-                    {
-                        adc_digi_output_data_t *p = (adc_digi_output_data_t *)&bufferADC[i];
-                        uint8_t chan_num = (uint8_t)EXAMPLE_ADC_GET_CHANNEL(p);
-                        uint32_t data = EXAMPLE_ADC_GET_DATA(p);
-                        // float voltage = (float)data * 3.3 / 4095.0;
-                        // 推入 mcb
-                        mcb_push(mcb, chan_num, data);
+    uint8_t result[EXAMPLE_READ_LEN];
+    memset(result, 0, EXAMPLE_READ_LEN);
+    
+    // 用于追踪每个通道的数据写入位置
+    static uint8_t writeIndex[ADC_CHANNEL_COUNT] = {0};
+    // 用于追踪每个通道的数据计数
+    static uint16_t count[ADC_CHANNEL_COUNT] = {0};
+    
+    while (1) {
+        // 从DMA缓冲区读取数据
+        esp_err_t ret = adc_continuous_read(handle, result, EXAMPLE_READ_LEN, &ret_num, 0);
+        if (ret == ESP_OK) {
+            // 遍历读取到的数据
+            for (int i = 0; i < ret_num; i += sizeof(adc_digi_output_data_t)) {
+                adc_digi_output_data_t *p = (adc_digi_output_data_t*)&result[i];
+                uint32_t chan = EXAMPLE_ADC_GET_CHANNEL(p);
+                uint32_t data = EXAMPLE_ADC_GET_DATA(p);
+                
+                if (chan < ADC_CHANNEL_COUNT) {
+                    // 将数据写入对应通道的数组
+                    resultAvr[chan][writeIndex[chan]] = data;
+                    writeIndex[chan]++;
+                    if (writeIndex[chan] >= AVERAGE_LEN) {
+                        writeIndex[chan] = 0;
+                    }
+                    
+                    // 更新计数
+                    if (count[chan] < AVERAGE_LEN) {
+                        count[chan]++;
+                    }
+                    
+                    // 如果启用了多通道缓冲区，也将数据添加到mcb中
+                    if (mcb != NULL) {
+                        mcb_push(mcb, chan, data);
                     }
                 }
-                else if (ret != ESP_ERR_TIMEOUT)
-                {
-                    ESP_LOGE("ADCtask", "ADC read failed with error: %d", ret);
-                }
             }
-            else
-            {
-                // 连接尚未稳定，短暂延迟
-                vTaskDelay(pdMS_TO_TICKS(10));
-            }
+        } else if (ret == ESP_ERR_TIMEOUT) {
+            // 超时，继续循环
+            vTaskDelay(pdMS_TO_TICKS(10));
         }
-        else
-        {
-            // 如果未连接，则短暂延迟
-            conn_stable = false; // 重置连接稳定状态
-            conn_time = 0;       // 重置连接时间
-            vTaskDelay(pdMS_TO_TICKS(100));
-        }
+        
+        // 添加一个小延迟以避免占用过多CPU
+        vTaskDelay(pdMS_TO_TICKS(1));
     }
-    vTaskDelete(NULL);
 }
+
 
 // 摇杆校准数据
 // joystick_calibration_data_t left_joystick_cal_data;
@@ -666,11 +589,7 @@ void joystick_calibration_task(void *pvParameter)
 
             current_device_state = DEVICE_STATE_CALI_DONE;
             vTaskDelay(pdMS_TO_TICKS(1000));
-            // 关灯
-            current_device_state = DEVICE_STATE_SLEEP;
             // 等待用户松手
-            vTaskDelay(pdMS_TO_TICKS(1500));
-
             // 获取稳定值作为中心点
             uint32_t center_sum[4] = {0, 0, 0, 0}; // 用于累加各通道值
             uint32_t center_count = 0;             // 采样次数
@@ -716,7 +635,9 @@ void joystick_calibration_task(void *pvParameter)
                          left_joystick_cal_data.center_x, left_joystick_cal_data.center_y);
             }
 
-            xSemaphoreGive(calibration_semaphore); // 归还信号量，等待下一次校准
+            current_device_state = DEVICE_STATE_SLEEP;
+            xSemaphoreGive(calibration_semaphore); // 归还信号量
+            esp_restart();
         }
     }
 }

@@ -1,6 +1,15 @@
 #include "processing.h"
 #include <stdlib.h>
 #include <string.h>
+#include "hardware_init.h"
+#include "main.h"
+#include "esp_log.h"
+
+// 添加全局变量声明
+extern bool sec_conn;
+extern MultiChannelBuffer *mcb;
+
+static const char *TAG = "processing";
 
 // 初始化多通道缓冲区
 MultiChannelBuffer* mcb_init(uint32_t buffer_size) {
@@ -59,7 +68,7 @@ void mcb_push(MultiChannelBuffer *mcb, uint8_t channel, uint32_t data) {
 uint32_t mcb_get_average(MultiChannelBuffer *mcb, uint8_t channel) {
     // 检查参数有效性
     if (!mcb || channel >= 8 || mcb->channels[channel].count == 0) {
-        return 0.0f;
+        return 0;
     }
     
     ChannelBuffer *cb = &mcb->channels[channel];
@@ -121,4 +130,4 @@ void mcb_destroy(MultiChannelBuffer *mcb) {
         free(mcb);
     }
 }
-    
+

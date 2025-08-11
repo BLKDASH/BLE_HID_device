@@ -19,7 +19,7 @@ void shutdown_task(void *pvParameter);
 void blink_task(void *pvParameter);
 void LED_flash_task(void *pvParameter);
 
-void gpio_read_task(void *pvParameter);
+
 void adc_read_task(void *pvParameter);
 void adc_aver_send(void *pvParameters);
 void gamepad_button_task(void *pvParameters);
