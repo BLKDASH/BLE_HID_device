@@ -9,7 +9,7 @@
 extern bool sec_conn;
 extern MultiChannelBuffer *mcb;
 
-static const char *TAG = "processing";
+// static const char *TAG = "processing";
 
 // 初始化多通道缓冲区
 MultiChannelBuffer* mcb_init(uint32_t buffer_size) {

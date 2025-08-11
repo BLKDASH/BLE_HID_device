@@ -22,6 +22,9 @@
 #include "esp_bt_device.h"
 #include "button_gpio.h"
 
+// 声明事件组句柄
+EventGroupHandle_t ble_event_group = NULL;
+
 // LED-----------------------------------------------------------------------------------------
 
 // New LED configuration options
@@ -102,6 +105,7 @@ static void continuous_adc_init(adc_channel_t *channel, uint8_t channel_num, adc
 
     adc_continuous_handle_cfg_t adc_config = {
         .max_store_buf_size = 1024,
+        //.max_store_buf_size = 1024,
         .conv_frame_size = EXAMPLE_READ_LEN,
     };
     ESP_ERROR_CHECK(adc_continuous_new_handle(&adc_config, &handle));
@@ -169,7 +173,7 @@ esp_err_t start_adc_sampling(void)
     return ESP_FAIL;
 }
 
-// 添加函数用于停止ADC采集
+// 停止ADC采集
 esp_err_t stop_adc_sampling(void)
 {
     if (ADC_init_handle != NULL && adc_running) {
@@ -615,6 +619,7 @@ static void init_gpio(void)
 #define HIDD_DEVICE_NAME "ESP32GamePad"
 uint16_t hid_conn_id = 0;
 bool sec_conn = false;
+
 // 原始广播数据包
 static uint8_t hidd_adv_data_raw[] = {
     0x02, ESP_BLE_AD_TYPE_FLAG, 0x06,             // Flags: LE General Discoverable Mode, BR/EDR Not Supported
@@ -680,6 +685,10 @@ static void hidd_event_callback(esp_hidd_cb_event_t event, esp_hidd_cb_param_t *
         ESP_LOGI("HIDDcallback", "ESP_HIDD_EVENT_BLE_CONNECT");
         // 记录连接id，后续要使用
         hid_conn_id = param->connect.conn_id;
+        // 在连接建立时停止ADC采样
+        ESP_LOGI("HIDDcallback", "Stopping ADC sampling during connection");
+
+        // stop_adc_sampling();
         break;
     }
     case ESP_HIDD_EVENT_BLE_DISCONNECT:
@@ -744,8 +753,12 @@ static void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param
             ESP_LOGE(HID_BLE_TAG, "fail reason = 0x%x", param->ble_security.auth_cmpl.fail_reason);
         }
         sec_conn = true;
+        // 连接稳定后重新启动ADC采样
+        ESP_LOGI(HID_BLE_TAG, "Starting ADC sampling after connection established");
+        // start_adc_sampling();
         // 添加短暂延迟，确保系统状态完全稳定后再允许ADC访问
         vTaskDelay(pdMS_TO_TICKS(50));
+
         break;
     default:
         break;
