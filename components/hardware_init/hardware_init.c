@@ -35,6 +35,8 @@ led_strip_handle_t led_strip = NULL;
 
 // XYAB按键事件组
 EventGroupHandle_t xyab_button_event_group = NULL;
+// 其他按键事件组
+EventGroupHandle_t other_button_event_group = NULL;
 
 static const char *TAG = "hardware_init";
 static led_strip_handle_t configure_led(void)
@@ -146,6 +148,23 @@ static adc_continuous_handle_t convert_adc_values(uint8_t arr[][AVERAGE_LEN], in
 
 // GPIO -----------------------------------------------------------------------------------------------------
 
+// XYAB按键事件位定义
+#define XYAB_KEY_X_PRESSED    (1 << 0)
+#define XYAB_KEY_Y_PRESSED    (1 << 1)
+#define XYAB_KEY_A_PRESSED    (1 << 2)
+#define XYAB_KEY_B_PRESSED    (1 << 3)
+
+// 其他按键事件位定义
+#define LEFT_JOYSTICK_BTN_PRESSED    (1 << 0)
+#define RIGHT_JOYSTICK_BTN_PRESSED   (1 << 1)
+#define LEFT_SHOULDER_BTN_PRESSED    (1 << 2)
+#define RIGHT_SHOULDER_BTN_PRESSED   (1 << 3)
+#define SELECT_BTN_PRESSED           (1 << 4)
+#define START_BTN_PRESSED            (1 << 5)
+#define IKEY_BTN_PRESSED             (1 << 6)
+#define IOS_BTN_PRESSED              (1 << 7)
+#define WINDOWS_BTN_PRESSED          (1 << 8)
+
 // XYAB按键回调函数
 static void key_x_pressed_cb(void *arg, void *usr_data)
 {
@@ -203,6 +222,133 @@ static void key_b_released_cb(void *arg, void *usr_data)
     }
 }
 
+// 其他按键回调函数
+static void left_joystick_btn_pressed_cb(void *arg, void *usr_data)
+{
+    if (other_button_event_group != NULL) {
+        xEventGroupSetBits(other_button_event_group, LEFT_JOYSTICK_BTN_PRESSED);
+    }
+}
+
+static void left_joystick_btn_released_cb(void *arg, void *usr_data)
+{
+    if (other_button_event_group != NULL) {
+        xEventGroupClearBits(other_button_event_group, LEFT_JOYSTICK_BTN_PRESSED);
+    }
+}
+
+static void right_joystick_btn_pressed_cb(void *arg, void *usr_data)
+{
+    if (other_button_event_group != NULL) {
+        xEventGroupSetBits(other_button_event_group, RIGHT_JOYSTICK_BTN_PRESSED);
+    }
+}
+
+static void right_joystick_btn_released_cb(void *arg, void *usr_data)
+{
+    if (other_button_event_group != NULL) {
+        xEventGroupClearBits(other_button_event_group, RIGHT_JOYSTICK_BTN_PRESSED);
+    }
+}
+
+static void left_shoulder_btn_pressed_cb(void *arg, void *usr_data)
+{
+    if (other_button_event_group != NULL) {
+        xEventGroupSetBits(other_button_event_group, LEFT_SHOULDER_BTN_PRESSED);
+    }
+}
+
+static void left_shoulder_btn_released_cb(void *arg, void *usr_data)
+{
+    if (other_button_event_group != NULL) {
+        xEventGroupClearBits(other_button_event_group, LEFT_SHOULDER_BTN_PRESSED);
+    }
+}
+
+static void right_shoulder_btn_pressed_cb(void *arg, void *usr_data)
+{
+    if (other_button_event_group != NULL) {
+        xEventGroupSetBits(other_button_event_group, RIGHT_SHOULDER_BTN_PRESSED);
+    }
+}
+
+static void right_shoulder_btn_released_cb(void *arg, void *usr_data)
+{
+    if (other_button_event_group != NULL) {
+        xEventGroupClearBits(other_button_event_group, RIGHT_SHOULDER_BTN_PRESSED);
+    }
+}
+
+static void select_btn_pressed_cb(void *arg, void *usr_data)
+{
+    if (other_button_event_group != NULL) {
+        xEventGroupSetBits(other_button_event_group, SELECT_BTN_PRESSED);
+    }
+}
+
+static void select_btn_released_cb(void *arg, void *usr_data)
+{
+    if (other_button_event_group != NULL) {
+        xEventGroupClearBits(other_button_event_group, SELECT_BTN_PRESSED);
+    }
+}
+
+static void start_btn_pressed_cb(void *arg, void *usr_data)
+{
+    if (other_button_event_group != NULL) {
+        xEventGroupSetBits(other_button_event_group, START_BTN_PRESSED);
+    }
+}
+
+static void start_btn_released_cb(void *arg, void *usr_data)
+{
+    if (other_button_event_group != NULL) {
+        xEventGroupClearBits(other_button_event_group, START_BTN_PRESSED);
+    }
+}
+
+static void ikey_btn_pressed_cb(void *arg, void *usr_data)
+{
+    if (other_button_event_group != NULL) {
+        xEventGroupSetBits(other_button_event_group, IKEY_BTN_PRESSED);
+    }
+}
+
+static void ikey_btn_released_cb(void *arg, void *usr_data)
+{
+    if (other_button_event_group != NULL) {
+        xEventGroupClearBits(other_button_event_group, IKEY_BTN_PRESSED);
+    }
+}
+
+static void ios_btn_pressed_cb(void *arg, void *usr_data)
+{
+    if (other_button_event_group != NULL) {
+        xEventGroupSetBits(other_button_event_group, IOS_BTN_PRESSED);
+    }
+}
+
+static void ios_btn_released_cb(void *arg, void *usr_data)
+{
+    if (other_button_event_group != NULL) {
+        xEventGroupClearBits(other_button_event_group, IOS_BTN_PRESSED);
+    }
+}
+
+static void windows_btn_pressed_cb(void *arg, void *usr_data)
+{
+    if (other_button_event_group != NULL) {
+        xEventGroupSetBits(other_button_event_group, WINDOWS_BTN_PRESSED);
+    }
+}
+
+static void windows_btn_released_cb(void *arg, void *usr_data)
+{
+    if (other_button_event_group != NULL) {
+        xEventGroupClearBits(other_button_event_group, WINDOWS_BTN_PRESSED);
+    }
+}
+
 // GPIO初始化
 static void init_gpio(void)
 {
@@ -211,6 +357,15 @@ static void init_gpio(void)
         xyab_button_event_group = xEventGroupCreate();
         if (xyab_button_event_group == NULL) {
             ESP_LOGE(TAG, "Failed to create XYAB button event group");
+            return;
+        }
+    }
+
+    // 创建其他按键事件组
+    if (other_button_event_group == NULL) {
+        other_button_event_group = xEventGroupCreate();
+        if (other_button_event_group == NULL) {
+            ESP_LOGE(TAG, "Failed to create other button event group");
             return;
         }
     }
@@ -274,20 +429,132 @@ static void init_gpio(void)
         iot_button_register_cb(gpio_btn_b, BUTTON_PRESS_UP, NULL, key_b_released_cb, NULL);
     }
 
+    // 初始化其他按键
+    // 左摇杆按键
+    const button_gpio_config_t btn_gpio_cfg_left_joystick = {
+        .gpio_num = GPIO_INPUT_LEFT_JOYSTICK_BTN,
+        .active_level = 0,
+    };
+    button_handle_t gpio_btn_left_joystick = NULL;
+    ret = iot_button_new_gpio_device(&btn_cfg, &btn_gpio_cfg_left_joystick, &gpio_btn_left_joystick);
+    if (ret != ESP_OK || gpio_btn_left_joystick == NULL) {
+        ESP_LOGE(TAG, "Failed to create left joystick button");
+    } else {
+        iot_button_register_cb(gpio_btn_left_joystick, BUTTON_PRESS_DOWN, NULL, left_joystick_btn_pressed_cb, NULL);
+        iot_button_register_cb(gpio_btn_left_joystick, BUTTON_PRESS_UP, NULL, left_joystick_btn_released_cb, NULL);
+    }
 
-    
-    // 其他按键仍使用原来的GPIO输入配置
-    gpio_config_t io_conf = {};
-    io_conf.intr_type = GPIO_INTR_DISABLE; // Disable interrupt
-    io_conf.mode = GPIO_MODE_INPUT;        // Set as input
-    // 详情查看init.h
-    io_conf.pin_bit_mask = BIT64(GPIO_INPUT_LEFT_JOYSTICK_BTN) | BIT64(GPIO_INPUT_RIGHT_JOYSTICK_BTN) |
-                           BIT64(GPIO_INPUT_LEFT_SHOULDER_BTN) | BIT64(GPIO_INPUT_RIGHT_SHOULDER_BTN) |
-                           BIT64(GPIO_INPUT_SELECT_BTN) | BIT64(GPIO_INPUT_START_BTN) | 
-                           BIT64(GPIO_INPUT_IKEY_BTN) | BIT64(GPIO_INPUT_IOS_BTN) | BIT64(GPIO_INPUT_WINDOWS_BTN);
-    io_conf.pull_down_en = false; // Disable pull-down
-    io_conf.pull_up_en = true;    // Enable pull-up
-    gpio_config(&io_conf);
+    // 右摇杆按键
+    const button_gpio_config_t btn_gpio_cfg_right_joystick = {
+        .gpio_num = GPIO_INPUT_RIGHT_JOYSTICK_BTN,
+        .active_level = 0,
+    };
+    button_handle_t gpio_btn_right_joystick = NULL;
+    ret = iot_button_new_gpio_device(&btn_cfg, &btn_gpio_cfg_right_joystick, &gpio_btn_right_joystick);
+    if (ret != ESP_OK || gpio_btn_right_joystick == NULL) {
+        ESP_LOGE(TAG, "Failed to create right joystick button");
+    } else {
+        iot_button_register_cb(gpio_btn_right_joystick, BUTTON_PRESS_DOWN, NULL, right_joystick_btn_pressed_cb, NULL);
+        iot_button_register_cb(gpio_btn_right_joystick, BUTTON_PRESS_UP, NULL, right_joystick_btn_released_cb, NULL);
+    }
+
+    // 左肩键
+    const button_gpio_config_t btn_gpio_cfg_left_shoulder = {
+        .gpio_num = GPIO_INPUT_LEFT_SHOULDER_BTN,
+        .active_level = 0,
+    };
+    button_handle_t gpio_btn_left_shoulder = NULL;
+    ret = iot_button_new_gpio_device(&btn_cfg, &btn_gpio_cfg_left_shoulder, &gpio_btn_left_shoulder);
+    if (ret != ESP_OK || gpio_btn_left_shoulder == NULL) {
+        ESP_LOGE(TAG, "Failed to create left shoulder button");
+    } else {
+        iot_button_register_cb(gpio_btn_left_shoulder, BUTTON_PRESS_DOWN, NULL, left_shoulder_btn_pressed_cb, NULL);
+        iot_button_register_cb(gpio_btn_left_shoulder, BUTTON_PRESS_UP, NULL, left_shoulder_btn_released_cb, NULL);
+    }
+
+    // 右肩键
+    const button_gpio_config_t btn_gpio_cfg_right_shoulder = {
+        .gpio_num = GPIO_INPUT_RIGHT_SHOULDER_BTN,
+        .active_level = 0,
+    };
+    button_handle_t gpio_btn_right_shoulder = NULL;
+    ret = iot_button_new_gpio_device(&btn_cfg, &btn_gpio_cfg_right_shoulder, &gpio_btn_right_shoulder);
+    if (ret != ESP_OK || gpio_btn_right_shoulder == NULL) {
+        ESP_LOGE(TAG, "Failed to create right shoulder button");
+    } else {
+        iot_button_register_cb(gpio_btn_right_shoulder, BUTTON_PRESS_DOWN, NULL, right_shoulder_btn_pressed_cb, NULL);
+        iot_button_register_cb(gpio_btn_right_shoulder, BUTTON_PRESS_UP, NULL, right_shoulder_btn_released_cb, NULL);
+    }
+
+    // SELECT按键
+    const button_gpio_config_t btn_gpio_cfg_select = {
+        .gpio_num = GPIO_INPUT_SELECT_BTN,
+        .active_level = 0,
+    };
+    button_handle_t gpio_btn_select = NULL;
+    ret = iot_button_new_gpio_device(&btn_cfg, &btn_gpio_cfg_select, &gpio_btn_select);
+    if (ret != ESP_OK || gpio_btn_select == NULL) {
+        ESP_LOGE(TAG, "Failed to create select button");
+    } else {
+        iot_button_register_cb(gpio_btn_select, BUTTON_PRESS_DOWN, NULL, select_btn_pressed_cb, NULL);
+        iot_button_register_cb(gpio_btn_select, BUTTON_PRESS_UP, NULL, select_btn_released_cb, NULL);
+    }
+
+    // START按键
+    const button_gpio_config_t btn_gpio_cfg_start = {
+        .gpio_num = GPIO_INPUT_START_BTN,
+        .active_level = 0,
+    };
+    button_handle_t gpio_btn_start = NULL;
+    ret = iot_button_new_gpio_device(&btn_cfg, &btn_gpio_cfg_start, &gpio_btn_start);
+    if (ret != ESP_OK || gpio_btn_start == NULL) {
+        ESP_LOGE(TAG, "Failed to create start button");
+    } else {
+        iot_button_register_cb(gpio_btn_start, BUTTON_PRESS_DOWN, NULL, start_btn_pressed_cb, NULL);
+        iot_button_register_cb(gpio_btn_start, BUTTON_PRESS_UP, NULL, start_btn_released_cb, NULL);
+    }
+
+    // IKEY按键
+    const button_gpio_config_t btn_gpio_cfg_ikey = {
+        .gpio_num = GPIO_INPUT_IKEY_BTN,
+        .active_level = 0,
+    };
+    button_handle_t gpio_btn_ikey = NULL;
+    ret = iot_button_new_gpio_device(&btn_cfg, &btn_gpio_cfg_ikey, &gpio_btn_ikey);
+    if (ret != ESP_OK || gpio_btn_ikey == NULL) {
+        ESP_LOGE(TAG, "Failed to create ikey button");
+    } else {
+        iot_button_register_cb(gpio_btn_ikey, BUTTON_PRESS_DOWN, NULL, ikey_btn_pressed_cb, NULL);
+        iot_button_register_cb(gpio_btn_ikey, BUTTON_PRESS_UP, NULL, ikey_btn_released_cb, NULL);
+    }
+
+    // IOS按键
+    const button_gpio_config_t btn_gpio_cfg_ios = {
+        .gpio_num = GPIO_INPUT_IOS_BTN,
+        .active_level = 0,
+    };
+    button_handle_t gpio_btn_ios = NULL;
+    ret = iot_button_new_gpio_device(&btn_cfg, &btn_gpio_cfg_ios, &gpio_btn_ios);
+    if (ret != ESP_OK || gpio_btn_ios == NULL) {
+        ESP_LOGE(TAG, "Failed to create ios button");
+    } else {
+        iot_button_register_cb(gpio_btn_ios, BUTTON_PRESS_DOWN, NULL, ios_btn_pressed_cb, NULL);
+        iot_button_register_cb(gpio_btn_ios, BUTTON_PRESS_UP, NULL, ios_btn_released_cb, NULL);
+    }
+
+    // Windows按键
+    const button_gpio_config_t btn_gpio_cfg_windows = {
+        .gpio_num = GPIO_INPUT_WINDOWS_BTN,
+        .active_level = 0,
+    };
+    button_handle_t gpio_btn_windows = NULL;
+    ret = iot_button_new_gpio_device(&btn_cfg, &btn_gpio_cfg_windows, &gpio_btn_windows);
+    if (ret != ESP_OK || gpio_btn_windows == NULL) {
+        ESP_LOGE(TAG, "Failed to create windows button");
+    } else {
+        iot_button_register_cb(gpio_btn_windows, BUTTON_PRESS_DOWN, NULL, windows_btn_pressed_cb, NULL);
+        iot_button_register_cb(gpio_btn_windows, BUTTON_PRESS_UP, NULL, windows_btn_released_cb, NULL);
+    }
 }
 // BLE --------------------------------------------------------------------------------------------------------------------
 

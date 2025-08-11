@@ -31,7 +31,6 @@
 // todo:断连后重新连接，会导致崩溃（adc 缓冲区无法读取）
 // todo:把按键注册为 iot button
 // todo:重新组织代码结构
-// todo:开辟 EEPROM 空间
 
 #define HID_TASK_TAG "TASKinfo"
 // adc多通道均值缓冲区
@@ -114,7 +113,7 @@ void app_main(void)
             xTaskCreatePinnedToCore(joystick_calibration_task, "calibration_task", 4096, NULL, 5, NULL, 1);
             
             // 创建XYAB按键状态监控任务
-            xTaskCreatePinnedToCore(xyab_button_monitor_task, "xyab_button_monitor", 2048, NULL, 5, NULL, 1);
+            // xTaskCreatePinnedToCore(xyab_button_monitor_task, "xyab_button_monitor", 2048, NULL, 5, NULL, 1);
 
             while (1)
             {
@@ -143,6 +142,7 @@ void app_main(void)
         else
         {
             ESP_LOGI("STARTUP", "startup fail");
+            vTaskDelay(pdMS_TO_TICKS(500));
             SLEEP();
         }
     }
@@ -211,7 +211,6 @@ void SLEEP(void)
 {
     current_device_state = DEVICE_STATE_SLEEP;
     ESP_LOGI("SLEEP", "Sleeping...");
-    // setLED函数同时会影响IO12单LED的初始化
     vTaskDelay(pdMS_TO_TICKS(50));
     while (gpio_get_level(GPIO_INPUT_HOME_BTN) == BUTTON_HOME_PRESSED)
     {
@@ -226,9 +225,8 @@ void SLEEP(void)
     // 关闭adc
     // adc_continuous_deinit(ADC_init_handle);
 
-    // 下拉输出powerkeep0，拉低电源保持，阻塞式不断执行直到电源断电为止
-    while (1)
-    {
+    // 下拉输出powerkeep0，拉低电源保持。如果是电池状态，此时已经关断电源。如果是充电状态，那么下拉也没用，直接进入深度睡眠，等待 HOME 按键唤醒
+    for (int i = 0; i < 2; i++) {
         gpio_config_t io_conf = {};
         io_conf.intr_type = GPIO_INTR_DISABLE;
         io_conf.mode = GPIO_MODE_OUTPUT;
@@ -239,6 +237,12 @@ void SLEEP(void)
 
         gpio_set_level(GPIO_OUTPUT_POWER_KEEP_IO, 0);
     }
+
+    // 配置HOME按键为唤醒源，检测上升沿唤醒
+    esp_sleep_enable_ext0_wakeup(GPIO_INPUT_HOME_BTN, 1); // 1表示高电平唤醒
+
+    // 进入深度睡眠
+    esp_deep_sleep_start();
 }
 
 // -------------------------------------------------------------------- TASK -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -725,14 +729,29 @@ void xyab_button_monitor_task(void *pvParameter)
         // 等待100ms
         vTaskDelay(pdMS_TO_TICKS(100));
         
-        // 读取事件组状态
-        EventBits_t bits = xEventGroupGetBits(xyab_button_event_group);
+        // 读取XYAB按键事件组状态
+        EventBits_t xyab_bits = xEventGroupGetBits(xyab_button_event_group);
         
-        // 打印按键状态
-        ESP_LOGI("XYAB_MONITOR", "Key States: X=%s, Y=%s, A=%s, B=%s",
-                 (bits & XYAB_KEY_X_PRESSED) ? "PRESSED" : "RELEASED",
-                 (bits & XYAB_KEY_Y_PRESSED) ? "PRESSED" : "RELEASED",
-                 (bits & XYAB_KEY_A_PRESSED) ? "PRESSED" : "RELEASED",
-                 (bits & XYAB_KEY_B_PRESSED) ? "PRESSED" : "RELEASED");
+        // 打印XYAB按键状态
+        ESP_LOGI("XYAB_MONITOR", "XYAB Key States: X=%s, Y=%s, A=%s, B=%s",
+                 (xyab_bits & XYAB_KEY_X_PRESSED) ? "1" : "0",
+                 (xyab_bits & XYAB_KEY_Y_PRESSED) ? "1" : "0",
+                 (xyab_bits & XYAB_KEY_A_PRESSED) ? "1" : "0",
+                 (xyab_bits & XYAB_KEY_B_PRESSED) ? "1" : "0");
+        
+        // 读取其他按键事件组状态
+        EventBits_t other_bits = xEventGroupGetBits(other_button_event_group);
+        
+        // 打印其他按键状态
+        ESP_LOGI("OTHER_MONITOR", "Other Key States: LJS=%s, RJS=%s, LS=%s, RS=%s, SEL=%s, STA=%s, IKEY=%s, IOS=%s, WIN=%s",
+                 (other_bits & LEFT_JOYSTICK_BTN_PRESSED) ? "1" : "0",
+                 (other_bits & RIGHT_JOYSTICK_BTN_PRESSED) ? "1" : "0",
+                 (other_bits & LEFT_SHOULDER_BTN_PRESSED) ? "1" : "0",
+                 (other_bits & RIGHT_SHOULDER_BTN_PRESSED) ? "1" : "0",
+                 (other_bits & SELECT_BTN_PRESSED) ? "1" : "0",
+                 (other_bits & START_BTN_PRESSED) ? "1" : "0",
+                 (other_bits & IKEY_BTN_PRESSED) ? "1" : "0",
+                 (other_bits & IOS_BTN_PRESSED) ? "1" : "0",
+                 (other_bits & WINDOWS_BTN_PRESSED) ? "1" : "0");
     }
 }
