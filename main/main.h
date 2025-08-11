@@ -22,9 +22,10 @@ void LED_flash_task(void *pvParameter);
 
 void adc_read_task(void *pvParameter);
 void adc_aver_send(void *pvParameters);
-void gamepad_button_task(void *pvParameters);
+void gamepad_packet_send_task(void *pvParameters);
 void joystick_calibration_task(void *pvParameter);
 void all_buttons_monitor_task(void *pvParameter);
+void update_buttons_packet(void);
 
 // 全局变量声明
 extern bool led_running;

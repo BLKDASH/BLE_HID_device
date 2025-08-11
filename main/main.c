@@ -101,8 +101,8 @@ void app_main(void)
 
             // LED任务
             led_flash_semaphore = xSemaphoreCreateBinary();
-            xTaskCreatePinnedToCore(blink_task, "blink_task", 2048, NULL, 5, NULL, 1);
-            xTaskCreatePinnedToCore(LED_flash_task, "LED_flash_task", 2048, NULL, 5, NULL, 1);
+            xTaskCreatePinnedToCore(blink_task, "blink_task", 4096, NULL, 5, NULL, 1);
+            xTaskCreatePinnedToCore(LED_flash_task, "LED_flash_task", 4096, NULL, 5, NULL, 1);
             // 先闪灯，让用户以为开机了
             while (gpio_get_level(GPIO_INPUT_HOME_BTN) == BUTTON_HOME_PRESSED)
             {
@@ -128,7 +128,7 @@ void app_main(void)
             // 可以是低优先级，反正每次处理的都是最新数据
             xTaskCreatePinnedToCore(adc_aver_send, "adc_aver_send", 2048, NULL, 6, NULL, 1);
             // 模拟手柄任务
-            xTaskCreatePinnedToCore(gamepad_button_task, "gamepad_button_task", 4096, NULL, 8, NULL, 1);
+            xTaskCreatePinnedToCore(gamepad_packet_send_task, "gamepad_packet_send_task", 4096, NULL, 8, NULL, 1);
             // 使命完成，删除自己
             vTaskDelete(NULL);
         }
@@ -531,7 +531,7 @@ void adc_aver_send(void *pvParameters)
     }
 }
 
-void gamepad_button_task(void *pvParameters)
+void gamepad_packet_send_task(void *pvParameters)
 {
 
     for (;;)
@@ -539,6 +539,14 @@ void gamepad_button_task(void *pvParameters)
         if (sec_conn)
         {
             vTaskDelay(pdMS_TO_TICKS(80));
+
+            // 打印游戏手柄报告缓冲区内容
+            for (int i = 0; i < HID_GAMEPAD_STICK_IN_RPT_LEN; i++)
+            {
+                printf("%02X ", gamepad_report_buffer[i]);
+            }
+            printf("\r\n");
+
             esp_hidd_send_gamepad_report(hid_conn_id);
         }
         else
@@ -689,10 +697,29 @@ void all_buttons_monitor_task(void *pvParameter)
     {
         // 等待100ms
         vTaskDelay(pdMS_TO_TICKS(100));
-
+        uint8_t xyab_button_value = 0;
         // 读取XYAB按键事件组状态
         EventBits_t xyab_bits = xEventGroupGetBits(xyab_button_event_group);
+        if (xyab_bits & XYAB_KEY_X_PRESSED)
+        {
+            xyab_button_value |= 0x08; // X 按下
+        }
+        if (xyab_bits & XYAB_KEY_Y_PRESSED)
+        {
+            xyab_button_value |= 0x10; // Y 按下
+        }
+        if (xyab_bits & XYAB_KEY_A_PRESSED)
+        {
+            xyab_button_value |= 0x01; // A 按下
+        }
+        if (xyab_bits & XYAB_KEY_B_PRESSED)
+        {
+            xyab_button_value |= 0x02; // B 按下
+        }
 
+        // 更新 gamepad_report_buffer[5]
+        gamepad_report_buffer[5] = xyab_button_value;
+        
         // 打印XYAB按键状态
         // ESP_LOGI("XYAB_MONITOR", "XYAB Key States: X=%s, Y=%s, A=%s, B=%s",
         //          (xyab_bits & XYAB_KEY_X_PRESSED) ? "1" : "0",
@@ -702,20 +729,21 @@ void all_buttons_monitor_task(void *pvParameter)
 
         // 读取其他按键事件组状态
         EventBits_t other_bits = xEventGroupGetBits(other_button_event_group);
+
         // 未进入 calibration 模式才执行
         if (js_calibration_running == false)
         {
             // 打印其他按键状态
-            ESP_LOGI("OTHER_MONITOR", "Other Key States: LJS=%s, RJS=%s, LS=%s, RS=%s, SEL=%s, STA=%s, IKEY=%s, IOS=%s, WIN=%s",
-                     (other_bits & LEFT_JOYSTICK_BTN_PRESSED) ? "1" : "0",
-                     (other_bits & RIGHT_JOYSTICK_BTN_PRESSED) ? "1" : "0",
-                     (other_bits & LEFT_SHOULDER_BTN_PRESSED) ? "1" : "0",
-                     (other_bits & RIGHT_SHOULDER_BTN_PRESSED) ? "1" : "0",
-                     (other_bits & SELECT_BTN_PRESSED) ? "1" : "0",
-                     (other_bits & START_BTN_PRESSED) ? "1" : "0",
-                     (other_bits & IKEY_BTN_PRESSED) ? "1" : "0",
-                     (other_bits & IOS_BTN_PRESSED) ? "1" : "0",
-                     (other_bits & WINDOWS_BTN_PRESSED) ? "1" : "0");
+            // ESP_LOGI("OTHER_MONITOR", "Other Key States: LJS=%s, RJS=%s, LS=%s, RS=%s, SEL=%s, STA=%s, IKEY=%s, IOS=%s, WIN=%s",
+            //          (other_bits & LEFT_JOYSTICK_BTN_PRESSED) ? "1" : "0",
+            //          (other_bits & RIGHT_JOYSTICK_BTN_PRESSED) ? "1" : "0",
+            //          (other_bits & LEFT_SHOULDER_BTN_PRESSED) ? "1" : "0",
+            //          (other_bits & RIGHT_SHOULDER_BTN_PRESSED) ? "1" : "0",
+            //          (other_bits & SELECT_BTN_PRESSED) ? "1" : "0",
+            //          (other_bits & START_BTN_PRESSED) ? "1" : "0",
+            //          (other_bits & IKEY_BTN_PRESSED) ? "1" : "0",
+            //          (other_bits & IOS_BTN_PRESSED) ? "1" : "0",
+            //          (other_bits & WINDOWS_BTN_PRESSED) ? "1" : "0");
 
             if ((other_bits & SELECT_BTN_PRESSED) && (other_bits & START_BTN_PRESSED))
             {
@@ -751,4 +779,15 @@ void all_buttons_monitor_task(void *pvParameter)
             }
         }
     }
+}
+
+void update_buttons_packet()
+{
+    // 初始化 gamepad_report_buffer[5] 为 0
+    
+
+    // 读取XYAB按键事件组状态
+    EventBits_t xyab_bits = xEventGroupGetBits(xyab_button_event_group);
+
+    // 根据按键状态更新 xyab_button_value
 }

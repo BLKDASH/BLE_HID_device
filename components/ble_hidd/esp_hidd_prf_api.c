@@ -20,7 +20,7 @@
 #define HID_CC_IN_RPT_LEN 3
 
 // 全局游戏手柄报告缓冲区定义
-uint8_t gamepad_report_buffer[HID_GAMEPAD_STICK_IN_RPT_LEN] = {0};
+uint8_t gamepad_report_buffer[HID_GAMEPAD_STICK_IN_RPT_LEN] = {128,128,128,128,255,0,};
 
 
 
@@ -136,16 +136,7 @@ uint16_t esp_hidd_get_version(void)
 
 void esp_hidd_send_gamepad_report(uint16_t conn_id)
 {
-    gamepad_report_buffer[0] = 128;
-    gamepad_report_buffer[1] = 128;
-    gamepad_report_buffer[2] = 128;
-    gamepad_report_buffer[3] = 128;
-    gamepad_report_buffer[4] = 255;
-    gamepad_report_buffer[5] = 0;
-    gamepad_report_buffer[6] = 0;
-    gamepad_report_buffer[7] = 0;
-    gamepad_report_buffer[8] = 0;
-    gamepad_report_buffer[9] = 0;
+
 
 
     hid_dev_send_report(hidd_le_env.gatt_if, conn_id,
