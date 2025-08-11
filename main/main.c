@@ -261,12 +261,14 @@ void shutdown_task(void *pvParameter)
 
 void blink_task(void *pvParameter)
 {
+    // 记录 LED 亮灭的标志位
     bool led_on_off = true;
+    // 记录 LED 环闪的索引
     int led_ring = 0;
-    setLED(0, 0, 0, 0);
-    setLED(1, 0, 0, 0);
-    setLED(2, 0, 0, 0);
-    setLED(3, 0, 0, 0);
+    for (int i = 0; i < 4; i++)
+    {
+        setLED(i, 0, 0, 0);
+    }
     led_running = true;
     while (led_running)
     {
@@ -486,36 +488,65 @@ void adc_read_task(void *pvParameter)
     adc_running = true;
 
     // 连上了才读，否则会这是一个ESP32的Cache error错误，具体原因是"Cache disabled but cached memory region accessed"（缓存被禁用但访问了缓存内存区域）。从回溯信息看，错误发生在BLE连接过程中，当尝试读取ADC数据时触发。触发时机：在BLE连接事件(ESP_HIDD_EVENT_BLE_CONNECT)处理过程中。根本原因：中断处理程序中访问了被缓存的内存区域，而此时缓存已被禁用
+    // 增加额外的状态稳定检查，确保连接完全稳定后再读取ADC
+    bool conn_stable = false;
+    uint32_t conn_time = 0;
+
     while (adc_running)
     {
         // 只有在已连接状态下才读取ADC数据
         if (sec_conn)
         {
-            vTaskDelay(pdMS_TO_TICKS(20));
-            // 读取256个数据
-            ret = adc_continuous_read(ADC_init_handle, bufferADC, EXAMPLE_READ_LEN, &ret_num, 0);
-            if (ret == ESP_OK)
+            // 检查连接是否稳定，避免在连接刚建立时就读取ADC数据
+            if (!conn_stable)
             {
-                // ESP_LOGI("TASK", "ret is %x, ret_num is %" PRIu32 " bytes", ret, ret_num);
-                // 每个ADC采样结果包含多个字节（通常是4字节），包含了通道号和采样值等信息。
-                for (int i = 0; i < ret_num; i += SOC_ADC_DIGI_RESULT_BYTES)
+                if (conn_time == 0)
                 {
-                    adc_digi_output_data_t *p = (adc_digi_output_data_t *)&bufferADC[i];
-                    uint8_t chan_num = (uint8_t)EXAMPLE_ADC_GET_CHANNEL(p);
-                    uint32_t data = EXAMPLE_ADC_GET_DATA(p);
-                    // float voltage = (float)data * 3.3 / 4095.0;
-                    // 推入 mcb
-                    mcb_push(mcb, chan_num, data);
+                    conn_time = xTaskGetTickCount();
+                }
+                else if ((xTaskGetTickCount() - conn_time) > pdMS_TO_TICKS(100))
+                {
+                    // 连接稳定超过100ms，可以安全读取ADC
+                    conn_stable = true;
+                    conn_time = 0;
                 }
             }
-            else if (ret != ESP_ERR_TIMEOUT)
+
+            if (conn_stable)
             {
-                ESP_LOGE("ADCtask", "ADC read failed with error: %d", ret);
+                vTaskDelay(pdMS_TO_TICKS(20));
+                // 读取256个数据
+                ret = adc_continuous_read(ADC_init_handle, bufferADC, EXAMPLE_READ_LEN, &ret_num, 0);
+                if (ret == ESP_OK)
+                {
+                    // ESP_LOGI("TASK", "ret is %x, ret_num is %" PRIu32 " bytes", ret, ret_num);
+                    // 每个ADC采样结果包含多个字节（通常是4字节），包含了通道号和采样值等信息。
+                    for (int i = 0; i < ret_num; i += SOC_ADC_DIGI_RESULT_BYTES)
+                    {
+                        adc_digi_output_data_t *p = (adc_digi_output_data_t *)&bufferADC[i];
+                        uint8_t chan_num = (uint8_t)EXAMPLE_ADC_GET_CHANNEL(p);
+                        uint32_t data = EXAMPLE_ADC_GET_DATA(p);
+                        // float voltage = (float)data * 3.3 / 4095.0;
+                        // 推入 mcb
+                        mcb_push(mcb, chan_num, data);
+                    }
+                }
+                else if (ret != ESP_ERR_TIMEOUT)
+                {
+                    ESP_LOGE("ADCtask", "ADC read failed with error: %d", ret);
+                }
+            }
+            else
+            {
+                // 连接尚未稳定，短暂延迟
+                vTaskDelay(pdMS_TO_TICKS(10));
             }
         }
         else
         {
             // 如果未连接，则短暂延迟
+            conn_stable = false; // 重置连接稳定状态
+            conn_time = 0;       // 重置连接时间
             vTaskDelay(pdMS_TO_TICKS(100));
         }
     }
@@ -632,47 +663,49 @@ void joystick_calibration_task(void *pvParameter)
             current_device_state = DEVICE_STATE_SLEEP;
             // 等待用户松手
             vTaskDelay(pdMS_TO_TICKS(1500));
-            
+
             // 获取稳定值作为中心点
-            uint32_t center_sum[4] = {0, 0, 0, 0};  // 用于累加各通道值
-            uint32_t center_count = 0;              // 采样次数
-            
+            uint32_t center_sum[4] = {0, 0, 0, 0}; // 用于累加各通道值
+            uint32_t center_count = 0;             // 采样次数
+
             start_time = xTaskGetTickCount();
             duration_ticks = pdMS_TO_TICKS(3000); // 3秒
             while ((xTaskGetTickCount() - start_time) < duration_ticks)
             {
                 mcb_get_all_averages(mcb, all_avg);
-                
+
                 // 累加各通道值
-                for (int i = 0; i < 4; i++) {
+                for (int i = 0; i < 4; i++)
+                {
                     center_sum[i] += all_avg[i];
                 }
                 center_count++;
-                
+
                 vTaskDelay(pdMS_TO_TICKS(10)); // 稍微延时以避免占用过多CPU
             }
-            
+
             // 计算平均值作为中心点
-            if (center_count > 0) {
+            if (center_count > 0)
+            {
                 // all_avg[0] 对应右摇杆Y轴 -> center_y
                 right_joystick_cal_data.center_y = center_sum[0] / center_count;
-                
+
                 // all_avg[1] 对应右摇杆X轴 -> center_x
                 right_joystick_cal_data.center_x = center_sum[1] / center_count;
-                
+
                 // all_avg[2] 对应左摇杆Y轴 -> center_y
                 left_joystick_cal_data.center_y = center_sum[2] / center_count;
-                
+
                 // all_avg[3] 对应左摇杆X轴 -> center_x
                 left_joystick_cal_data.center_x = center_sum[3] / center_count;
-                
+
                 // 更新存储到NVS中的校准数据
                 store_joystick_calibration_data(1, &right_joystick_cal_data); // 右摇杆ID=1
                 store_joystick_calibration_data(0, &left_joystick_cal_data);  // 左摇杆ID=0
-                
-                ESP_LOGI("CALIBRATION", "右摇杆中心点: X=%lu, Y=%lu", 
+
+                ESP_LOGI("CALIBRATION", "右摇杆中心点: X=%lu, Y=%lu",
                          right_joystick_cal_data.center_x, right_joystick_cal_data.center_y);
-                ESP_LOGI("CALIBRATION", "左摇杆中心点: X=%lu, Y=%lu", 
+                ESP_LOGI("CALIBRATION", "左摇杆中心点: X=%lu, Y=%lu",
                          left_joystick_cal_data.center_x, left_joystick_cal_data.center_y);
             }
 

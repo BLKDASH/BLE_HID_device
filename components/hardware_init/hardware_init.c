@@ -294,6 +294,8 @@ static void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param
             ESP_LOGE(HID_BLE_TAG, "fail reason = 0x%x", param->ble_security.auth_cmpl.fail_reason);
         }
         sec_conn = true;
+        // 添加短暂延迟，确保系统状态完全稳定后再允许ADC访问
+        vTaskDelay(pdMS_TO_TICKS(50));
         break;
     default:
         break;
