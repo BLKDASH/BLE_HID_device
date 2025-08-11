@@ -571,7 +571,7 @@ void joystick_calibration_task(void *pvParameter)
         {
             ESP_LOGI("CALIBRATION", "开始摇杆校准");
             // 保存当前设备状态，以便校准结束后恢复
-            device_state_t prev_state = current_device_state;
+            // device_state_t prev_state = current_device_state;
             current_device_state = DEVICE_STATE_CALI_START;
             vTaskDelay(pdMS_TO_TICKS(1000));
             current_device_state = DEVICE_STATE_CALI_RING;
@@ -627,8 +627,55 @@ void joystick_calibration_task(void *pvParameter)
             store_joystick_calibration_data(0, &left_joystick_cal_data);  // 左摇杆ID=0
 
             current_device_state = DEVICE_STATE_CALI_DONE;
+            vTaskDelay(pdMS_TO_TICKS(1000));
+            // 关灯
+            current_device_state = DEVICE_STATE_SLEEP;
+            // 等待用户松手
+            vTaskDelay(pdMS_TO_TICKS(1500));
+            
+            // 获取稳定值作为中心点
+            uint32_t center_sum[4] = {0, 0, 0, 0};  // 用于累加各通道值
+            uint32_t center_count = 0;              // 采样次数
+            
+            start_time = xTaskGetTickCount();
+            duration_ticks = pdMS_TO_TICKS(3000); // 3秒
+            while ((xTaskGetTickCount() - start_time) < duration_ticks)
+            {
+                mcb_get_all_averages(mcb, all_avg);
+                
+                // 累加各通道值
+                for (int i = 0; i < 4; i++) {
+                    center_sum[i] += all_avg[i];
+                }
+                center_count++;
+                
+                vTaskDelay(pdMS_TO_TICKS(10)); // 稍微延时以避免占用过多CPU
+            }
+            
+            // 计算平均值作为中心点
+            if (center_count > 0) {
+                // all_avg[0] 对应右摇杆Y轴 -> center_y
+                right_joystick_cal_data.center_y = center_sum[0] / center_count;
+                
+                // all_avg[1] 对应右摇杆X轴 -> center_x
+                right_joystick_cal_data.center_x = center_sum[1] / center_count;
+                
+                // all_avg[2] 对应左摇杆Y轴 -> center_y
+                left_joystick_cal_data.center_y = center_sum[2] / center_count;
+                
+                // all_avg[3] 对应左摇杆X轴 -> center_x
+                left_joystick_cal_data.center_x = center_sum[3] / center_count;
+                
+                // 更新存储到NVS中的校准数据
+                store_joystick_calibration_data(1, &right_joystick_cal_data); // 右摇杆ID=1
+                store_joystick_calibration_data(0, &left_joystick_cal_data);  // 左摇杆ID=0
+                
+                ESP_LOGI("CALIBRATION", "右摇杆中心点: X=%lu, Y=%lu", 
+                         right_joystick_cal_data.center_x, right_joystick_cal_data.center_y);
+                ESP_LOGI("CALIBRATION", "左摇杆中心点: X=%lu, Y=%lu", 
+                         left_joystick_cal_data.center_x, left_joystick_cal_data.center_y);
+            }
 
-            current_device_state = prev_state;
             xSemaphoreGive(calibration_semaphore); // 归还信号量，等待下一次校准
         }
     }
