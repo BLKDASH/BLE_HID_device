@@ -193,8 +193,8 @@ esp_err_t store_joystick_calibration_data(uint8_t joystick_id, const joystick_ca
     }
 
     // 摇杆生成键名，joystick_0或1
-    char base_key[20];
-    snprintf(base_key, sizeof(base_key), "joystick_%d", joystick_id);
+    char base_key[10];
+    snprintf(base_key, sizeof(base_key), "js_%d", joystick_id);
 
     // 存储中心点
     // 生成具体键名：joystick_0_center_x
@@ -307,8 +307,8 @@ esp_err_t read_joystick_calibration_data(uint8_t joystick_id, joystick_calibrati
     }
 
     // 生成键名
-    char base_key[20];
-    snprintf(base_key, sizeof(base_key), "joystick_%d", joystick_id);
+    char base_key[10];
+    snprintf(base_key, sizeof(base_key), "js_%d", joystick_id);
 
     // 读取中心点
     char center_x_key[30];

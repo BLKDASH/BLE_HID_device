@@ -16,6 +16,8 @@
 #include "hid_dev.h"
 
 #include "esp_timer.h"
+#include "esp_bt_main.h"
+#include "esp_bt.h"
 
 #include "main.h"
 
@@ -53,6 +55,7 @@ SemaphoreHandle_t calibration_semaphore = NULL;
 
 bool led_running = false;
 bool adc_running = false;
+bool js_calibration_running = false;
 
 // 摇杆校准数据
 joystick_calibration_data_t left_joystick_cal_data;
@@ -82,7 +85,6 @@ void app_main(void)
             mcb = mcb_init(10);
             init_all(); // 初始化除了HOME按键之外的外设
 
-            
             // stop_adc_sampling();
 
             // 读取开机次数
@@ -116,26 +118,19 @@ void app_main(void)
             xTaskCreatePinnedToCore(joystick_calibration_task, "calibration_task", 8192, NULL, 10, NULL, 1);
 
             // 创建XYAB按键状态监控任务
-            // xTaskCreatePinnedToCore(xyab_button_monitor_task, "xyab_button_monitor", 2048, NULL, 5, NULL, 1);
-
+            xTaskCreatePinnedToCore(xyab_button_monitor_task, "xyab_button_monitor", 2048, NULL, 5, NULL, 1);
 
             // （排查这里的缓存读取错误）
             //  高优先级保证实时性
             // 启动ADC采样
-            ESP_LOGW("main", "准备创建 adc 任务");
-            vTaskDelay(500);
+
             xTaskCreatePinnedToCore(adc_read_task, "adc_read_task", 8192, NULL, 7, NULL, 1);
             // 可以是低优先级，反正每次处理的都是最新数据
-            ESP_LOGW("main", "准备创建 adc 滤波任务");
-            vTaskDelay(500);
             xTaskCreatePinnedToCore(adc_aver_send, "adc_aver_send", 2048, NULL, 6, NULL, 1);
             // 模拟手柄任务
-            ESP_LOGW("main", "准备创建报文发送任务");
-            vTaskDelay(500);
             xTaskCreatePinnedToCore(gamepad_button_task, "gamepad_button_task", 4096, NULL, 9, NULL, 1);
             // 使命完成，删除自己
             vTaskDelete(NULL);
-
         }
         else
         {
@@ -437,24 +432,33 @@ void adc_read_task(void *pvParameters)
     static uint8_t writeIndex[ADC_CHANNEL_COUNT] = {0};
     // 用于追踪每个通道的数据计数
     static uint16_t count[ADC_CHANNEL_COUNT] = {0};
-    
+
     // 记录上一次的sec_conn状态
     bool last_sec_conn_state = false;
 
     while (1)
     {
+        // 该判断只在非校准模式下有效
+        if (js_calibration_running == false)
         // 只有在sec_conn状态发生变化时才调用start/stop函数
-        if(sec_conn != last_sec_conn_state) {
-            if(sec_conn) {
-                ESP_LOGI("adc_read_task", "Starting ADC sampling");
-                start_adc_sampling();
-            } else {
-                ESP_LOGI("adc_read_task", "Stopping ADC sampling");
-                stop_adc_sampling();
+        {
+            if (sec_conn != last_sec_conn_state)
+            {
+                if (sec_conn)
+                {
+                    // 连上了再开始初始化
+                    ESP_LOGI("adc_read_task", "Starting ADC sampling");
+                    start_adc_sampling();
+                }
+                else
+                {
+                    ESP_LOGI("adc_read_task", "Stopping ADC sampling");
+                    stop_adc_sampling();
+                }
+                last_sec_conn_state = sec_conn;
             }
-            last_sec_conn_state = sec_conn;
         }
-        
+
         // 从DMA缓冲区读取数据
         // esp_err_t ret = ESP_ERR_TIMEOUT;
         if (adc_running)
@@ -514,15 +518,16 @@ void adc_aver_send(void *pvParameters)
         // 当正在进行环形校准时不要进行此操作，防止耗时
         if (current_device_state != DEVICE_STATE_CALI_RING)
         {
-            mcb_get_all_averages(mcb, all_avg);
+            // mcb_get_all_averages(mcb, all_avg);
             // 此处可以直接认为，平均后的值为 ADC 的原始数据
-            printf("\r\n");
-            for (uint8_t i = 0; i < 8; i++)
-            {
-                printf("%ld  ", all_avg[i]);
-            }
+            // printf("\r\n");
+            // for (uint8_t i = 0; i < 8; i++)
+            // {
+            //     printf("%ld  ", all_avg[i]);
+            // }
             vTaskDelay(pdMS_TO_TICKS(40));
         }
+        vTaskDelay(pdMS_TO_TICKS(100));
     }
 }
 
@@ -550,6 +555,15 @@ void joystick_calibration_task(void *pvParameter)
     {
         if (xSemaphoreTake(calibration_semaphore, portMAX_DELAY) == pdTRUE)
         {
+            sec_conn = false;
+            // 失能蓝牙
+            esp_bluedroid_disable();
+            esp_bluedroid_deinit();
+            esp_bt_controller_disable();
+            esp_bt_controller_deinit();
+            vTaskDelay(1000);
+            js_calibration_running = true;
+            start_adc_sampling();
             ESP_LOGI("CALIBRATION", "开始摇杆校准");
             // 保存当前设备状态，以便校准结束后恢复
             // device_state_t prev_state = current_device_state;
@@ -666,6 +680,10 @@ void xyab_button_monitor_task(void *pvParameter)
 {
     ESP_LOGI("XYAB_MONITOR", "XYAB Button Monitor Task Started");
 
+    // 用于检测SELECT和START按键同时按下的计时
+    TickType_t press_start_time = 0;
+    bool calibration_triggered = false;
+
     while (1)
     {
         // 等待100ms
@@ -675,25 +693,59 @@ void xyab_button_monitor_task(void *pvParameter)
         EventBits_t xyab_bits = xEventGroupGetBits(xyab_button_event_group);
 
         // 打印XYAB按键状态
-        ESP_LOGI("XYAB_MONITOR", "XYAB Key States: X=%s, Y=%s, A=%s, B=%s",
-                 (xyab_bits & XYAB_KEY_X_PRESSED) ? "1" : "0",
-                 (xyab_bits & XYAB_KEY_Y_PRESSED) ? "1" : "0",
-                 (xyab_bits & XYAB_KEY_A_PRESSED) ? "1" : "0",
-                 (xyab_bits & XYAB_KEY_B_PRESSED) ? "1" : "0");
+        // ESP_LOGI("XYAB_MONITOR", "XYAB Key States: X=%s, Y=%s, A=%s, B=%s",
+        //          (xyab_bits & XYAB_KEY_X_PRESSED) ? "1" : "0",
+        //          (xyab_bits & XYAB_KEY_Y_PRESSED) ? "1" : "0",
+        //          (xyab_bits & XYAB_KEY_A_PRESSED) ? "1" : "0",
+        //          (xyab_bits & XYAB_KEY_B_PRESSED) ? "1" : "0");
 
         // 读取其他按键事件组状态
         EventBits_t other_bits = xEventGroupGetBits(other_button_event_group);
 
         // 打印其他按键状态
-        ESP_LOGI("OTHER_MONITOR", "Other Key States: LJS=%s, RJS=%s, LS=%s, RS=%s, SEL=%s, STA=%s, IKEY=%s, IOS=%s, WIN=%s",
-                 (other_bits & LEFT_JOYSTICK_BTN_PRESSED) ? "1" : "0",
-                 (other_bits & RIGHT_JOYSTICK_BTN_PRESSED) ? "1" : "0",
-                 (other_bits & LEFT_SHOULDER_BTN_PRESSED) ? "1" : "0",
-                 (other_bits & RIGHT_SHOULDER_BTN_PRESSED) ? "1" : "0",
-                 (other_bits & SELECT_BTN_PRESSED) ? "1" : "0",
-                 (other_bits & START_BTN_PRESSED) ? "1" : "0",
-                 (other_bits & IKEY_BTN_PRESSED) ? "1" : "0",
-                 (other_bits & IOS_BTN_PRESSED) ? "1" : "0",
-                 (other_bits & WINDOWS_BTN_PRESSED) ? "1" : "0");
+        // ESP_LOGI("OTHER_MONITOR", "Other Key States: LJS=%s, RJS=%s, LS=%s, RS=%s, SEL=%s, STA=%s, IKEY=%s, IOS=%s, WIN=%s",
+        //          (other_bits & LEFT_JOYSTICK_BTN_PRESSED) ? "1" : "0",
+        //          (other_bits & RIGHT_JOYSTICK_BTN_PRESSED) ? "1" : "0",
+        //          (other_bits & LEFT_SHOULDER_BTN_PRESSED) ? "1" : "0",
+        //          (other_bits & RIGHT_SHOULDER_BTN_PRESSED) ? "1" : "0",
+        //          (other_bits & SELECT_BTN_PRESSED) ? "1" : "0",
+        //          (other_bits & START_BTN_PRESSED) ? "1" : "0",
+        //          (other_bits & IKEY_BTN_PRESSED) ? "1" : "0",
+        //          (other_bits & IOS_BTN_PRESSED) ? "1" : "0",
+        //          (other_bits & WINDOWS_BTN_PRESSED) ? "1" : "0");
+
+        // xSemaphoreGive(calibration_semaphore);
+
+        if ((other_bits & SELECT_BTN_PRESSED) && (other_bits & START_BTN_PRESSED))
+        {
+            // 如果是初次检测到同时按下，记录开始时间
+            if (!calibration_triggered)
+            {
+                press_start_time = xTaskGetTickCount();
+                calibration_triggered = true;
+                ESP_LOGI("CALIBRATION", "SELECT and START buttons pressed, waiting for 3 seconds...");
+            }
+            // 如果已经按下一段时间，检查是否达到3秒
+            else if ((xTaskGetTickCount() - press_start_time) >= pdMS_TO_TICKS(3000))
+            {
+                ESP_LOGI("CALIBRATION", "SELECT and START buttons held for 3 seconds, triggering calibration...");
+                // 触发校准信号量
+                if (calibration_semaphore != NULL)
+                {
+                    xSemaphoreGive(calibration_semaphore);
+                }
+                // 重置状态以避免重复触发
+                calibration_triggered = false;
+            }
+        }
+        else
+        {
+            // 如果任何一个按键未按下，重置状态
+            if (calibration_triggered)
+            {
+                ESP_LOGI("CALIBRATION", "SELECT and START buttons released before 3 seconds");
+                calibration_triggered = false;
+            }
+        }
     }
 }
