@@ -242,7 +242,7 @@ void SLEEP(void)
 // 关机任务
 void shutdown_task(void *pvParameter)
 {
-    while (1)
+    for (;;)
     {
         // 判断关机信号量
         if (xSemaphoreTake(shutdown_semaphore, portMAX_DELAY) == pdTRUE)
@@ -405,7 +405,7 @@ void blink_task(void *pvParameter)
 void LED_flash_task(void *pvParameter)
 {
     // 这里不要去判断 led runing，万一来不及赋值，该任务就会被删除
-    while (1)
+    for (;;)
     {
         // 等待LED操作完成，一直阻塞直到信号量被释放
         if (xSemaphoreTake(led_flash_semaphore, portMAX_DELAY) == pdTRUE)
@@ -436,7 +436,7 @@ void adc_read_task(void *pvParameters)
     // 记录上一次的sec_conn状态
     bool last_sec_conn_state = false;
 
-    while (1)
+    for (;;)
     {
         // 该判断只在非校准模式下有效
         if (js_calibration_running == false)
@@ -513,7 +513,7 @@ void adc_read_task(void *pvParameters)
 void adc_aver_send(void *pvParameters)
 {
     uint32_t all_avg[8];
-    while (1)
+    for (;;)
     {
         // 当正在进行环形校准时不要进行此操作，防止耗时
         if (current_device_state != DEVICE_STATE_CALI_RING)
@@ -534,7 +534,7 @@ void adc_aver_send(void *pvParameters)
 void gamepad_button_task(void *pvParameters)
 {
 
-    while (1)
+    for (;;)
     {
         if (sec_conn)
         {
@@ -551,7 +551,7 @@ void gamepad_button_task(void *pvParameters)
 
 void joystick_calibration_task(void *pvParameter)
 {
-    while (1)
+    for (;;)
     {
         if (xSemaphoreTake(calibration_semaphore, portMAX_DELAY) == pdTRUE)
         {
@@ -685,7 +685,7 @@ void xyab_button_monitor_task(void *pvParameter)
     TickType_t press_start_time = 0;
     bool calibration_triggered = false;
 
-    while (1)
+    for (;;)
     {
         // 等待100ms
         vTaskDelay(pdMS_TO_TICKS(100));
@@ -704,18 +704,16 @@ void xyab_button_monitor_task(void *pvParameter)
         EventBits_t other_bits = xEventGroupGetBits(other_button_event_group);
 
         // 打印其他按键状态
-        // ESP_LOGI("OTHER_MONITOR", "Other Key States: LJS=%s, RJS=%s, LS=%s, RS=%s, SEL=%s, STA=%s, IKEY=%s, IOS=%s, WIN=%s",
-        //          (other_bits & LEFT_JOYSTICK_BTN_PRESSED) ? "1" : "0",
-        //          (other_bits & RIGHT_JOYSTICK_BTN_PRESSED) ? "1" : "0",
-        //          (other_bits & LEFT_SHOULDER_BTN_PRESSED) ? "1" : "0",
-        //          (other_bits & RIGHT_SHOULDER_BTN_PRESSED) ? "1" : "0",
-        //          (other_bits & SELECT_BTN_PRESSED) ? "1" : "0",
-        //          (other_bits & START_BTN_PRESSED) ? "1" : "0",
-        //          (other_bits & IKEY_BTN_PRESSED) ? "1" : "0",
-        //          (other_bits & IOS_BTN_PRESSED) ? "1" : "0",
-        //          (other_bits & WINDOWS_BTN_PRESSED) ? "1" : "0");
-
-        // xSemaphoreGive(calibration_semaphore);
+        ESP_LOGI("OTHER_MONITOR", "Other Key States: LJS=%s, RJS=%s, LS=%s, RS=%s, SEL=%s, STA=%s, IKEY=%s, IOS=%s, WIN=%s",
+                 (other_bits & LEFT_JOYSTICK_BTN_PRESSED) ? "1" : "0",
+                 (other_bits & RIGHT_JOYSTICK_BTN_PRESSED) ? "1" : "0",
+                 (other_bits & LEFT_SHOULDER_BTN_PRESSED) ? "1" : "0",
+                 (other_bits & RIGHT_SHOULDER_BTN_PRESSED) ? "1" : "0",
+                 (other_bits & SELECT_BTN_PRESSED) ? "1" : "0",
+                 (other_bits & START_BTN_PRESSED) ? "1" : "0",
+                 (other_bits & IKEY_BTN_PRESSED) ? "1" : "0",
+                 (other_bits & IOS_BTN_PRESSED) ? "1" : "0",
+                 (other_bits & WINDOWS_BTN_PRESSED) ? "1" : "0");
 
         if ((other_bits & SELECT_BTN_PRESSED) && (other_bits & START_BTN_PRESSED))
         {
