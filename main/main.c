@@ -507,8 +507,6 @@ void adc_read_task(void *pvParameters)
     }
 }
 
-
-
 static int32_t clamp(int32_t value, int32_t min, int32_t max)
 {
     if (value < min)
@@ -531,21 +529,25 @@ static int32_t safe_divide(int32_t numerator, int32_t denominator, int32_t defau
 // 摇杆值映射到 0~255 范围（中心对应127左右）
 static uint8_t map_joystick(int32_t raw, int32_t center, int32_t min, int32_t max)
 {
-    int32_t offset = raw - center;    // 计算相对于中心的偏移（可正可负）
-    int32_t deadzone = 50;            // 死区范围
-    
+    int32_t offset = raw - center; // 计算相对于中心的偏移（可正可负）
+    int32_t deadzone = 50;         // 死区范围
+
     // 如果在死区内，返回中心值127
-    if (offset >= -deadzone && offset <= deadzone) {
+    if (offset >= -deadzone && offset <= deadzone)
+    {
         return 127;
     }
-    
+
     // 调整偏移量，排除死区影响
-    if (offset > 0) {
+    if (offset > 0)
+    {
         offset -= deadzone;
-    } else {
+    }
+    else
+    {
         offset += deadzone;
     }
-    
+
     // 调整有效范围
     int32_t range_pos = max - center - deadzone; // 中心到最大值的有效范围（正向）
     int32_t range_neg = center - min - deadzone; // 中心到最小值的有效范围（负向）
@@ -602,21 +604,27 @@ void adc_aver_send_task(void *pvParameters)
                                                     left_joystick_cal_data.center_x,
                                                     left_joystick_cal_data.max_x,
                                                     left_joystick_cal_data.min_x);
-            
+
             // 处理扳机值 - 将ADC原始值(0-4095)映射到(255-0)
             // 左扳机所在的通道是all_avg[4]对应gamepad_report_buffer[8]
-            ESP_LOGI("Trigger", "%d     %d", all_avg[4],all_avg[5]);
+            // ESP_LOGI("Trigger", "%d     %d", all_avg[4],all_avg[5]);
 
-            if (all_avg[4] > 4095) {
+            if (all_avg[4] > 4095)
+            {
                 gamepad_report_buffer[8] = 0;
-            } else {
+            }
+            else
+            {
                 gamepad_report_buffer[8] = 255 - (all_avg[4] * 255 / 1489);
             }
-            
+
             // 右扳机all_avg[5]对应gamepad_report_buffer[7]
-            if (all_avg[5] > 4095) {
+            if (all_avg[5] > 4095)
+            {
                 gamepad_report_buffer[7] = 0;
-            } else {
+            }
+            else
+            {
                 gamepad_report_buffer[7] = 255 - (all_avg[5] * 255 / 1489);
             }
         }
@@ -811,11 +819,11 @@ void all_buttons_monitor_task(void *pvParameter)
         {
             xyab_button_value |= 0x02; // B 按下
         }
-        if (xyab_bits & LEFT_SHOULDER_BTN_PRESSED) 
+        if (xyab_bits & LEFT_SHOULDER_BTN_PRESSED)
         {
             xyab_button_value |= 0x40; // 左肩键按下
         }
-        if (xyab_bits & RIGHT_SHOULDER_BTN_PRESSED) 
+        if (xyab_bits & RIGHT_SHOULDER_BTN_PRESSED)
         {
             xyab_button_value |= 0x80; // 右肩键按下
         }

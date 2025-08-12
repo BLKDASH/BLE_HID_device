@@ -8,7 +8,7 @@
 #define HID_GAMEPAD_STICK_IN_RPT_LEN 10
 
 // 声明全局游戏手柄报告缓冲区
-extern uint8_t gamepad_report_buffer[HID_GAMEPAD_STICK_IN_RPT_LEN];
+extern volatile uint8_t gamepad_report_buffer[HID_GAMEPAD_STICK_IN_RPT_LEN];
 
 #ifdef __cplusplus
 extern "C" {
