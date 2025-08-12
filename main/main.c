@@ -602,6 +602,23 @@ void adc_aver_send_task(void *pvParameters)
                                                     left_joystick_cal_data.center_x,
                                                     left_joystick_cal_data.max_x,
                                                     left_joystick_cal_data.min_x);
+            
+            // 处理扳机值 - 将ADC原始值(0-4095)映射到(255-0)
+            // 左扳机所在的通道是all_avg[4]对应gamepad_report_buffer[8]
+            ESP_LOGI("Trigger", "%d     %d", all_avg[4],all_avg[5]);
+
+            if (all_avg[4] > 4095) {
+                gamepad_report_buffer[8] = 0;
+            } else {
+                gamepad_report_buffer[8] = 255 - (all_avg[4] * 255 / 1489);
+            }
+            
+            // 右扳机all_avg[5]对应gamepad_report_buffer[7]
+            if (all_avg[5] > 4095) {
+                gamepad_report_buffer[7] = 0;
+            } else {
+                gamepad_report_buffer[7] = 255 - (all_avg[5] * 255 / 1489);
+            }
         }
         vTaskDelay(pdMS_TO_TICKS(30));
     }
@@ -794,6 +811,14 @@ void all_buttons_monitor_task(void *pvParameter)
         {
             xyab_button_value |= 0x02; // B 按下
         }
+        if (xyab_bits & LEFT_SHOULDER_BTN_PRESSED) 
+        {
+            xyab_button_value |= 0x40; // 左肩键按下
+        }
+        if (xyab_bits & RIGHT_SHOULDER_BTN_PRESSED) 
+        {
+            xyab_button_value |= 0x80; // 右肩键按下
+        }
 
         // 更新 gamepad_report_buffer[5]
         gamepad_report_buffer[5] = xyab_button_value;
@@ -812,11 +837,9 @@ void all_buttons_monitor_task(void *pvParameter)
         if (js_calibration_running == false)
         {
             // 打印其他按键状态
-            // ESP_LOGI("OTHER_MONITOR", "Other Key States: LJS=%s, RJS=%s, LS=%s, RS=%s, SEL=%s, STA=%s, IKEY=%s, IOS=%s, WIN=%s",
+            // ESP_LOGI("OTHER_MONITOR", "Other Key States: LJS=%s, RJS=%s, SEL=%s, STA=%s, IKEY=%s, IOS=%s, WIN=%s",
             //          (other_bits & LEFT_JOYSTICK_BTN_PRESSED) ? "1" : "0",
             //          (other_bits & RIGHT_JOYSTICK_BTN_PRESSED) ? "1" : "0",
-            //          (other_bits & LEFT_SHOULDER_BTN_PRESSED) ? "1" : "0",
-            //          (other_bits & RIGHT_SHOULDER_BTN_PRESSED) ? "1" : "0",
             //          (other_bits & SELECT_BTN_PRESSED) ? "1" : "0",
             //          (other_bits & START_BTN_PRESSED) ? "1" : "0",
             //          (other_bits & IKEY_BTN_PRESSED) ? "1" : "0",
