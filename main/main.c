@@ -557,12 +557,12 @@ static uint8_t map_joystick(int32_t raw, int32_t center, int32_t min, int32_t ma
     if (offset >= 0)
     {
         // 正向偏移：映射到 127~255
-        scaled = 127 + safe_divide(offset * 128, range_pos, 128);
+        scaled = 128 + safe_divide(offset * 127, range_pos, 127);
     }
     else
     {
         // 负向偏移：映射到 0~127（取绝对值计算）
-        scaled = 127 - safe_divide((-offset) * 127, range_neg, 127);
+        scaled = 128 - safe_divide((-offset) * 128, range_neg, 128);
     }
 
     return (uint8_t)clamp(scaled, 0, 255); // 确保结果在 0~255 范围内
@@ -595,11 +595,10 @@ void adc_aver_send_task(void *pvParameters)
                                                     right_joystick_cal_data.max_y);
 
             // 右摇杆 X 轴（注意此处minmax反向）
-            gamepad_report_buffer[2] = clamp(256 - map_joystick(all_avg[1],
-                                                                right_joystick_cal_data.center_x,
-                                                                right_joystick_cal_data.min_x,
-                                                                right_joystick_cal_data.max_x),
-                                             0, 255);
+            gamepad_report_buffer[2] = 255 - map_joystick(all_avg[1],
+                                                          right_joystick_cal_data.center_x,
+                                                          right_joystick_cal_data.min_x,
+                                                          right_joystick_cal_data.max_x);
 
             // 左摇杆 Y 轴
             gamepad_report_buffer[1] = map_joystick(all_avg[2],
@@ -608,17 +607,16 @@ void adc_aver_send_task(void *pvParameters)
                                                     left_joystick_cal_data.max_y);
 
             // 左摇杆 X 轴（注意此处minmax反向）
-            gamepad_report_buffer[0] = clamp(256 - map_joystick(all_avg[3],
-                                                                right_joystick_cal_data.center_x,
-                                                                right_joystick_cal_data.min_x,
-                                                                right_joystick_cal_data.max_x),
-                                             0, 255);
+            gamepad_report_buffer[0] = 255 - map_joystick(all_avg[3],
+                                                          left_joystick_cal_data.center_x,
+                                                          left_joystick_cal_data.min_x,
+                                                          left_joystick_cal_data.max_x);
 
             // 处理扳机值 - 将ADC原始值(0-4095)映射到(255-0)
             // 左扳机所在的通道是all_avg[4]对应gamepad_report_buffer[8]
             // ESP_LOGI("Trigger", "%d     %d", all_avg[4],all_avg[5]);
 
-            if (all_avg[4] > 4095)
+            if (all_avg[4] > 1489)
             {
                 gamepad_report_buffer[8] = 0;
             }
@@ -628,7 +626,7 @@ void adc_aver_send_task(void *pvParameters)
             }
 
             // 右扳机all_avg[5]对应gamepad_report_buffer[7]
-            if (all_avg[5] > 4095)
+            if (all_avg[5] > 1489)
             {
                 gamepad_report_buffer[7] = 0;
             }
@@ -790,8 +788,9 @@ void joystick_calibration_task(void *pvParameter)
             }
 
             current_device_state = DEVICE_STATE_SLEEP;
+            vTaskDelay(pdMS_TO_TICKS(100));
             xSemaphoreGive(calibration_semaphore); // 归还信号量
-            vTaskDelay(pdMS_TO_TICKS(1000));
+            vTaskDelay(pdMS_TO_TICKS(100));
             esp_restart();
         }
     }
