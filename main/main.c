@@ -29,9 +29,9 @@
 #include "processing.h"
 #include "calibration.h"
 
+#define GAMEPAD_DEBUG_MODE
+
 // todo:遗忘上一次连接的设备
-// todo:断连后重新连接，会导致崩溃（adc 缓冲区无法读取）
-// todo:加入校准入口
 
 #define HID_TASK_TAG "TASKinfo"
 // adc多通道均值缓冲区
@@ -126,7 +126,7 @@ void app_main(void)
 
             xTaskCreatePinnedToCore(adc_read_task, "adc_read_task", 8192, NULL, 7, NULL, 1);
             // 可以是低优先级，反正每次处理的都是最新数据
-            xTaskCreatePinnedToCore(adc_aver_send, "adc_aver_send", 2048, NULL, 6, NULL, 1);
+            xTaskCreatePinnedToCore(adc_aver_send_task, "adc_aver_send_task", 2048, NULL, 6, NULL, 1);
             // 模拟手柄任务
             xTaskCreatePinnedToCore(gamepad_packet_send_task, "gamepad_packet_send_task", 4096, NULL, 8, NULL, 1);
             // 使命完成，删除自己
@@ -278,7 +278,7 @@ void blink_task(void *pvParameter)
             setLED(0, 0, led_on_off ? 10 : 0, led_on_off ? 10 : 0);
             setLED(1, 0, 0, 0);
             setLED(2, 0, 0, 0);
-            setLED(3, led_on_off ? 10 : 0, led_on_off ? 10 : 0, 0);
+            setLED(3, 0, 0, 0);
             led_on_off = !led_on_off;
             vTaskDelay(pdMS_TO_TICKS(300));
             break;
@@ -298,7 +298,7 @@ void blink_task(void *pvParameter)
             {
                 setLED(i, 0, 15, 0);
             }
-            vTaskDelay(pdMS_TO_TICKS(200));
+            vTaskDelay(pdMS_TO_TICKS(400));
             break;
 
         case DEVICE_STATE_DISCONNECTED:
@@ -507,27 +507,103 @@ void adc_read_task(void *pvParameters)
     }
 }
 
+
+
+static int32_t clamp(int32_t value, int32_t min, int32_t max)
+{
+    if (value < min)
+        return min;
+    if (value > max)
+        return max;
+    return value;
+}
+
+// 安全的除法计算（避免除零）
+static int32_t safe_divide(int32_t numerator, int32_t denominator, int32_t default_val)
+{
+    if (denominator == 0)
+    {
+        return default_val; // 处理校准数据异常
+    }
+    return numerator / denominator;
+}
+
+// 摇杆值映射到 0~255 范围（中心对应127左右）
+static uint8_t map_joystick(int32_t raw, int32_t center, int32_t min, int32_t max)
+{
+    int32_t offset = raw - center;    // 计算相对于中心的偏移（可正可负）
+    int32_t deadzone = 50;            // 死区范围
+    
+    // 如果在死区内，返回中心值127
+    if (offset >= -deadzone && offset <= deadzone) {
+        return 127;
+    }
+    
+    // 调整偏移量，排除死区影响
+    if (offset > 0) {
+        offset -= deadzone;
+    } else {
+        offset += deadzone;
+    }
+    
+    // 调整有效范围
+    int32_t range_pos = max - center - deadzone; // 中心到最大值的有效范围（正向）
+    int32_t range_neg = center - min - deadzone; // 中心到最小值的有效范围（负向）
+
+    int32_t scaled;
+    if (offset >= 0)
+    {
+        // 正向偏移：映射到 127~255
+        scaled = 127 + safe_divide(offset * 128, range_pos, 128);
+    }
+    else
+    {
+        // 负向偏移：映射到 0~127（取绝对值计算）
+        scaled = 127 - safe_divide((-offset) * 127, range_neg, 127);
+    }
+
+    return (uint8_t)clamp(scaled, 0, 255); // 确保结果在 0~255 范围内
+}
+
 // 摇杆校准数据
 // joystick_calibration_data_t left_joystick_cal_data;
 // joystick_calibration_data_t right_joystick_cal_data;
-void adc_aver_send(void *pvParameters)
+void adc_aver_send_task(void *pvParameters)
 {
     uint32_t all_avg[8];
     for (;;)
     {
         // 当正在进行环形校准时不要进行此操作，防止耗时
-        if (current_device_state != DEVICE_STATE_CALI_RING)
+        if (js_calibration_running != true)
         {
-            // mcb_get_all_averages(mcb, all_avg);
+            mcb_get_all_averages(mcb, all_avg);
             // 此处可以直接认为，平均后的值为 ADC 的原始数据
-            // printf("\r\n");
-            // for (uint8_t i = 0; i < 8; i++)
-            // {
-            //     printf("%ld  ", all_avg[i]);
-            // }
-            vTaskDelay(pdMS_TO_TICKS(40));
+
+            // 右摇杆 Y 轴
+            gamepad_report_buffer[3] = map_joystick(all_avg[0],
+                                                    right_joystick_cal_data.center_y,
+                                                    right_joystick_cal_data.min_y,
+                                                    right_joystick_cal_data.max_y);
+
+            // 右摇杆 X 轴（注意此处minmax反向）
+            gamepad_report_buffer[2] = map_joystick(all_avg[1],
+                                                    right_joystick_cal_data.center_x,
+                                                    right_joystick_cal_data.max_x,
+                                                    right_joystick_cal_data.min_x);
+
+            // 左摇杆 Y 轴
+            gamepad_report_buffer[1] = map_joystick(all_avg[2],
+                                                    left_joystick_cal_data.center_y,
+                                                    left_joystick_cal_data.min_y,
+                                                    left_joystick_cal_data.max_y);
+
+            // 左摇杆 X 轴（注意此处minmax反向）
+            gamepad_report_buffer[0] = map_joystick(all_avg[3],
+                                                    left_joystick_cal_data.center_x,
+                                                    left_joystick_cal_data.max_x,
+                                                    left_joystick_cal_data.min_x);
         }
-        vTaskDelay(pdMS_TO_TICKS(100));
+        vTaskDelay(pdMS_TO_TICKS(30));
     }
 }
 
@@ -538,20 +614,22 @@ void gamepad_packet_send_task(void *pvParameters)
     {
         if (sec_conn)
         {
-            vTaskDelay(pdMS_TO_TICKS(80));
+            vTaskDelay(pdMS_TO_TICKS(20));
 
             // 打印游戏手柄报告缓冲区内容
+#ifdef GAMEPAD_DEBUG_MODE
             for (int i = 0; i < HID_GAMEPAD_STICK_IN_RPT_LEN; i++)
             {
-                printf("%02X ", gamepad_report_buffer[i]);
+                printf("%d ", gamepad_report_buffer[i]);
             }
             printf("\r\n");
+#endif
 
             esp_hidd_send_gamepad_report(hid_conn_id);
         }
         else
         {
-            vTaskDelay(pdMS_TO_TICKS(10000));
+            vTaskDelay(pdMS_TO_TICKS(1000));
             ESP_LOGI(HID_TASK_TAG, "Waiting for connection...");
         }
     }
@@ -585,9 +663,9 @@ void joystick_calibration_task(void *pvParameter)
 
             uint32_t all_avg[8];
             uint32_t start_time = xTaskGetTickCount();
-            uint32_t duration_ticks = pdMS_TO_TICKS(5000); // 5秒
+            uint32_t duration_ticks = pdMS_TO_TICKS(8000); // 8秒
 
-            // 持续读取5秒数据
+            // 持续读取8秒数据
             while ((xTaskGetTickCount() - start_time) < duration_ticks)
             {
                 mcb_get_all_averages(mcb, all_avg);
@@ -696,7 +774,7 @@ void all_buttons_monitor_task(void *pvParameter)
     for (;;)
     {
         // 等待100ms
-        vTaskDelay(pdMS_TO_TICKS(100));
+        vTaskDelay(pdMS_TO_TICKS(50));
         uint8_t xyab_button_value = 0;
         // 读取XYAB按键事件组状态
         EventBits_t xyab_bits = xEventGroupGetBits(xyab_button_event_group);
@@ -714,7 +792,7 @@ void all_buttons_monitor_task(void *pvParameter)
         }
         if (xyab_bits & XYAB_KEY_B_PRESSED)
         {
-            xyab_button_value |= 0x02; // B 按下 
+            xyab_button_value |= 0x02; // B 按下
         }
 
         // 更新 gamepad_report_buffer[5]
@@ -781,13 +859,13 @@ void all_buttons_monitor_task(void *pvParameter)
     }
 }
 
+// 暂时没有用到
 void update_buttons_packet()
 {
     // 初始化 gamepad_report_buffer[5] 为 0
-    
 
     // 读取XYAB按键事件组状态
-    EventBits_t xyab_bits = xEventGroupGetBits(xyab_button_event_group);
+    // EventBits_t xyab_bits = xEventGroupGetBits(xyab_button_event_group);
 
     // 根据按键状态更新 xyab_button_value
 }

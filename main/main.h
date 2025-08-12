@@ -21,7 +21,7 @@ void LED_flash_task(void *pvParameter);
 
 
 void adc_read_task(void *pvParameter);
-void adc_aver_send(void *pvParameters);
+void adc_aver_send_task(void *pvParameters);
 void gamepad_packet_send_task(void *pvParameters);
 void joystick_calibration_task(void *pvParameter);
 void all_buttons_monitor_task(void *pvParameter);
