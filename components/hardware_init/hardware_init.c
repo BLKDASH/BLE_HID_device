@@ -239,24 +239,6 @@ esp_err_t deinit_adc(void)
 }
 
 // GPIO -----------------------------------------------------------------------------------------------------
-
-// XYAB按键事件位定义
-#define XYAB_KEY_X_PRESSED    (1 << 0)
-#define XYAB_KEY_Y_PRESSED    (1 << 1)
-#define XYAB_KEY_A_PRESSED    (1 << 2)
-#define XYAB_KEY_B_PRESSED    (1 << 3)
-
-// 其他按键事件位定义
-#define LEFT_JOYSTICK_BTN_PRESSED    (1 << 0)
-#define RIGHT_JOYSTICK_BTN_PRESSED   (1 << 1)
-#define LEFT_SHOULDER_BTN_PRESSED    (1 << 2)
-#define RIGHT_SHOULDER_BTN_PRESSED   (1 << 3)
-#define SELECT_BTN_PRESSED           (1 << 4)
-#define START_BTN_PRESSED            (1 << 5)
-#define IKEY_BTN_PRESSED             (1 << 6)
-#define IOS_BTN_PRESSED              (1 << 7)
-#define WINDOWS_BTN_PRESSED          (1 << 8)
-
 // XYAB按键回调函数
 static void key_x_pressed_cb(void *arg, void *usr_data)
 {

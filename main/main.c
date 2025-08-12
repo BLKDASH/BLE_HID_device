@@ -32,7 +32,7 @@
 #define GAMEPAD_DEBUG_MODE
 
 // todo:遗忘上一次连接的设备
-
+// todo:优化发包速度
 #define HID_TASK_TAG "TASKinfo"
 // adc多通道均值缓冲区
 // 结构（channel 对应索引）：
@@ -614,7 +614,7 @@ void gamepad_packet_send_task(void *pvParameters)
     {
         if (sec_conn)
         {
-            vTaskDelay(pdMS_TO_TICKS(20));
+            vTaskDelay(pdMS_TO_TICKS(100));
 
             // 打印游戏手柄报告缓冲区内容
 #ifdef GAMEPAD_DEBUG_MODE
