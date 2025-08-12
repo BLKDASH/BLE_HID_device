@@ -475,6 +475,7 @@ void adc_read_task(void *pvParameters)
 
                     if (chan < ADC_CHANNEL_COUNT)
                     {
+                        // if(chan == ADC_CHANNEL_RIGHT_LEFT_RIGHT){ESP_LOGI("ADCraw","%d",data);}
                         // 将数据写入对应通道的数组
                         resultAvr[chan][writeIndex[chan]] = data;
                         writeIndex[chan]++;
@@ -516,7 +517,7 @@ static int32_t clamp(int32_t value, int32_t min, int32_t max)
     return value;
 }
 
-// 安全的除法计算（避免除零）
+// 安全除法
 static int32_t safe_divide(int32_t numerator, int32_t denominator, int32_t default_val)
 {
     if (denominator == 0)
@@ -579,6 +580,12 @@ void adc_aver_send_task(void *pvParameters)
         if (js_calibration_running != true)
         {
             mcb_get_all_averages(mcb, all_avg);
+            for (int i = 0; i < 8; i++)
+            {
+                printf("[%d]=%lu ", i, all_avg[i]);
+            }
+            printf("\n");
+
             // 此处可以直接认为，平均后的值为 ADC 的原始数据
 
             // 右摇杆 Y 轴
@@ -588,10 +595,11 @@ void adc_aver_send_task(void *pvParameters)
                                                     right_joystick_cal_data.max_y);
 
             // 右摇杆 X 轴（注意此处minmax反向）
-            gamepad_report_buffer[2] = map_joystick(all_avg[1],
-                                                    right_joystick_cal_data.center_x,
-                                                    right_joystick_cal_data.max_x,
-                                                    right_joystick_cal_data.min_x);
+            gamepad_report_buffer[2] = clamp(256 - map_joystick(all_avg[1],
+                                                                right_joystick_cal_data.center_x,
+                                                                right_joystick_cal_data.min_x,
+                                                                right_joystick_cal_data.max_x),
+                                             0, 255);
 
             // 左摇杆 Y 轴
             gamepad_report_buffer[1] = map_joystick(all_avg[2],
@@ -600,10 +608,11 @@ void adc_aver_send_task(void *pvParameters)
                                                     left_joystick_cal_data.max_y);
 
             // 左摇杆 X 轴（注意此处minmax反向）
-            gamepad_report_buffer[0] = map_joystick(all_avg[3],
-                                                    left_joystick_cal_data.center_x,
-                                                    left_joystick_cal_data.max_x,
-                                                    left_joystick_cal_data.min_x);
+            gamepad_report_buffer[0] = clamp(256 - map_joystick(all_avg[3],
+                                                                right_joystick_cal_data.center_x,
+                                                                right_joystick_cal_data.min_x,
+                                                                right_joystick_cal_data.max_x),
+                                             0, 255);
 
             // 处理扳机值 - 将ADC原始值(0-4095)映射到(255-0)
             // 左扳机所在的通道是all_avg[4]对应gamepad_report_buffer[8]
@@ -637,17 +646,17 @@ void gamepad_packet_send_task(void *pvParameters)
 
     for (;;)
     {
-        if (sec_conn)
+        if (sec_conn && current_device_state == DEVICE_STATE_CONNECTED)
         {
             vTaskDelay(pdMS_TO_TICKS(100));
 
             // 打印游戏手柄报告缓冲区内容
 #ifdef GAMEPAD_DEBUG_MODE
-            for (int i = 0; i < HID_GAMEPAD_STICK_IN_RPT_LEN; i++)
-            {
-                printf("%d ", gamepad_report_buffer[i]);
-            }
-            printf("\r\n");
+            // for (int i = 0; i < HID_GAMEPAD_STICK_IN_RPT_LEN; i++)
+            // {
+            //     printf("%d ", gamepad_report_buffer[i]);
+            // }
+            // printf("\r\n");
 #endif
 
             esp_hidd_send_gamepad_report(hid_conn_id);
@@ -672,7 +681,7 @@ void joystick_calibration_task(void *pvParameter)
             esp_bluedroid_deinit();
             esp_bt_controller_disable();
             esp_bt_controller_deinit();
-            vTaskDelay(200);
+            vTaskDelay(500);
             js_calibration_running = true;
             start_adc_sampling();
             ESP_LOGI("CALIBRATION", "开始摇杆校准");
