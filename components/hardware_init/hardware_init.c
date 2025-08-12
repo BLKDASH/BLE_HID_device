@@ -930,7 +930,7 @@ esp_err_t ble_sec_config(void)
 
 //-------------------------------------------------------------------------------------
 
-device_state_t current_device_state = DEVICE_STATE_INIT;
+volatile device_state_t current_device_state = DEVICE_STATE_INIT;
 void init_all(void)
 {
     led_strip = configure_led();

@@ -133,7 +133,7 @@ typedef enum {
     DEVICE_STATE_CALI_DONE,      // 校准完成
 
 } device_state_t;
-extern device_state_t current_device_state; 
+extern volatile device_state_t current_device_state; 
 void init_all(void);
 
 #endif
