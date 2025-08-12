@@ -22,6 +22,9 @@
 #include "esp_bt_device.h"
 #include "button_gpio.h"
 
+// 声明事件组句柄
+EventGroupHandle_t ble_event_group = NULL;
+
 // LED-----------------------------------------------------------------------------------------
 
 // New LED configuration options
@@ -41,25 +44,57 @@ EventGroupHandle_t other_button_event_group = NULL;
 static const char *TAG = "hardware_init";
 static led_strip_handle_t configure_led(void)
 {
-    led_strip_config_t strip_config = {
-        .strip_gpio_num = LED_STRIP_BLINK_GPIO,                      // The GPIO of ws2812_input
-        .max_leds = LED_STRIP_LED_NUMBERS,                           // The number of LEDs
-        .color_component_format = LED_STRIP_COLOR_COMPONENT_FMT_GRB, // Pixel format of ws2812
-        .led_model = LED_MODEL_WS2812,                               // LED strip model
-        .flags.invert_out = false,                                   // not invert the output signal
-    };
+    // led_strip_config_t strip_config = {
+    //     .strip_gpio_num = LED_STRIP_BLINK_GPIO,                      // The GPIO of ws2812_input
+    //     .max_leds = LED_STRIP_LED_NUMBERS,                           // The number of LEDs
+    //     .color_component_format = LED_STRIP_COLOR_COMPONENT_FMT_GRB, // Pixel format of ws2812
+    //     .led_model = LED_MODEL_WS2812,                               // LED strip model
+    //     .flags.invert_out = false,                                   // not invert the output signal
+    // };
 
-    // RMT configuration for ws2812
-    led_strip_rmt_config_t rmt_config = {
-        .clk_src = RMT_CLK_SRC_DEFAULT,        // different clock source can lead to different power consumption
-        .resolution_hz = LED_STRIP_RMT_RES_HZ, // RMT counter clock frequency
-        .flags.with_dma = false,               // DMA feature is available on ESP target like ESP32-S3
-    };
+    // // RMT configuration for ws2812
+    // led_strip_rmt_config_t rmt_config = {
+    //     .clk_src = RMT_CLK_SRC_DEFAULT,        // different clock source can lead to different power consumption
+    //     .resolution_hz = LED_STRIP_RMT_RES_HZ, // RMT counter clock frequency
+    //     .flags.with_dma = false,               // DMA feature is available on ESP target like ESP32-S3
+    // };
+
+    // // LED Strip object handle
+    // led_strip_handle_t led_strip;
+    // ESP_ERROR_CHECK(led_strip_new_rmt_device(&strip_config, &rmt_config, &led_strip));
+    // ESP_LOGI(TAG, "Created LED strip object with RMT backend");
+
+    // SPI 模式
+    // LED strip general initialization, according to your led board design
+    led_strip_config_t strip_config = {
+        .strip_gpio_num = LED_STRIP_BLINK_GPIO, // The GPIO that connected to the LED strip's data line
+        .max_leds = LED_STRIP_LED_NUMBERS,      // The number of LEDs in the strip,
+        .led_model = LED_MODEL_WS2812,          // LED strip model
+        // set the color order of the strip: GRB
+        .color_component_format = {
+            .format = {
+                .r_pos = 1,          // red is the second byte in the color data
+                .g_pos = 0,          // green is the first byte in the color data
+                .b_pos = 2,          // blue is the third byte in the color data
+                .num_components = 3, // total 3 color components
+            },
+        },
+        .flags = {
+            .invert_out = false, // don't invert the output signal
+        }};
+
+    // LED strip backend configuration: SPI
+    led_strip_spi_config_t spi_config = {
+        .clk_src = SPI_CLK_SRC_DEFAULT, // different clock source can lead to different power consumption
+        .spi_bus = SPI2_HOST,           // SPI bus ID
+        .flags = {
+            .with_dma = false, // Using DMA can improve performance and help drive more LEDs
+        }};
 
     // LED Strip object handle
     led_strip_handle_t led_strip;
-    ESP_ERROR_CHECK(led_strip_new_rmt_device(&strip_config, &rmt_config, &led_strip));
-    ESP_LOGI(TAG, "Created LED strip object with RMT backend");
+    ESP_ERROR_CHECK(led_strip_new_spi_device(&strip_config, &spi_config, &led_strip));
+    ESP_LOGI(TAG, "Created LED strip object with SPI backend");
     return led_strip;
 }
 
@@ -102,6 +137,7 @@ static void continuous_adc_init(adc_channel_t *channel, uint8_t channel_num, adc
 
     adc_continuous_handle_cfg_t adc_config = {
         .max_store_buf_size = 1024,
+        //.max_store_buf_size = 1024,
         .conv_frame_size = EXAMPLE_READ_LEN,
     };
     ESP_ERROR_CHECK(adc_continuous_new_handle(&adc_config, &handle));
@@ -146,205 +182,272 @@ static adc_continuous_handle_t convert_adc_values(uint8_t arr[][AVERAGE_LEN], in
     return handle;
 }
 
+// 添加全局变量来跟踪ADC是否正在运行
+extern bool adc_running;
+
+// 添加函数用于启动ADC采集
+esp_err_t start_adc_sampling(void)
+{
+    if (ADC_init_handle == NULL)
+    {
+        // 初始化ADC
+        ADC_init_handle = convert_adc_values(resultAvr, ADC_CHANNEL_COUNT);
+    }
+    if (ADC_init_handle != NULL)
+    {
+        // 启动ADC连续读取
+        esp_err_t err = adc_continuous_start(ADC_init_handle);
+        if (err == ESP_OK)
+        {
+            adc_running = true;
+        }
+        return err;
+    }
+
+    return ESP_FAIL;
+}
+
+// 停止ADC采集
+esp_err_t stop_adc_sampling(void)
+{
+    if (ADC_init_handle != NULL && adc_running)
+    {
+        esp_err_t err = adc_continuous_stop(ADC_init_handle);
+        if (err == ESP_OK)
+        {
+            adc_running = false;
+        }
+        return err;
+    }
+
+    return ESP_OK;
+}
+
+// 添加函数用于反初始化ADC
+esp_err_t deinit_adc(void)
+{
+    if (ADC_init_handle != NULL)
+    {
+        if (adc_running)
+        {
+            adc_continuous_stop(ADC_init_handle);
+        }
+        esp_err_t err = adc_continuous_deinit(ADC_init_handle);
+        ADC_init_handle = NULL;
+        adc_running = false;
+        return err;
+    }
+
+    return ESP_OK;
+}
+
 // GPIO -----------------------------------------------------------------------------------------------------
-
-// XYAB按键事件位定义
-#define XYAB_KEY_X_PRESSED    (1 << 0)
-#define XYAB_KEY_Y_PRESSED    (1 << 1)
-#define XYAB_KEY_A_PRESSED    (1 << 2)
-#define XYAB_KEY_B_PRESSED    (1 << 3)
-
-// 其他按键事件位定义
-#define LEFT_JOYSTICK_BTN_PRESSED    (1 << 0)
-#define RIGHT_JOYSTICK_BTN_PRESSED   (1 << 1)
-#define LEFT_SHOULDER_BTN_PRESSED    (1 << 2)
-#define RIGHT_SHOULDER_BTN_PRESSED   (1 << 3)
-#define SELECT_BTN_PRESSED           (1 << 4)
-#define START_BTN_PRESSED            (1 << 5)
-#define IKEY_BTN_PRESSED             (1 << 6)
-#define IOS_BTN_PRESSED              (1 << 7)
-#define WINDOWS_BTN_PRESSED          (1 << 8)
-
 // XYAB按键回调函数
 static void key_x_pressed_cb(void *arg, void *usr_data)
 {
-    if (xyab_button_event_group != NULL) {
+    if (xyab_button_event_group != NULL)
+    {
         xEventGroupSetBits(xyab_button_event_group, XYAB_KEY_X_PRESSED);
     }
 }
 
 static void key_x_released_cb(void *arg, void *usr_data)
 {
-    if (xyab_button_event_group != NULL) {
+    if (xyab_button_event_group != NULL)
+    {
         xEventGroupClearBits(xyab_button_event_group, XYAB_KEY_X_PRESSED);
     }
 }
 
 static void key_y_pressed_cb(void *arg, void *usr_data)
 {
-    if (xyab_button_event_group != NULL) {
+    if (xyab_button_event_group != NULL)
+    {
         xEventGroupSetBits(xyab_button_event_group, XYAB_KEY_Y_PRESSED);
     }
 }
 
 static void key_y_released_cb(void *arg, void *usr_data)
 {
-    if (xyab_button_event_group != NULL) {
+    if (xyab_button_event_group != NULL)
+    {
         xEventGroupClearBits(xyab_button_event_group, XYAB_KEY_Y_PRESSED);
     }
 }
 
 static void key_a_pressed_cb(void *arg, void *usr_data)
 {
-    if (xyab_button_event_group != NULL) {
+    if (xyab_button_event_group != NULL)
+    {
         xEventGroupSetBits(xyab_button_event_group, XYAB_KEY_A_PRESSED);
     }
 }
 
 static void key_a_released_cb(void *arg, void *usr_data)
 {
-    if (xyab_button_event_group != NULL) {
+    if (xyab_button_event_group != NULL)
+    {
         xEventGroupClearBits(xyab_button_event_group, XYAB_KEY_A_PRESSED);
     }
 }
 
 static void key_b_pressed_cb(void *arg, void *usr_data)
 {
-    if (xyab_button_event_group != NULL) {
+    if (xyab_button_event_group != NULL)
+    {
         xEventGroupSetBits(xyab_button_event_group, XYAB_KEY_B_PRESSED);
     }
 }
 
 static void key_b_released_cb(void *arg, void *usr_data)
 {
-    if (xyab_button_event_group != NULL) {
+    if (xyab_button_event_group != NULL)
+    {
         xEventGroupClearBits(xyab_button_event_group, XYAB_KEY_B_PRESSED);
+    }
+}
+
+static void left_shoulder_btn_pressed_cb(void *arg, void *usr_data)
+{
+    if (xyab_button_event_group != NULL)
+    {
+        xEventGroupSetBits(xyab_button_event_group, LEFT_SHOULDER_BTN_PRESSED);
+    }
+}
+
+static void left_shoulder_btn_released_cb(void *arg, void *usr_data)
+{
+    if (xyab_button_event_group != NULL)
+    {
+        xEventGroupClearBits(xyab_button_event_group, LEFT_SHOULDER_BTN_PRESSED);
+    }
+}
+
+static void right_shoulder_btn_pressed_cb(void *arg, void *usr_data)
+{
+    if (xyab_button_event_group != NULL)
+    {
+        xEventGroupSetBits(xyab_button_event_group, RIGHT_SHOULDER_BTN_PRESSED);
+    }
+}
+
+static void right_shoulder_btn_released_cb(void *arg, void *usr_data)
+{
+    if (xyab_button_event_group != NULL)
+    {
+        xEventGroupClearBits(xyab_button_event_group, RIGHT_SHOULDER_BTN_PRESSED);
     }
 }
 
 // 其他按键回调函数
 static void left_joystick_btn_pressed_cb(void *arg, void *usr_data)
 {
-    if (other_button_event_group != NULL) {
+    if (other_button_event_group != NULL)
+    {
         xEventGroupSetBits(other_button_event_group, LEFT_JOYSTICK_BTN_PRESSED);
     }
 }
 
 static void left_joystick_btn_released_cb(void *arg, void *usr_data)
 {
-    if (other_button_event_group != NULL) {
+    if (other_button_event_group != NULL)
+    {
         xEventGroupClearBits(other_button_event_group, LEFT_JOYSTICK_BTN_PRESSED);
     }
 }
 
 static void right_joystick_btn_pressed_cb(void *arg, void *usr_data)
 {
-    if (other_button_event_group != NULL) {
+    if (other_button_event_group != NULL)
+    {
         xEventGroupSetBits(other_button_event_group, RIGHT_JOYSTICK_BTN_PRESSED);
     }
 }
 
 static void right_joystick_btn_released_cb(void *arg, void *usr_data)
 {
-    if (other_button_event_group != NULL) {
+    if (other_button_event_group != NULL)
+    {
         xEventGroupClearBits(other_button_event_group, RIGHT_JOYSTICK_BTN_PRESSED);
-    }
-}
-
-static void left_shoulder_btn_pressed_cb(void *arg, void *usr_data)
-{
-    if (other_button_event_group != NULL) {
-        xEventGroupSetBits(other_button_event_group, LEFT_SHOULDER_BTN_PRESSED);
-    }
-}
-
-static void left_shoulder_btn_released_cb(void *arg, void *usr_data)
-{
-    if (other_button_event_group != NULL) {
-        xEventGroupClearBits(other_button_event_group, LEFT_SHOULDER_BTN_PRESSED);
-    }
-}
-
-static void right_shoulder_btn_pressed_cb(void *arg, void *usr_data)
-{
-    if (other_button_event_group != NULL) {
-        xEventGroupSetBits(other_button_event_group, RIGHT_SHOULDER_BTN_PRESSED);
-    }
-}
-
-static void right_shoulder_btn_released_cb(void *arg, void *usr_data)
-{
-    if (other_button_event_group != NULL) {
-        xEventGroupClearBits(other_button_event_group, RIGHT_SHOULDER_BTN_PRESSED);
     }
 }
 
 static void select_btn_pressed_cb(void *arg, void *usr_data)
 {
-    if (other_button_event_group != NULL) {
+    if (other_button_event_group != NULL)
+    {
         xEventGroupSetBits(other_button_event_group, SELECT_BTN_PRESSED);
     }
 }
 
 static void select_btn_released_cb(void *arg, void *usr_data)
 {
-    if (other_button_event_group != NULL) {
+    if (other_button_event_group != NULL)
+    {
         xEventGroupClearBits(other_button_event_group, SELECT_BTN_PRESSED);
     }
 }
 
 static void start_btn_pressed_cb(void *arg, void *usr_data)
 {
-    if (other_button_event_group != NULL) {
+    if (other_button_event_group != NULL)
+    {
         xEventGroupSetBits(other_button_event_group, START_BTN_PRESSED);
     }
 }
 
 static void start_btn_released_cb(void *arg, void *usr_data)
 {
-    if (other_button_event_group != NULL) {
+    if (other_button_event_group != NULL)
+    {
         xEventGroupClearBits(other_button_event_group, START_BTN_PRESSED);
     }
 }
 
 static void ikey_btn_pressed_cb(void *arg, void *usr_data)
 {
-    if (other_button_event_group != NULL) {
+    if (other_button_event_group != NULL)
+    {
         xEventGroupSetBits(other_button_event_group, IKEY_BTN_PRESSED);
     }
 }
 
 static void ikey_btn_released_cb(void *arg, void *usr_data)
 {
-    if (other_button_event_group != NULL) {
+    if (other_button_event_group != NULL)
+    {
         xEventGroupClearBits(other_button_event_group, IKEY_BTN_PRESSED);
     }
 }
 
 static void ios_btn_pressed_cb(void *arg, void *usr_data)
 {
-    if (other_button_event_group != NULL) {
+    if (other_button_event_group != NULL)
+    {
         xEventGroupSetBits(other_button_event_group, IOS_BTN_PRESSED);
     }
 }
 
 static void ios_btn_released_cb(void *arg, void *usr_data)
 {
-    if (other_button_event_group != NULL) {
+    if (other_button_event_group != NULL)
+    {
         xEventGroupClearBits(other_button_event_group, IOS_BTN_PRESSED);
     }
 }
 
 static void windows_btn_pressed_cb(void *arg, void *usr_data)
 {
-    if (other_button_event_group != NULL) {
+    if (other_button_event_group != NULL)
+    {
         xEventGroupSetBits(other_button_event_group, WINDOWS_BTN_PRESSED);
     }
 }
 
 static void windows_btn_released_cb(void *arg, void *usr_data)
 {
-    if (other_button_event_group != NULL) {
+    if (other_button_event_group != NULL)
+    {
         xEventGroupClearBits(other_button_event_group, WINDOWS_BTN_PRESSED);
     }
 }
@@ -353,18 +456,22 @@ static void windows_btn_released_cb(void *arg, void *usr_data)
 static void init_gpio(void)
 {
     // 创建XYAB按键事件组
-    if (xyab_button_event_group == NULL) {
+    if (xyab_button_event_group == NULL)
+    {
         xyab_button_event_group = xEventGroupCreate();
-        if (xyab_button_event_group == NULL) {
+        if (xyab_button_event_group == NULL)
+        {
             ESP_LOGE(TAG, "Failed to create XYAB button event group");
             return;
         }
     }
 
     // 创建其他按键事件组
-    if (other_button_event_group == NULL) {
+    if (other_button_event_group == NULL)
+    {
         other_button_event_group = xEventGroupCreate();
-        if (other_button_event_group == NULL) {
+        if (other_button_event_group == NULL)
+        {
             ESP_LOGE(TAG, "Failed to create other button event group");
             return;
         }
@@ -372,90 +479,73 @@ static void init_gpio(void)
 
     // 初始化XYAB按键
     const button_config_t btn_cfg = {0};
-    
+
     // 初始化按键X
     const button_gpio_config_t btn_gpio_cfg_x = {
         .gpio_num = GPIO_INPUT_KEY_X,
-        .active_level = 0,  // 按下为低电平
+        .active_level = 0, // 按下为低电平
     };
     button_handle_t gpio_btn_x = NULL;
     esp_err_t ret = iot_button_new_gpio_device(&btn_cfg, &btn_gpio_cfg_x, &gpio_btn_x);
-    if (ret != ESP_OK || gpio_btn_x == NULL) {
+    if (ret != ESP_OK || gpio_btn_x == NULL)
+    {
         ESP_LOGE(TAG, "Failed to create button X");
-    } else {
+    }
+    else
+    {
         iot_button_register_cb(gpio_btn_x, BUTTON_PRESS_DOWN, NULL, key_x_pressed_cb, NULL);
         iot_button_register_cb(gpio_btn_x, BUTTON_PRESS_UP, NULL, key_x_released_cb, NULL);
     }
-    
+
     // 初始化按键Y
     const button_gpio_config_t btn_gpio_cfg_y = {
         .gpio_num = GPIO_INPUT_KEY_Y,
-        .active_level = 0,  // 按下为低电平
+        .active_level = 0, // 按下为低电平
     };
     button_handle_t gpio_btn_y = NULL;
     ret = iot_button_new_gpio_device(&btn_cfg, &btn_gpio_cfg_y, &gpio_btn_y);
-    if (ret != ESP_OK || gpio_btn_y == NULL) {
+    if (ret != ESP_OK || gpio_btn_y == NULL)
+    {
         ESP_LOGE(TAG, "Failed to create button Y");
-    } else {
+    }
+    else
+    {
         iot_button_register_cb(gpio_btn_y, BUTTON_PRESS_DOWN, NULL, key_y_pressed_cb, NULL);
         iot_button_register_cb(gpio_btn_y, BUTTON_PRESS_UP, NULL, key_y_released_cb, NULL);
     }
-    
+
     // 初始化按键A
     const button_gpio_config_t btn_gpio_cfg_a = {
         .gpio_num = GPIO_INPUT_KEY_A,
-        .active_level = 0,  // 按下为低电平
+        .active_level = 0, // 按下为低电平
     };
     button_handle_t gpio_btn_a = NULL;
     ret = iot_button_new_gpio_device(&btn_cfg, &btn_gpio_cfg_a, &gpio_btn_a);
-    if (ret != ESP_OK || gpio_btn_a == NULL) {
+    if (ret != ESP_OK || gpio_btn_a == NULL)
+    {
         ESP_LOGE(TAG, "Failed to create button A");
-    } else {
+    }
+    else
+    {
         iot_button_register_cb(gpio_btn_a, BUTTON_PRESS_DOWN, NULL, key_a_pressed_cb, NULL);
         iot_button_register_cb(gpio_btn_a, BUTTON_PRESS_UP, NULL, key_a_released_cb, NULL);
     }
-    
+
     // 初始化按键B
     const button_gpio_config_t btn_gpio_cfg_b = {
         .gpio_num = GPIO_INPUT_KEY_B,
-        .active_level = 0,  // 按下为低电平
+        .active_level = 0, // 按下为低电平
     };
     button_handle_t gpio_btn_b = NULL;
     ret = iot_button_new_gpio_device(&btn_cfg, &btn_gpio_cfg_b, &gpio_btn_b);
-    if (ret != ESP_OK || gpio_btn_b == NULL) {
+    if (ret != ESP_OK || gpio_btn_b == NULL)
+    {
         ESP_LOGE(TAG, "Failed to create button B");
-    } else {
+    }
+    else
+    {
         iot_button_register_cb(gpio_btn_b, BUTTON_PRESS_DOWN, NULL, key_b_pressed_cb, NULL);
         iot_button_register_cb(gpio_btn_b, BUTTON_PRESS_UP, NULL, key_b_released_cb, NULL);
-    }
-
-    // 初始化其他按键
-    // 左摇杆按键
-    const button_gpio_config_t btn_gpio_cfg_left_joystick = {
-        .gpio_num = GPIO_INPUT_LEFT_JOYSTICK_BTN,
-        .active_level = 0,
-    };
-    button_handle_t gpio_btn_left_joystick = NULL;
-    ret = iot_button_new_gpio_device(&btn_cfg, &btn_gpio_cfg_left_joystick, &gpio_btn_left_joystick);
-    if (ret != ESP_OK || gpio_btn_left_joystick == NULL) {
-        ESP_LOGE(TAG, "Failed to create left joystick button");
-    } else {
-        iot_button_register_cb(gpio_btn_left_joystick, BUTTON_PRESS_DOWN, NULL, left_joystick_btn_pressed_cb, NULL);
-        iot_button_register_cb(gpio_btn_left_joystick, BUTTON_PRESS_UP, NULL, left_joystick_btn_released_cb, NULL);
-    }
-
-    // 右摇杆按键
-    const button_gpio_config_t btn_gpio_cfg_right_joystick = {
-        .gpio_num = GPIO_INPUT_RIGHT_JOYSTICK_BTN,
-        .active_level = 0,
-    };
-    button_handle_t gpio_btn_right_joystick = NULL;
-    ret = iot_button_new_gpio_device(&btn_cfg, &btn_gpio_cfg_right_joystick, &gpio_btn_right_joystick);
-    if (ret != ESP_OK || gpio_btn_right_joystick == NULL) {
-        ESP_LOGE(TAG, "Failed to create right joystick button");
-    } else {
-        iot_button_register_cb(gpio_btn_right_joystick, BUTTON_PRESS_DOWN, NULL, right_joystick_btn_pressed_cb, NULL);
-        iot_button_register_cb(gpio_btn_right_joystick, BUTTON_PRESS_UP, NULL, right_joystick_btn_released_cb, NULL);
     }
 
     // 左肩键
@@ -465,9 +555,12 @@ static void init_gpio(void)
     };
     button_handle_t gpio_btn_left_shoulder = NULL;
     ret = iot_button_new_gpio_device(&btn_cfg, &btn_gpio_cfg_left_shoulder, &gpio_btn_left_shoulder);
-    if (ret != ESP_OK || gpio_btn_left_shoulder == NULL) {
+    if (ret != ESP_OK || gpio_btn_left_shoulder == NULL)
+    {
         ESP_LOGE(TAG, "Failed to create left shoulder button");
-    } else {
+    }
+    else
+    {
         iot_button_register_cb(gpio_btn_left_shoulder, BUTTON_PRESS_DOWN, NULL, left_shoulder_btn_pressed_cb, NULL);
         iot_button_register_cb(gpio_btn_left_shoulder, BUTTON_PRESS_UP, NULL, left_shoulder_btn_released_cb, NULL);
     }
@@ -479,11 +572,49 @@ static void init_gpio(void)
     };
     button_handle_t gpio_btn_right_shoulder = NULL;
     ret = iot_button_new_gpio_device(&btn_cfg, &btn_gpio_cfg_right_shoulder, &gpio_btn_right_shoulder);
-    if (ret != ESP_OK || gpio_btn_right_shoulder == NULL) {
+    if (ret != ESP_OK || gpio_btn_right_shoulder == NULL)
+    {
         ESP_LOGE(TAG, "Failed to create right shoulder button");
-    } else {
+    }
+    else
+    {
         iot_button_register_cb(gpio_btn_right_shoulder, BUTTON_PRESS_DOWN, NULL, right_shoulder_btn_pressed_cb, NULL);
         iot_button_register_cb(gpio_btn_right_shoulder, BUTTON_PRESS_UP, NULL, right_shoulder_btn_released_cb, NULL);
+    }
+
+    // 初始化其他按键
+    // 左摇杆按键
+    const button_gpio_config_t btn_gpio_cfg_left_joystick = {
+        .gpio_num = GPIO_INPUT_LEFT_JOYSTICK_BTN,
+        .active_level = 0,
+    };
+    button_handle_t gpio_btn_left_joystick = NULL;
+    ret = iot_button_new_gpio_device(&btn_cfg, &btn_gpio_cfg_left_joystick, &gpio_btn_left_joystick);
+    if (ret != ESP_OK || gpio_btn_left_joystick == NULL)
+    {
+        ESP_LOGE(TAG, "Failed to create left joystick button");
+    }
+    else
+    {
+        iot_button_register_cb(gpio_btn_left_joystick, BUTTON_PRESS_DOWN, NULL, left_joystick_btn_pressed_cb, NULL);
+        iot_button_register_cb(gpio_btn_left_joystick, BUTTON_PRESS_UP, NULL, left_joystick_btn_released_cb, NULL);
+    }
+
+    // 右摇杆按键
+    const button_gpio_config_t btn_gpio_cfg_right_joystick = {
+        .gpio_num = GPIO_INPUT_RIGHT_JOYSTICK_BTN,
+        .active_level = 0,
+    };
+    button_handle_t gpio_btn_right_joystick = NULL;
+    ret = iot_button_new_gpio_device(&btn_cfg, &btn_gpio_cfg_right_joystick, &gpio_btn_right_joystick);
+    if (ret != ESP_OK || gpio_btn_right_joystick == NULL)
+    {
+        ESP_LOGE(TAG, "Failed to create right joystick button");
+    }
+    else
+    {
+        iot_button_register_cb(gpio_btn_right_joystick, BUTTON_PRESS_DOWN, NULL, right_joystick_btn_pressed_cb, NULL);
+        iot_button_register_cb(gpio_btn_right_joystick, BUTTON_PRESS_UP, NULL, right_joystick_btn_released_cb, NULL);
     }
 
     // SELECT按键
@@ -493,9 +624,12 @@ static void init_gpio(void)
     };
     button_handle_t gpio_btn_select = NULL;
     ret = iot_button_new_gpio_device(&btn_cfg, &btn_gpio_cfg_select, &gpio_btn_select);
-    if (ret != ESP_OK || gpio_btn_select == NULL) {
+    if (ret != ESP_OK || gpio_btn_select == NULL)
+    {
         ESP_LOGE(TAG, "Failed to create select button");
-    } else {
+    }
+    else
+    {
         iot_button_register_cb(gpio_btn_select, BUTTON_PRESS_DOWN, NULL, select_btn_pressed_cb, NULL);
         iot_button_register_cb(gpio_btn_select, BUTTON_PRESS_UP, NULL, select_btn_released_cb, NULL);
     }
@@ -507,9 +641,12 @@ static void init_gpio(void)
     };
     button_handle_t gpio_btn_start = NULL;
     ret = iot_button_new_gpio_device(&btn_cfg, &btn_gpio_cfg_start, &gpio_btn_start);
-    if (ret != ESP_OK || gpio_btn_start == NULL) {
+    if (ret != ESP_OK || gpio_btn_start == NULL)
+    {
         ESP_LOGE(TAG, "Failed to create start button");
-    } else {
+    }
+    else
+    {
         iot_button_register_cb(gpio_btn_start, BUTTON_PRESS_DOWN, NULL, start_btn_pressed_cb, NULL);
         iot_button_register_cb(gpio_btn_start, BUTTON_PRESS_UP, NULL, start_btn_released_cb, NULL);
     }
@@ -521,9 +658,12 @@ static void init_gpio(void)
     };
     button_handle_t gpio_btn_ikey = NULL;
     ret = iot_button_new_gpio_device(&btn_cfg, &btn_gpio_cfg_ikey, &gpio_btn_ikey);
-    if (ret != ESP_OK || gpio_btn_ikey == NULL) {
+    if (ret != ESP_OK || gpio_btn_ikey == NULL)
+    {
         ESP_LOGE(TAG, "Failed to create ikey button");
-    } else {
+    }
+    else
+    {
         iot_button_register_cb(gpio_btn_ikey, BUTTON_PRESS_DOWN, NULL, ikey_btn_pressed_cb, NULL);
         iot_button_register_cb(gpio_btn_ikey, BUTTON_PRESS_UP, NULL, ikey_btn_released_cb, NULL);
     }
@@ -535,9 +675,12 @@ static void init_gpio(void)
     };
     button_handle_t gpio_btn_ios = NULL;
     ret = iot_button_new_gpio_device(&btn_cfg, &btn_gpio_cfg_ios, &gpio_btn_ios);
-    if (ret != ESP_OK || gpio_btn_ios == NULL) {
+    if (ret != ESP_OK || gpio_btn_ios == NULL)
+    {
         ESP_LOGE(TAG, "Failed to create ios button");
-    } else {
+    }
+    else
+    {
         iot_button_register_cb(gpio_btn_ios, BUTTON_PRESS_DOWN, NULL, ios_btn_pressed_cb, NULL);
         iot_button_register_cb(gpio_btn_ios, BUTTON_PRESS_UP, NULL, ios_btn_released_cb, NULL);
     }
@@ -549,9 +692,12 @@ static void init_gpio(void)
     };
     button_handle_t gpio_btn_windows = NULL;
     ret = iot_button_new_gpio_device(&btn_cfg, &btn_gpio_cfg_windows, &gpio_btn_windows);
-    if (ret != ESP_OK || gpio_btn_windows == NULL) {
+    if (ret != ESP_OK || gpio_btn_windows == NULL)
+    {
         ESP_LOGE(TAG, "Failed to create windows button");
-    } else {
+    }
+    else
+    {
         iot_button_register_cb(gpio_btn_windows, BUTTON_PRESS_DOWN, NULL, windows_btn_pressed_cb, NULL);
         iot_button_register_cb(gpio_btn_windows, BUTTON_PRESS_UP, NULL, windows_btn_released_cb, NULL);
     }
@@ -562,6 +708,7 @@ static void init_gpio(void)
 #define HIDD_DEVICE_NAME "ESP32GamePad"
 uint16_t hid_conn_id = 0;
 bool sec_conn = false;
+
 // 原始广播数据包
 static uint8_t hidd_adv_data_raw[] = {
     0x02, ESP_BLE_AD_TYPE_FLAG, 0x06,             // Flags: LE General Discoverable Mode, BR/EDR Not Supported
@@ -627,6 +774,10 @@ static void hidd_event_callback(esp_hidd_cb_event_t event, esp_hidd_cb_param_t *
         ESP_LOGI("HIDDcallback", "ESP_HIDD_EVENT_BLE_CONNECT");
         // 记录连接id，后续要使用
         hid_conn_id = param->connect.conn_id;
+        // 在连接建立时停止ADC采样
+        ESP_LOGI("HIDDcallback", "Stopping ADC sampling during connection");
+
+        // stop_adc_sampling();
         break;
     }
     case ESP_HIDD_EVENT_BLE_DISCONNECT:
@@ -691,8 +842,12 @@ static void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param
             ESP_LOGE(HID_BLE_TAG, "fail reason = 0x%x", param->ble_security.auth_cmpl.fail_reason);
         }
         sec_conn = true;
+        // 连接稳定后重新启动ADC采样
+        ESP_LOGI(HID_BLE_TAG, "Starting ADC sampling after connection established");
+        // start_adc_sampling();
         // 添加短暂延迟，确保系统状态完全稳定后再允许ADC访问
         vTaskDelay(pdMS_TO_TICKS(50));
+
         break;
     default:
         break;
@@ -775,7 +930,7 @@ esp_err_t ble_sec_config(void)
 
 //-------------------------------------------------------------------------------------
 
-device_state_t current_device_state = DEVICE_STATE_INIT;
+volatile device_state_t current_device_state = DEVICE_STATE_INIT;
 void init_all(void)
 {
     led_strip = configure_led();

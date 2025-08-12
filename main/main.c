@@ -16,6 +16,8 @@
 #include "hid_dev.h"
 
 #include "esp_timer.h"
+#include "esp_bt_main.h"
+#include "esp_bt.h"
 
 #include "main.h"
 
@@ -27,11 +29,10 @@
 #include "processing.h"
 #include "calibration.h"
 
-// todo:遗忘上一次连接的设备
-// todo:断连后重新连接，会导致崩溃（adc 缓冲区无法读取）
-// todo:把按键注册为 iot button
-// todo:重新组织代码结构
+#define GAMEPAD_DEBUG_MODE
 
+// todo:遗忘上一次连接的设备
+// todo:优化发包速度
 #define HID_TASK_TAG "TASKinfo"
 // adc多通道均值缓冲区
 // 结构（channel 对应索引）：
@@ -54,6 +55,7 @@ SemaphoreHandle_t calibration_semaphore = NULL;
 
 bool led_running = false;
 bool adc_running = false;
+bool js_calibration_running = false;
 
 // 摇杆校准数据
 joystick_calibration_data_t left_joystick_cal_data;
@@ -82,6 +84,9 @@ void app_main(void)
             // 创建多通道平均缓冲区，长度为10
             mcb = mcb_init(10);
             init_all(); // 初始化除了HOME按键之外的外设
+
+            // stop_adc_sampling();
+
             // 读取开机次数
             uint64_t boot_count;
             esp_err_t err = nvs_get_boot_count(&boot_count);
@@ -96,8 +101,8 @@ void app_main(void)
 
             // LED任务
             led_flash_semaphore = xSemaphoreCreateBinary();
-            xTaskCreatePinnedToCore(blink_task, "blink_task", 2048, NULL, 5, NULL, 1);
-            xTaskCreatePinnedToCore(LED_flash_task, "LED_flash_task", 2048, NULL, 5, NULL, 1);
+            xTaskCreatePinnedToCore(blink_task, "blink_task", 4096, NULL, 5, NULL, 1);
+            xTaskCreatePinnedToCore(LED_flash_task, "LED_flash_task", 4096, NULL, 5, NULL, 1);
             // 先闪灯，让用户以为开机了
             while (gpio_get_level(GPIO_INPUT_HOME_BTN) == BUTTON_HOME_PRESSED)
             {
@@ -107,37 +112,25 @@ void app_main(void)
             // 创建关机任务
             shutdown_semaphore = xSemaphoreCreateBinary();
             setHomeButton(); // 释放后再注册home按键长按
-            xTaskCreatePinnedToCore(shutdown_task, "shutdown_task", 4096, NULL, 5, NULL, 1);
+            xTaskCreatePinnedToCore(shutdown_task, "shutdown_task", 2048, NULL, 7, NULL, 1);
 
             // 创建摇杆校准任务
-            xTaskCreatePinnedToCore(joystick_calibration_task, "calibration_task", 4096, NULL, 5, NULL, 1);
-            
-            // 创建XYAB按键状态监控任务
-            // xTaskCreatePinnedToCore(xyab_button_monitor_task, "xyab_button_monitor", 2048, NULL, 5, NULL, 1);
+            xTaskCreatePinnedToCore(joystick_calibration_task, "calibration_task", 8192, NULL, 10, NULL, 1);
 
-            while (1)
-            {
-                // 等待连接
-                if (sec_conn == true)
-                {
-                    // （排查这里的缓存读取错误）
-                    //  todo:为了保证任务的合理运行，此处不应该在创建任务前进行判断 sec_conn == true
-                    //  GPIO与ADC读取任务
-                    //  xTaskCreatePinnedToCore(gpio_read_task, "gpio_toggle_task", 4096, NULL, 6, NULL, 1);
-                    //  高优先级保证实时性
-                    xTaskCreatePinnedToCore(adc_read_task, "adc_read_task", 4096, NULL, 7, NULL, 1);
-                    // 可以是低优先级，反正每次处理的都是最新数据
-                    xTaskCreatePinnedToCore(adc_aver_send, "adc_aver_send", 2048, NULL, 6, NULL, 1);
-                    // 模拟手柄任务
-                    xTaskCreatePinnedToCore(gamepad_button_task, "gamepad_button_task", 4096, NULL, 9, NULL, 1);
-                    // 使命完成，删除自己
-                    vTaskDelete(NULL);
-                }
-                else
-                {
-                    vTaskDelay(pdMS_TO_TICKS(500));
-                }
-            }
+            // 创建XYAB按键状态监控任务
+            xTaskCreatePinnedToCore(all_buttons_monitor_task, "xyab_button_monitor", 2048, NULL, 7, NULL, 1);
+
+            // （排查这里的缓存读取错误）
+            //  高优先级保证实时性
+            // 启动ADC采样
+
+            xTaskCreatePinnedToCore(adc_read_task, "adc_read_task", 8192, NULL, 7, NULL, 1);
+            // 可以是低优先级，反正每次处理的都是最新数据
+            xTaskCreatePinnedToCore(adc_aver_send_task, "adc_aver_send_task", 2048, NULL, 6, NULL, 1);
+            // 模拟手柄任务
+            xTaskCreatePinnedToCore(gamepad_packet_send_task, "gamepad_packet_send_task", 4096, NULL, 8, NULL, 1);
+            // 使命完成，删除自己
+            vTaskDelete(NULL);
         }
         else
         {
@@ -226,7 +219,8 @@ void SLEEP(void)
     // adc_continuous_deinit(ADC_init_handle);
 
     // 下拉输出powerkeep0，拉低电源保持。如果是电池状态，此时已经关断电源。如果是充电状态，那么下拉也没用，直接进入深度睡眠，等待 HOME 按键唤醒
-    for (int i = 0; i < 2; i++) {
+    for (int i = 0; i < 2; i++)
+    {
         gpio_config_t io_conf = {};
         io_conf.intr_type = GPIO_INTR_DISABLE;
         io_conf.mode = GPIO_MODE_OUTPUT;
@@ -240,7 +234,6 @@ void SLEEP(void)
 
     // 配置HOME按键为唤醒源，检测上升沿唤醒
     esp_sleep_enable_ext0_wakeup(GPIO_INPUT_HOME_BTN, 1); // 1表示高电平唤醒
-
     // 进入深度睡眠
     esp_deep_sleep_start();
 }
@@ -249,7 +242,7 @@ void SLEEP(void)
 // 关机任务
 void shutdown_task(void *pvParameter)
 {
-    while (1)
+    for (;;)
     {
         // 判断关机信号量
         if (xSemaphoreTake(shutdown_semaphore, portMAX_DELAY) == pdTRUE)
@@ -285,7 +278,7 @@ void blink_task(void *pvParameter)
             setLED(0, 0, led_on_off ? 10 : 0, led_on_off ? 10 : 0);
             setLED(1, 0, 0, 0);
             setLED(2, 0, 0, 0);
-            setLED(3, led_on_off ? 10 : 0, led_on_off ? 10 : 0, 0);
+            setLED(3, 0, 0, 0);
             led_on_off = !led_on_off;
             vTaskDelay(pdMS_TO_TICKS(300));
             break;
@@ -305,7 +298,7 @@ void blink_task(void *pvParameter)
             {
                 setLED(i, 0, 15, 0);
             }
-            vTaskDelay(pdMS_TO_TICKS(200));
+            vTaskDelay(pdMS_TO_TICKS(400));
             break;
 
         case DEVICE_STATE_DISCONNECTED:
@@ -349,7 +342,7 @@ void blink_task(void *pvParameter)
             {
                 if (i == 0 && led_on_off)
                 {
-                    setLED(i, 20, 10, 5);
+                    setLED(i, 20, 10, 0);
                 }
                 else
                 {
@@ -381,7 +374,7 @@ void blink_task(void *pvParameter)
 
         case DEVICE_STATE_CALI_DONE:
             // 快闪灯0
-            setLED(0, led_on_off ? 20 : 0, led_on_off ? 10 : 0, led_on_off ? 5 : 0);
+            setLED(0, 0, led_on_off ? 10 : 0, led_on_off ? 5 : 0);
             for (int i = 1; i < 4; i++)
             {
                 setLED(i, 0, 0, 0);
@@ -412,7 +405,7 @@ void blink_task(void *pvParameter)
 void LED_flash_task(void *pvParameter)
 {
     // 这里不要去判断 led runing，万一来不及赋值，该任务就会被删除
-    while (1)
+    for (;;)
     {
         // 等待LED操作完成，一直阻塞直到信号量被释放
         if (xSemaphoreTake(led_flash_semaphore, portMAX_DELAY) == pdTRUE)
@@ -423,179 +416,252 @@ void LED_flash_task(void *pvParameter)
     vTaskDelete(NULL);
 }
 
-void gpio_read_task(void *pvParameter)
-{
-    int level_25, level_26, level_27, level_14;
-    int level_15, level_19;
-    int level_23, level_18;
-    int level_4, level_2, level_0, level_21, level_22;
-
-    while (1)
-    {
-        // Toggle GPIO32
-
-        // Read input GPIO levels
-        level_25 = gpio_get_level(GPIO_INPUT_KEY_X);
-        level_26 = gpio_get_level(GPIO_INPUT_KEY_Y);
-        level_27 = gpio_get_level(GPIO_INPUT_KEY_A);
-        level_14 = gpio_get_level(GPIO_INPUT_KEY_B);
-
-        level_15 = gpio_get_level(GPIO_INPUT_LEFT_JOYSTICK_BTN);
-        level_19 = gpio_get_level(GPIO_INPUT_RIGHT_JOYSTICK_BTN);
-
-        level_23 = gpio_get_level(GPIO_INPUT_LEFT_SHOULDER_BTN);
-        level_18 = gpio_get_level(GPIO_INPUT_RIGHT_SHOULDER_BTN);
-
-        level_4 = gpio_get_level(GPIO_INPUT_SELECT_BTN);
-        level_2 = gpio_get_level(GPIO_INPUT_START_BTN);
-        level_0 = gpio_get_level(GPIO_INPUT_IKEY_BTN);
-        level_21 = gpio_get_level(GPIO_INPUT_IOS_BTN);
-        level_22 = gpio_get_level(GPIO_INPUT_WINDOWS_BTN);
-
-        // Log levels
-        ESP_LOGI("ioTask", "X: %d | Y: %d | A: %d | B: %d",
-                 level_25, level_26, level_27, level_14);
-        ESP_LOGI("ioTask", "LS: %d | RS: %d",
-                 level_15, level_19);
-        ESP_LOGI("ioTask", "Shoulders - Left: %d | Right: %d",
-                 level_23, level_18);
-        ESP_LOGI("ioTask", "Special Keys - SELECT: %d | START: %d | IKEY: %d | IOS: %d | WINDOWS: %d",
-                 level_4, level_2, level_0, level_21, level_22);
-
-        // Delay 500ms
-        vTaskDelay(pdMS_TO_TICKS(300));
-    }
-}
-
-static TaskHandle_t s_task_handle;
-static bool IRAM_ATTR s_conv_done_cb(adc_continuous_handle_t handle, const adc_continuous_evt_data_t *edata, void *user_data)
-{
-    BaseType_t mustYield = pdFALSE;
-    // 在中断中通知任务 ADC 已经完成足够次数的转换
-    vTaskNotifyGiveFromISR(s_task_handle, &mustYield);
-    // 如果转换完成，进行上下文切换（让步）
-    return (mustYield == pdTRUE);
-}
-
 // adc 读取raw任务
-void adc_read_task(void *pvParameter)
+
+// ADC读取任务，现在即使在蓝牙未连接时也能运行，但只在连接时处理数据
+void adc_read_task(void *pvParameters)
 {
-    esp_err_t ret;
+    ESP_LOGI("adc_read_task", "ADC读取任务启动");
+
+    adc_continuous_handle_t handle = ADC_init_handle;
     uint32_t ret_num = 0;
-    uint8_t bufferADC[EXAMPLE_READ_LEN] = {0};
-    memset(bufferADC, 0xcc, EXAMPLE_READ_LEN);
-    s_task_handle = xTaskGetCurrentTaskHandle();
-    // 错误检查回调
-    adc_continuous_evt_cbs_t cbs = {
-        .on_conv_done = s_conv_done_cb,
-    };
-    ESP_ERROR_CHECK(adc_continuous_register_event_callbacks(ADC_init_handle, &cbs, NULL));
-    ESP_ERROR_CHECK(adc_continuous_start(ADC_init_handle));
+    uint8_t result[EXAMPLE_READ_LEN];
+    memset(result, 0, EXAMPLE_READ_LEN);
 
-    adc_running = true;
+    // 用于追踪每个通道的数据写入位置
+    static uint8_t writeIndex[ADC_CHANNEL_COUNT] = {0};
+    // 用于追踪每个通道的数据计数
+    static uint16_t count[ADC_CHANNEL_COUNT] = {0};
 
-    // 连上了才读，否则会这是一个ESP32的Cache error错误，具体原因是"Cache disabled but cached memory region accessed"（缓存被禁用但访问了缓存内存区域）。从回溯信息看，错误发生在BLE连接过程中，当尝试读取ADC数据时触发。触发时机：在BLE连接事件(ESP_HIDD_EVENT_BLE_CONNECT)处理过程中。根本原因：中断处理程序中访问了被缓存的内存区域，而此时缓存已被禁用
-    // 增加额外的状态稳定检查，确保连接完全稳定后再读取ADC
-    bool conn_stable = false;
-    uint32_t conn_time = 0;
+    // 记录上一次的sec_conn状态
+    bool last_sec_conn_state = false;
 
-    while (adc_running)
+    for (;;)
     {
-        // 只有在已连接状态下才读取ADC数据
-        if (sec_conn)
+        // 该判断只在非校准模式下有效
+        if (js_calibration_running == false)
+        // 只有在sec_conn状态发生变化时才调用start/stop函数
         {
-            // 检查连接是否稳定，避免在连接刚建立时就读取ADC数据
-            if (!conn_stable)
+            if (sec_conn != last_sec_conn_state)
             {
-                if (conn_time == 0)
+                if (sec_conn)
                 {
-                    conn_time = xTaskGetTickCount();
+                    // 连上了再开始初始化
+                    ESP_LOGI("adc_read_task", "Starting ADC sampling");
+                    start_adc_sampling();
                 }
-                else if ((xTaskGetTickCount() - conn_time) > pdMS_TO_TICKS(100))
+                else
                 {
-                    // 连接稳定超过100ms，可以安全读取ADC
-                    conn_stable = true;
-                    conn_time = 0;
+                    ESP_LOGI("adc_read_task", "Stopping ADC sampling");
+                    stop_adc_sampling();
                 }
+                last_sec_conn_state = sec_conn;
             }
+        }
 
-            if (conn_stable)
+        // 从DMA缓冲区读取数据
+        // esp_err_t ret = ESP_ERR_TIMEOUT;
+        if (adc_running)
+        {
+            esp_err_t ret = adc_continuous_read(handle, result, EXAMPLE_READ_LEN, &ret_num, 0);
+            if (ret == ESP_OK)
             {
-                vTaskDelay(pdMS_TO_TICKS(20));
-                // 读取256个数据
-                ret = adc_continuous_read(ADC_init_handle, bufferADC, EXAMPLE_READ_LEN, &ret_num, 0);
-                if (ret == ESP_OK)
+                // 遍历读取到的数据
+                for (int i = 0; i < ret_num; i += sizeof(adc_digi_output_data_t))
                 {
-                    // ESP_LOGI("TASK", "ret is %x, ret_num is %" PRIu32 " bytes", ret, ret_num);
-                    // 每个ADC采样结果包含多个字节（通常是4字节），包含了通道号和采样值等信息。
-                    for (int i = 0; i < ret_num; i += SOC_ADC_DIGI_RESULT_BYTES)
+                    adc_digi_output_data_t *p = (adc_digi_output_data_t *)&result[i];
+                    uint32_t chan = EXAMPLE_ADC_GET_CHANNEL(p);
+                    uint32_t data = EXAMPLE_ADC_GET_DATA(p);
+
+                    if (chan < ADC_CHANNEL_COUNT)
                     {
-                        adc_digi_output_data_t *p = (adc_digi_output_data_t *)&bufferADC[i];
-                        uint8_t chan_num = (uint8_t)EXAMPLE_ADC_GET_CHANNEL(p);
-                        uint32_t data = EXAMPLE_ADC_GET_DATA(p);
-                        // float voltage = (float)data * 3.3 / 4095.0;
-                        // 推入 mcb
-                        mcb_push(mcb, chan_num, data);
+                        // if(chan == ADC_CHANNEL_RIGHT_LEFT_RIGHT){ESP_LOGI("ADCraw","%d",data);}
+                        // 将数据写入对应通道的数组
+                        resultAvr[chan][writeIndex[chan]] = data;
+                        writeIndex[chan]++;
+                        if (writeIndex[chan] >= AVERAGE_LEN)
+                        {
+                            writeIndex[chan] = 0;
+                        }
+
+                        // 更新计数
+                        if (count[chan] < AVERAGE_LEN)
+                        {
+                            count[chan]++;
+                        }
+
+                        // 如果启用了多通道缓冲区，也将数据添加到mcb中
+                        if (mcb != NULL)
+                        {
+                            mcb_push(mcb, chan, data);
+                        }
                     }
                 }
-                else if (ret != ESP_ERR_TIMEOUT)
-                {
-                    ESP_LOGE("ADCtask", "ADC read failed with error: %d", ret);
-                }
             }
-            else
+            else if (ret == ESP_ERR_TIMEOUT)
             {
-                // 连接尚未稳定，短暂延迟
+                // 超时，继续循环
                 vTaskDelay(pdMS_TO_TICKS(10));
             }
         }
-        else
-        {
-            // 如果未连接，则短暂延迟
-            conn_stable = false; // 重置连接稳定状态
-            conn_time = 0;       // 重置连接时间
-            vTaskDelay(pdMS_TO_TICKS(100));
-        }
+        vTaskDelay(pdMS_TO_TICKS(10));
     }
-    vTaskDelete(NULL);
+}
+
+static int32_t clamp(int32_t value, int32_t min, int32_t max)
+{
+    if (value < min)
+        return min;
+    if (value > max)
+        return max;
+    return value;
+}
+
+// 安全除法
+static int32_t safe_divide(int32_t numerator, int32_t denominator, int32_t default_val)
+{
+    if (denominator == 0)
+    {
+        return default_val; // 处理校准数据异常
+    }
+    return numerator / denominator;
+}
+
+// 摇杆值映射到 0~255 范围（中心对应127左右）
+static uint8_t map_joystick(int32_t raw, int32_t center, int32_t min, int32_t max)
+{
+    int32_t offset = raw - center; // 计算相对于中心的偏移（可正可负）
+    int32_t deadzone = 50;         // 死区范围
+
+    // 如果在死区内，返回中心值127
+    if (offset >= -deadzone && offset <= deadzone)
+    {
+        return 127;
+    }
+
+    // 调整偏移量，排除死区影响
+    if (offset > 0)
+    {
+        offset -= deadzone;
+    }
+    else
+    {
+        offset += deadzone;
+    }
+
+    // 调整有效范围
+    int32_t range_pos = max - center - deadzone; // 中心到最大值的有效范围（正向）
+    int32_t range_neg = center - min - deadzone; // 中心到最小值的有效范围（负向）
+
+    int32_t scaled;
+    if (offset >= 0)
+    {
+        // 正向偏移：映射到 127~255
+        scaled = 128 + safe_divide(offset * 127, range_pos, 127);
+    }
+    else
+    {
+        // 负向偏移：映射到 0~127（取绝对值计算）
+        scaled = 128 - safe_divide((-offset) * 128, range_neg, 128);
+    }
+
+    return (uint8_t)clamp(scaled, 0, 255); // 确保结果在 0~255 范围内
 }
 
 // 摇杆校准数据
 // joystick_calibration_data_t left_joystick_cal_data;
 // joystick_calibration_data_t right_joystick_cal_data;
-void adc_aver_send(void *pvParameters)
+void adc_aver_send_task(void *pvParameters)
 {
     uint32_t all_avg[8];
-    while (1)
+    for (;;)
     {
         // 当正在进行环形校准时不要进行此操作，防止耗时
-        if (current_device_state != DEVICE_STATE_CALI_RING)
+        if (js_calibration_running != true)
         {
             mcb_get_all_averages(mcb, all_avg);
-            // 此处可以直接认为，平均后的值为 ADC 的原始数据
-            printf("\r\n");
-            for (uint8_t i = 0; i < 8; i++)
+            for (int i = 0; i < 8; i++)
             {
-                printf("%ld  ", all_avg[i]);
+                printf("[%d]=%lu ", i, all_avg[i]);
             }
-            vTaskDelay(pdMS_TO_TICKS(40));
+            printf("\n");
+
+            // 此处可以直接认为，平均后的值为 ADC 的原始数据
+
+            // 右摇杆 Y 轴
+            gamepad_report_buffer[3] = map_joystick(all_avg[0],
+                                                    right_joystick_cal_data.center_y,
+                                                    right_joystick_cal_data.min_y,
+                                                    right_joystick_cal_data.max_y);
+
+            // 右摇杆 X 轴（注意此处minmax反向）
+            gamepad_report_buffer[2] = 255 - map_joystick(all_avg[1],
+                                                          right_joystick_cal_data.center_x,
+                                                          right_joystick_cal_data.min_x,
+                                                          right_joystick_cal_data.max_x);
+
+            // 左摇杆 Y 轴
+            gamepad_report_buffer[1] = map_joystick(all_avg[2],
+                                                    left_joystick_cal_data.center_y,
+                                                    left_joystick_cal_data.min_y,
+                                                    left_joystick_cal_data.max_y);
+
+            // 左摇杆 X 轴（注意此处minmax反向）
+            gamepad_report_buffer[0] = 255 - map_joystick(all_avg[3],
+                                                          left_joystick_cal_data.center_x,
+                                                          left_joystick_cal_data.min_x,
+                                                          left_joystick_cal_data.max_x);
+
+            // 处理扳机值 - 将ADC原始值(0-4095)映射到(255-0)
+            // 左扳机所在的通道是all_avg[4]对应gamepad_report_buffer[8]
+            // ESP_LOGI("Trigger", "%d     %d", all_avg[4],all_avg[5]);
+
+            if (all_avg[4] > 1489)
+            {
+                gamepad_report_buffer[8] = 0;
+            }
+            else
+            {
+                gamepad_report_buffer[8] = 255 - (all_avg[4] * 255 / 1489);
+            }
+
+            // 右扳机all_avg[5]对应gamepad_report_buffer[7]
+            if (all_avg[5] > 1489)
+            {
+                gamepad_report_buffer[7] = 0;
+            }
+            else
+            {
+                gamepad_report_buffer[7] = 255 - (all_avg[5] * 255 / 1489);
+            }
         }
+        vTaskDelay(pdMS_TO_TICKS(30));
     }
 }
 
-void gamepad_button_task(void *pvParameters)
+void gamepad_packet_send_task(void *pvParameters)
 {
 
-    while (1)
+    for (;;)
     {
-        if (sec_conn)
+        if (sec_conn && current_device_state == DEVICE_STATE_CONNECTED)
         {
-            vTaskDelay(pdMS_TO_TICKS(80));
+            vTaskDelay(pdMS_TO_TICKS(100));
+
+            // 打印游戏手柄报告缓冲区内容
+#ifdef GAMEPAD_DEBUG_MODE
+            // for (int i = 0; i < HID_GAMEPAD_STICK_IN_RPT_LEN; i++)
+            // {
+            //     printf("%d ", gamepad_report_buffer[i]);
+            // }
+            // printf("\r\n");
+#endif
+
             esp_hidd_send_gamepad_report(hid_conn_id);
         }
         else
         {
-            vTaskDelay(pdMS_TO_TICKS(10000));
+            vTaskDelay(pdMS_TO_TICKS(1000));
             ESP_LOGI(HID_TASK_TAG, "Waiting for connection...");
         }
     }
@@ -603,15 +669,24 @@ void gamepad_button_task(void *pvParameters)
 
 void joystick_calibration_task(void *pvParameter)
 {
-    while (1)
+    for (;;)
     {
         if (xSemaphoreTake(calibration_semaphore, portMAX_DELAY) == pdTRUE)
         {
+            sec_conn = false;
+            // 失能蓝牙
+            esp_bluedroid_disable();
+            esp_bluedroid_deinit();
+            esp_bt_controller_disable();
+            esp_bt_controller_deinit();
+            vTaskDelay(500);
+            js_calibration_running = true;
+            start_adc_sampling();
             ESP_LOGI("CALIBRATION", "开始摇杆校准");
             // 保存当前设备状态，以便校准结束后恢复
             // device_state_t prev_state = current_device_state;
             current_device_state = DEVICE_STATE_CALI_START;
-            vTaskDelay(pdMS_TO_TICKS(1000));
+            vTaskDelay(pdMS_TO_TICKS(2000));
             current_device_state = DEVICE_STATE_CALI_RING;
 
             // 初始化最大最小值
@@ -620,9 +695,9 @@ void joystick_calibration_task(void *pvParameter)
 
             uint32_t all_avg[8];
             uint32_t start_time = xTaskGetTickCount();
-            uint32_t duration_ticks = pdMS_TO_TICKS(5000); // 5秒
+            uint32_t duration_ticks = pdMS_TO_TICKS(8000); // 8秒
 
-            // 持续读取5秒数据
+            // 持续读取8秒数据
             while ((xTaskGetTickCount() - start_time) < duration_ticks)
             {
                 mcb_get_all_averages(mcb, all_avg);
@@ -665,13 +740,9 @@ void joystick_calibration_task(void *pvParameter)
             store_joystick_calibration_data(0, &left_joystick_cal_data);  // 左摇杆ID=0
 
             current_device_state = DEVICE_STATE_CALI_DONE;
-            vTaskDelay(pdMS_TO_TICKS(1000));
-            // 关灯
-            current_device_state = DEVICE_STATE_SLEEP;
+            vTaskDelay(pdMS_TO_TICKS(3000));
             // 等待用户松手
-            vTaskDelay(pdMS_TO_TICKS(1500));
-
-            // 获取稳定值作为中心点
+            // 获取平均值作为中心点
             uint32_t center_sum[4] = {0, 0, 0, 0}; // 用于累加各通道值
             uint32_t center_count = 0;             // 采样次数
 
@@ -716,42 +787,124 @@ void joystick_calibration_task(void *pvParameter)
                          left_joystick_cal_data.center_x, left_joystick_cal_data.center_y);
             }
 
-            xSemaphoreGive(calibration_semaphore); // 归还信号量，等待下一次校准
+            current_device_state = DEVICE_STATE_SLEEP;
+            vTaskDelay(pdMS_TO_TICKS(100));
+            xSemaphoreGive(calibration_semaphore); // 归还信号量
+            vTaskDelay(pdMS_TO_TICKS(100));
+            esp_restart();
         }
     }
 }
 
-void xyab_button_monitor_task(void *pvParameter)
+void all_buttons_monitor_task(void *pvParameter)
 {
     ESP_LOGI("XYAB_MONITOR", "XYAB Button Monitor Task Started");
-    
-    while (1) {
+
+    // 用于检测SELECT和START按键同时按下的计时
+    TickType_t press_start_time = 0;
+    bool calibration_triggered = false;
+
+    for (;;)
+    {
         // 等待100ms
-        vTaskDelay(pdMS_TO_TICKS(100));
-        
+        vTaskDelay(pdMS_TO_TICKS(50));
+        uint8_t xyab_button_value = 0;
         // 读取XYAB按键事件组状态
         EventBits_t xyab_bits = xEventGroupGetBits(xyab_button_event_group);
-        
+        if (xyab_bits & XYAB_KEY_X_PRESSED)
+        {
+            xyab_button_value |= 0x08; // X 按下
+        }
+        if (xyab_bits & XYAB_KEY_Y_PRESSED)
+        {
+            xyab_button_value |= 0x10; // Y 按下
+        }
+        if (xyab_bits & XYAB_KEY_A_PRESSED)
+        {
+            xyab_button_value |= 0x01; // A 按下
+        }
+        if (xyab_bits & XYAB_KEY_B_PRESSED)
+        {
+            xyab_button_value |= 0x02; // B 按下
+        }
+        if (xyab_bits & LEFT_SHOULDER_BTN_PRESSED)
+        {
+            xyab_button_value |= 0x40; // 左肩键按下
+        }
+        if (xyab_bits & RIGHT_SHOULDER_BTN_PRESSED)
+        {
+            xyab_button_value |= 0x80; // 右肩键按下
+        }
+
+        // 更新 gamepad_report_buffer[5]
+        gamepad_report_buffer[5] = xyab_button_value;
+
         // 打印XYAB按键状态
-        ESP_LOGI("XYAB_MONITOR", "XYAB Key States: X=%s, Y=%s, A=%s, B=%s",
-                 (xyab_bits & XYAB_KEY_X_PRESSED) ? "1" : "0",
-                 (xyab_bits & XYAB_KEY_Y_PRESSED) ? "1" : "0",
-                 (xyab_bits & XYAB_KEY_A_PRESSED) ? "1" : "0",
-                 (xyab_bits & XYAB_KEY_B_PRESSED) ? "1" : "0");
-        
+        // ESP_LOGI("XYAB_MONITOR", "XYAB Key States: X=%s, Y=%s, A=%s, B=%s",
+        //          (xyab_bits & XYAB_KEY_X_PRESSED) ? "1" : "0",
+        //          (xyab_bits & XYAB_KEY_Y_PRESSED) ? "1" : "0",
+        //          (xyab_bits & XYAB_KEY_A_PRESSED) ? "1" : "0",
+        //          (xyab_bits & XYAB_KEY_B_PRESSED) ? "1" : "0");
+
         // 读取其他按键事件组状态
         EventBits_t other_bits = xEventGroupGetBits(other_button_event_group);
-        
-        // 打印其他按键状态
-        ESP_LOGI("OTHER_MONITOR", "Other Key States: LJS=%s, RJS=%s, LS=%s, RS=%s, SEL=%s, STA=%s, IKEY=%s, IOS=%s, WIN=%s",
-                 (other_bits & LEFT_JOYSTICK_BTN_PRESSED) ? "1" : "0",
-                 (other_bits & RIGHT_JOYSTICK_BTN_PRESSED) ? "1" : "0",
-                 (other_bits & LEFT_SHOULDER_BTN_PRESSED) ? "1" : "0",
-                 (other_bits & RIGHT_SHOULDER_BTN_PRESSED) ? "1" : "0",
-                 (other_bits & SELECT_BTN_PRESSED) ? "1" : "0",
-                 (other_bits & START_BTN_PRESSED) ? "1" : "0",
-                 (other_bits & IKEY_BTN_PRESSED) ? "1" : "0",
-                 (other_bits & IOS_BTN_PRESSED) ? "1" : "0",
-                 (other_bits & WINDOWS_BTN_PRESSED) ? "1" : "0");
+
+        // 未进入 calibration 模式才执行
+        if (js_calibration_running == false)
+        {
+            // 打印其他按键状态
+            // ESP_LOGI("OTHER_MONITOR", "Other Key States: LJS=%s, RJS=%s, SEL=%s, STA=%s, IKEY=%s, IOS=%s, WIN=%s",
+            //          (other_bits & LEFT_JOYSTICK_BTN_PRESSED) ? "1" : "0",
+            //          (other_bits & RIGHT_JOYSTICK_BTN_PRESSED) ? "1" : "0",
+            //          (other_bits & SELECT_BTN_PRESSED) ? "1" : "0",
+            //          (other_bits & START_BTN_PRESSED) ? "1" : "0",
+            //          (other_bits & IKEY_BTN_PRESSED) ? "1" : "0",
+            //          (other_bits & IOS_BTN_PRESSED) ? "1" : "0",
+            //          (other_bits & WINDOWS_BTN_PRESSED) ? "1" : "0");
+
+            if ((other_bits & SELECT_BTN_PRESSED) && (other_bits & START_BTN_PRESSED))
+            {
+                //  todo:这里的 calibration trigg可能没有用
+                // 如果是初次检测到同时按下，记录开始时间
+                if (!calibration_triggered)
+                {
+                    press_start_time = xTaskGetTickCount();
+                    calibration_triggered = true;
+                    ESP_LOGI("CALIBRATION", "SELECT and START buttons pressed, waiting for 3 seconds...");
+                }
+                // 如果已经按下一段时间，检查是否达到3秒
+                else if ((xTaskGetTickCount() - press_start_time) >= pdMS_TO_TICKS(3000))
+                {
+                    ESP_LOGI("CALIBRATION", "SELECT and START buttons held for 3 seconds, triggering calibration...");
+                    // 触发校准信号量
+                    if (calibration_semaphore != NULL)
+                    {
+                        xSemaphoreGive(calibration_semaphore);
+                    }
+                    // 重置状态以避免重复触发
+                    calibration_triggered = false;
+                }
+            }
+            else
+            {
+                // 如果任何一个按键未按下，重置状态
+                if (calibration_triggered)
+                {
+                    ESP_LOGI("CALIBRATION", "SELECT and START buttons released before 3 seconds");
+                    calibration_triggered = false;
+                }
+            }
+        }
     }
+}
+
+// 暂时没有用到
+void update_buttons_packet()
+{
+    // 初始化 gamepad_report_buffer[5] 为 0
+
+    // 读取XYAB按键事件组状态
+    // EventBits_t xyab_bits = xEventGroupGetBits(xyab_button_event_group);
+
+    // 根据按键状态更新 xyab_button_value
 }

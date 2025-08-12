@@ -31,6 +31,12 @@ esp_err_t flashLED(void);
 // void init_adc(void);
 // int read_adc_channel_voltage(adc_channel_t channel);
 // void read_and_log_adc_values(void);
+
+// 新增ADC采样控制函数
+esp_err_t start_adc_sampling(void);
+esp_err_t stop_adc_sampling(void);
+esp_err_t deinit_adc(void);
+
 // ADC配置
 #define EXAMPLE_ADC_UNIT ADC_UNIT_1
 #define _EXAMPLE_ADC_UNIT_STR(unit) #unit
@@ -101,17 +107,17 @@ extern EventGroupHandle_t other_button_event_group;
 #define XYAB_KEY_Y_PRESSED    (1 << 1)
 #define XYAB_KEY_A_PRESSED    (1 << 2)
 #define XYAB_KEY_B_PRESSED    (1 << 3)
+#define LEFT_SHOULDER_BTN_PRESSED    (1 << 4)
+#define RIGHT_SHOULDER_BTN_PRESSED   (1 << 5)
 
 // 其他按键事件位定义
 #define LEFT_JOYSTICK_BTN_PRESSED    (1 << 0)
 #define RIGHT_JOYSTICK_BTN_PRESSED   (1 << 1)
-#define LEFT_SHOULDER_BTN_PRESSED    (1 << 2)
-#define RIGHT_SHOULDER_BTN_PRESSED   (1 << 3)
-#define SELECT_BTN_PRESSED           (1 << 4)
-#define START_BTN_PRESSED            (1 << 5)
-#define IKEY_BTN_PRESSED             (1 << 6)
-#define IOS_BTN_PRESSED              (1 << 7)
-#define WINDOWS_BTN_PRESSED          (1 << 8)
+#define SELECT_BTN_PRESSED           (1 << 2)
+#define START_BTN_PRESSED            (1 << 3)
+#define IKEY_BTN_PRESSED             (1 << 4)
+#define IOS_BTN_PRESSED              (1 << 5)
+#define WINDOWS_BTN_PRESSED          (1 << 6)
 
 typedef enum {
     DEVICE_STATE_INIT,           // 初始化状态
@@ -127,7 +133,7 @@ typedef enum {
     DEVICE_STATE_CALI_DONE,      // 校准完成
 
 } device_state_t;
-extern device_state_t current_device_state; 
+extern volatile device_state_t current_device_state; 
 void init_all(void);
 
 #endif
