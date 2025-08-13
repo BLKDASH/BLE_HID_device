@@ -591,12 +591,12 @@ void adc_aver_send_task(void *pvParameters)
             
             
 
-            for (int i = 0; i < 8; i++)
-            {
-                //esp_err_t ret = adc_cali_raw_to_voltage(adc1_cali_handle, all_avg[i], &voltage_mv);
-                printf("[%d]=%ld ", i, all_avg[i]);
-            }
-            printf("\n");
+            // for (int i = 0; i < 8; i++)
+            // {
+            //     //esp_err_t ret = adc_cali_raw_to_voltage(adc1_cali_handle, all_avg[i], &voltage_mv);
+            //     printf("[%d]=%ld ", i, all_avg[i]);
+            // }
+            // printf("\n");
 
             // 此处可以直接认为，平均后的值为 ADC 的原始数据
 
@@ -992,6 +992,7 @@ void gamepad_packet_send_task(void *pvParameters)
 #endif
 
             esp_hidd_send_gamepad_report(hid_conn_id);
+            esp_hidd_send_ikey_report(hid_conn_id);
         }
         else
         {
