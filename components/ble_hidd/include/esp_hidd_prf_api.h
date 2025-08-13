@@ -6,10 +6,11 @@
 #include "esp_err.h"
 
 #define HID_GAMEPAD_STICK_IN_RPT_LEN 10
+#define HID_IKEY_RPT_LEN 2
 
 // 声明全局游戏手柄报告缓冲区
 extern volatile uint8_t gamepad_report_buffer[HID_GAMEPAD_STICK_IN_RPT_LEN];
-
+extern volatile uint8_t ikey_buffer[HID_IKEY_RPT_LEN];
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -161,6 +162,8 @@ void esp_hidd_send_keyboard_value(uint16_t conn_id, key_mask_t special_key_mask,
 void esp_hidd_send_mouse_value(uint16_t conn_id, uint8_t mouse_button, int8_t mickeys_x, int8_t mickeys_y);
 
 void esp_hidd_send_gamepad_report(uint16_t conn_id);
+
+void esp_hidd_send_ikey_report(uint16_t conn_id);
 
 
 

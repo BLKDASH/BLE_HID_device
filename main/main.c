@@ -877,21 +877,37 @@ void all_buttons_monitor_task(void *pvParameter)
         EventBits_t other_bits = xEventGroupGetBits(other_button_event_group);
         if (other_bits & SELECT_BTN_PRESSED)
         {
-            other_button_value |= 0x04; // X 按下
+            other_button_value |= 0x04; // select 按下
         }
         if (other_bits & START_BTN_PRESSED)
         {
-            other_button_value |= 0x08; // Y 按下
+            other_button_value |= 0x08; // start 按下
         }
         if (other_bits & LEFT_JOYSTICK_BTN_PRESSED)
         {
-            other_button_value |= 0x20; // A 按下
+            other_button_value |= 0x20; // 左摇杆 按下
         }
         if (other_bits & RIGHT_JOYSTICK_BTN_PRESSED)
         {
-            other_button_value |= 0x40; // B 按下
+            other_button_value |= 0x40; // 右摇杆 按下
         }
         gamepad_report_buffer[6] = other_button_value;
+
+        uint8_t ikey_value = 0;
+        if(other_bits & IKEY_BTN_PRESSED)
+        {
+            ikey_value = 1;
+        }
+        if (ikey_value == 1)
+        {
+            ikey_buffer[0] = 0x23; // IKEY 按下
+            ikey_buffer[1] = 0x02;
+        }
+        else
+        {
+            ikey_buffer[0] = 0x00; // IKEY 松开
+            ikey_buffer[1] = 0x00;
+        }
 
 
 
