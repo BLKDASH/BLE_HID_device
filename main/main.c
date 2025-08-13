@@ -588,9 +588,13 @@ void adc_aver_send_task(void *pvParameters)
         if (js_calibration_running != true)
         {
             mcb_get_all_averages(mcb, all_avg);
+            
+            
+
             for (int i = 0; i < 8; i++)
             {
-                printf("[%d]=%lu ", i, all_avg[i]);
+                //esp_err_t ret = adc_cali_raw_to_voltage(adc1_cali_handle, all_avg[i], &voltage_mv);
+                printf("[%d]=%ld ", i, all_avg[i]);
             }
             printf("\n");
 
@@ -624,79 +628,70 @@ void adc_aver_send_task(void *pvParameters)
             // 左扳机所在的通道是all_avg[4]对应gamepad_report_buffer[8]
             // ESP_LOGI("Trigger", "%d     %d", all_avg[4],all_avg[5]);
 
-            if (all_avg[4] > 1331)
+            if (all_avg[4] > 1215)
             {
                 gamepad_report_buffer[8] = 0;
             }
             else
             {
-                gamepad_report_buffer[8] = 255 - (all_avg[4] * 255 / 1331);
+                gamepad_report_buffer[8] = 255 - (all_avg[4] * 255 / 1215);
             }
 
             // 右扳机all_avg[5]对应gamepad_report_buffer[7]
-            if (all_avg[5] > 1331)
+            if (all_avg[5] > 1215)
             {
                 gamepad_report_buffer[7] = 0;
             }
             else
             {
-                gamepad_report_buffer[7] = 255 - (all_avg[5] * 255 / 1331);
+                gamepad_report_buffer[7] = 255 - (all_avg[5] * 255 / 1215);
             }
 
             // 处理十字键
-            // uint32_t adc_value = all_avg[7];
-            // if (adc_value < 530) {
-            //     gamepad_report_buffer[4] = 0x01; // 上右
-            // } else if (adc_value < 700) {
-            //     gamepad_report_buffer[4] = 0x00; // 右上
-            // } else if (adc_value < 2000) {
-            //     gamepad_report_buffer[4] = 0x02; // 十字右
-            // } else if (adc_value < 2400) {
-            //     gamepad_report_buffer[4] = 0x03; // 右下
-            // } else if (adc_value < 2900) {
-            //     gamepad_report_buffer[4] = 0x06; // 十字左
-            // } else if (adc_value < 3200) {
-            //     gamepad_report_buffer[4] = 0x05; // 左下
-            // } else if (adc_value < 3600) {
-            //     gamepad_report_buffer[4] = 0x04; // 十字下
-            // } else {
-            //     gamepad_report_buffer[4] = 0x07; // 左上（或全按）
-            // }
-
-
+            uint32_t dpad_adc_value = all_avg[7];
+            uint8_t dpad_value = 0x00; // 默认无按键状态
+                
+            // 根据电压值判断十字键状态
+            if (dpad_adc_value >= (DPAD_NONE - CONFIDENCE_RANGE) && dpad_adc_value <= (DPAD_NONE + CONFIDENCE_RANGE)) {
+                // 无按键
+                dpad_value = 0xff;
+            } else if (dpad_adc_value >= (DPAD_UP - CONFIDENCE_RANGE) && dpad_adc_value <= (DPAD_UP + CONFIDENCE_RANGE)) {
+                // 上
+                dpad_value = 0x00;
+            } else if (dpad_adc_value >= (DPAD_DOWN - CONFIDENCE_RANGE) && dpad_adc_value <= (DPAD_DOWN + CONFIDENCE_RANGE)) {
+                // 下
+                dpad_value = 0x04;
+            } else if (dpad_adc_value >= (DPAD_LEFT - CONFIDENCE_RANGE) && dpad_adc_value <= (DPAD_LEFT + CONFIDENCE_RANGE)) {
+                // 左
+                dpad_value = 0x06;
+            } else if (dpad_adc_value >= (DPAD_RIGHT - CONFIDENCE_RANGE) && dpad_adc_value <= (DPAD_RIGHT + CONFIDENCE_RANGE)) {
+                // 右
+                dpad_value = 0x02;
+            } else if (dpad_adc_value >= (DPAD_UP_LEFT - CONFIDENCE_RANGE) && dpad_adc_value <= (DPAD_UP_LEFT + CONFIDENCE_RANGE)) {
+                // 上左
+                dpad_value = 0x07; // UP | LEFT
+            } else if (dpad_adc_value >= (DPAD_UP_RIGHT - CONFIDENCE_RANGE) && dpad_adc_value <= (DPAD_UP_RIGHT + CONFIDENCE_RANGE)) {
+                // 上右
+                dpad_value = 0x01; // UP | RIGHT
+            } else if (dpad_adc_value >= (DPAD_DOWN_LEFT - CONFIDENCE_RANGE) && dpad_adc_value <= (DPAD_DOWN_LEFT + CONFIDENCE_RANGE)) {
+                // 下左
+                dpad_value = 0x05; // DOWN | LEFT
+            } else if (dpad_adc_value >= (DPAD_DOWN_RIGHT - CONFIDENCE_RANGE) && dpad_adc_value <= (DPAD_DOWN_RIGHT + CONFIDENCE_RANGE)) {
+                // 下右
+                dpad_value = 0x03; // DOWN | RIGHT
+            } else {
+                // 无法识别的值，保持默认无按键状态
+                dpad_value = 0xff;
+            }
+            
+            gamepad_report_buffer[4] = dpad_value;
 
         }
-        vTaskDelay(pdMS_TO_TICKS(30));
+        vTaskDelay(pdMS_TO_TICKS(25));
     }
 }
 
-void gamepad_packet_send_task(void *pvParameters)
-{
 
-    for (;;)
-    {
-        if (sec_conn && current_device_state == DEVICE_STATE_CONNECTED)
-        {
-            vTaskDelay(pdMS_TO_TICKS(100));
-
-            // 打印游戏手柄报告缓冲区内容
-#ifdef GAMEPAD_DEBUG_MODE
-            // for (int i = 0; i < HID_GAMEPAD_STICK_IN_RPT_LEN; i++)
-            // {
-            //     printf("%d ", gamepad_report_buffer[i]);
-            // }
-            // printf("\r\n");
-#endif
-
-            esp_hidd_send_gamepad_report(hid_conn_id);
-        }
-        else
-        {
-            vTaskDelay(pdMS_TO_TICKS(1000));
-            ESP_LOGI(HID_TASK_TAG, "Waiting for connection...");
-        }
-    }
-}
 
 void joystick_calibration_task(void *pvParameter)
 {
@@ -959,4 +954,33 @@ void update_buttons_packet()
     // EventBits_t xyab_bits = xEventGroupGetBits(xyab_button_event_group);
 
     // 根据按键状态更新 xyab_button_value
+}
+
+
+void gamepad_packet_send_task(void *pvParameters)
+{
+
+    for (;;)
+    {
+        if (sec_conn && current_device_state == DEVICE_STATE_CONNECTED)
+        {
+            vTaskDelay(pdMS_TO_TICKS(50));
+
+            // 打印游戏手柄报告缓冲区内容
+#ifdef GAMEPAD_DEBUG_MODE
+            // for (int i = 0; i < HID_GAMEPAD_STICK_IN_RPT_LEN; i++)
+            // {
+            //     printf("%d ", gamepad_report_buffer[i]);
+            // }
+            // printf("\r\n");
+#endif
+
+            esp_hidd_send_gamepad_report(hid_conn_id);
+        }
+        else
+        {
+            vTaskDelay(pdMS_TO_TICKS(1000));
+            ESP_LOGI(HID_TASK_TAG, "Waiting for connection...");
+        }
+    }
 }

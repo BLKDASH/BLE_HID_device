@@ -3,6 +3,8 @@
 
 #include "led_strip.h"
 #include "esp_adc/adc_continuous.h"
+#include "esp_adc/adc_cali.h"
+#include "esp_adc/adc_cali_scheme.h"
 // #include "driver/adc.h"
 // #include "esp_adc_cal.h"
 
@@ -27,31 +29,39 @@ esp_err_t flashLED(void);
 #define ADC_CHANNEL_BATTERY ADC_CHANNEL_6          // 电池电压 (GPIO34)
 #define ADC_CHANNEL_DPAD ADC_CHANNEL_7             // 十字键 (GPIO35)
 
-#define DPAD_UP 480
-#define DPAD_RIGHT 1350
-#define DPAD_LEFT 2400
-#define DPAD_DOWN 3370
-#define DPAD_UP_RIGHT 350
-#define DPAD_DOWN_RIGHT 1250
-#define DPAD_UP_LEFT 430
-#define DPAD_DOWN_LEFT 2150
-#define DPAD_NONE 4095
+#define DPAD_UP 1067
+#define DPAD_RIGHT 960
+#define DPAD_LEFT 800
+#define DPAD_DOWN 600
+#define DPAD_UP_RIGHT 857
+#define DPAD_DOWN_RIGHT 533
+#define DPAD_UP_LEFT 738
+#define DPAD_DOWN_LEFT 480
+#define DPAD_NONE 1200
+#define CONFIDENCE_RANGE 30
 // ADC functions
 // void init_adc(void);
 // int read_adc_channel_voltage(adc_channel_t channel);
 // void read_and_log_adc_values(void);
+
+// ADC校准句柄
+extern adc_cali_handle_t adc1_cali_handle;
 
 // 新增ADC采样控制函数
 esp_err_t start_adc_sampling(void);
 esp_err_t stop_adc_sampling(void);
 esp_err_t deinit_adc(void);
 
+// 新增ADC校准相关函数
+esp_err_t read_adc_voltage(adc_channel_t channel, int *voltage);
+esp_err_t get_calibrated_adc_data(adc_channel_t channel, uint32_t *calibrated_value);
+
 // ADC配置
 #define EXAMPLE_ADC_UNIT ADC_UNIT_1
 #define _EXAMPLE_ADC_UNIT_STR(unit) #unit
 #define EXAMPLE_ADC_UNIT_STR(unit) _EXAMPLE_ADC_UNIT_STR(unit)
 #define EXAMPLE_ADC_CONV_MODE ADC_CONV_SINGLE_UNIT_1
-#define EXAMPLE_ADC_ATTEN ADC_ATTEN_DB_12
+#define EXAMPLE_ADC_ATTEN ADC_ATTEN_DB_2_5
 #define EXAMPLE_ADC_BIT_WIDTH SOC_ADC_DIGI_MAX_BITWIDTH
 
 // 设置输出格式类型和获取通道/数据的宏

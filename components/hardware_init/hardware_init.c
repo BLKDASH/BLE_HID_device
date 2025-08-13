@@ -128,8 +128,72 @@ esp_err_t flashLED(void)
 // ADC ----------------------------------------------------------------------------------------------
 
 adc_continuous_handle_t ADC_init_handle = NULL;
+// 添加ADC校准句柄
+adc_cali_handle_t adc1_cali_handle = NULL;
+static bool adc_calibration_enabled = false;
 
 static adc_channel_t channel[8] = {ADC_CHANNEL_RIGHT_UP_DOWN, ADC_CHANNEL_RIGHT_LEFT_RIGHT, ADC_CHANNEL_LEFT_UP_DOWN, ADC_CHANNEL_LEFT_LEFT_RIGHT, ADC_CHANNEL_LEFT_TRIGGER, ADC_CHANNEL_RIGHT_TRIGGER, ADC_CHANNEL_BATTERY, ADC_CHANNEL_DPAD};
+
+// 添加ADC校准初始化函数
+static bool adc_calibration_init(adc_unit_t unit, adc_atten_t atten, adc_cali_handle_t *out_handle)
+{
+    adc_cali_handle_t handle = NULL;
+    esp_err_t ret = ESP_FAIL;
+    bool calibrated = false;
+
+#if ADC_CALI_SCHEME_CURVE_FITTING_SUPPORTED
+    if (!calibrated) {
+        ESP_LOGI(TAG, "calibration scheme version is %s", "Curve Fitting");
+        adc_cali_curve_fitting_config_t cali_config = {
+            .unit_id = unit,
+            .atten = atten,
+            .bitwidth = EXAMPLE_ADC_BIT_WIDTH,
+        };
+        ret = adc_cali_create_scheme_curve_fitting(&cali_config, &handle);
+        if (ret == ESP_OK) {
+            calibrated = true;
+        }
+    }
+#endif
+
+#if ADC_CALI_SCHEME_LINE_FITTING_SUPPORTED
+    if (!calibrated) {
+        ESP_LOGI(TAG, "calibration scheme version is %s", "Line Fitting");
+        adc_cali_line_fitting_config_t cali_config = {
+            .unit_id = unit,
+            .atten = atten,
+            .bitwidth = EXAMPLE_ADC_BIT_WIDTH,
+        };
+        ret = adc_cali_create_scheme_line_fitting(&cali_config, &handle);
+        if (ret == ESP_OK) {
+            calibrated = true;
+        }
+    }
+#endif
+
+    *out_handle = handle;
+    if (ret == ESP_OK) {
+        ESP_LOGI(TAG, "ADC Calibration Success");
+    } else if (ret == ESP_ERR_NOT_SUPPORTED || !calibrated) {
+        ESP_LOGW(TAG, "eFuse not burnt, skip software calibration");
+    } else {
+        ESP_LOGE(TAG, "Invalid arg or no memory");
+    }
+
+    return calibrated;
+}
+
+// 添加ADC校准去初始化函数
+static void adc_calibration_deinit(adc_cali_handle_t handle)
+{
+#if ADC_CALI_SCHEME_CURVE_FITTING_SUPPORTED
+    ESP_LOGI(TAG, "deregister %s calibration scheme", "Curve Fitting");
+    ESP_ERROR_CHECK(adc_cali_delete_scheme_curve_fitting(handle));
+#elif ADC_CALI_SCHEME_LINE_FITTING_SUPPORTED
+    ESP_LOGI(TAG, "deregister %s calibration scheme", "Line Fitting");
+    ESP_ERROR_CHECK(adc_cali_delete_scheme_line_fitting(handle));
+#endif
+}
 
 static void continuous_adc_init(adc_channel_t *channel, uint8_t channel_num, adc_continuous_handle_t *out_handle)
 {
@@ -162,6 +226,9 @@ static void continuous_adc_init(adc_channel_t *channel, uint8_t channel_num, adc
     }
     dig_cfg.adc_pattern = adc_pattern;
     ESP_ERROR_CHECK(adc_continuous_config(handle, &dig_cfg));
+
+    // 初始化ADC校准
+    adc_calibration_enabled = adc_calibration_init(EXAMPLE_ADC_UNIT, EXAMPLE_ADC_ATTEN, &adc1_cali_handle);
 
     *out_handle = handle;
 }
@@ -235,9 +302,70 @@ esp_err_t deinit_adc(void)
         esp_err_t err = adc_continuous_deinit(ADC_init_handle);
         ADC_init_handle = NULL;
         adc_running = false;
+        
+        // 反初始化ADC校准
+        if (adc_calibration_enabled && adc1_cali_handle) {
+            adc_calibration_deinit(adc1_cali_handle);
+            adc1_cali_handle = NULL;
+            adc_calibration_enabled = false;
+        }
+        
         return err;
     }
 
+    return ESP_OK;
+}
+
+// 添加函数用于读取ADC电压值
+esp_err_t read_adc_voltage(adc_channel_t channel, int *voltage)
+{
+    if (!adc1_cali_handle) {
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    int raw_value = 0;
+    esp_err_t ret = ESP_OK;
+    
+    // 注意：这个函数适用于oneshot模式，对于continuous模式，我们从resultAvr数组获取数据
+    // 这里提供一个示例函数，实际使用中可能需要根据具体需求修改
+    return ESP_ERR_NOT_SUPPORTED;
+}
+
+// 获取经过校准的ADC值（从已采集的数据中）
+esp_err_t get_calibrated_adc_data(adc_channel_t channel, uint32_t *calibrated_value)
+{
+    // 获取平均值
+    uint32_t sum = 0;
+    uint32_t count = 0;
+    
+    // 计算resultAvr中有效数据的数量和总和
+    for (int i = 0; i < AVERAGE_LEN; i++) {
+        // 检查是否是有效数据（非0xcc）
+        if (resultAvr[channel][i] != 0xcc) {
+            sum += resultAvr[channel][i];
+            count++;
+        }
+    }
+    
+    if (count == 0) {
+        return ESP_ERR_NOT_FOUND;
+    }
+    
+    uint32_t raw_value = sum / count;
+    
+    // 如果校准已启用，则使用校准值
+    if (adc_calibration_enabled && adc1_cali_handle) {
+        int voltage_mv = 0;
+        esp_err_t ret = adc_cali_raw_to_voltage(adc1_cali_handle, raw_value, &voltage_mv);
+        if (ret == ESP_OK) {
+            // 将电压值转换回等效的ADC值（假设参考电压为3.3V）
+            *calibrated_value = (uint32_t)(voltage_mv * 4095.0 / 3300.0);
+            return ESP_OK;
+        }
+    }
+    
+    // 如果没有校准，返回原始值
+    *calibrated_value = raw_value;
     return ESP_OK;
 }
 
