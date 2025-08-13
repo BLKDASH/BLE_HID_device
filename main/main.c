@@ -57,6 +57,7 @@ SemaphoreHandle_t calibration_semaphore = NULL;
 bool led_running = false;
 bool adc_running = false;
 bool js_calibration_running = false;
+bool can_send_ikey = false;
 
 // 摇杆校准数据
 joystick_calibration_data_t left_joystick_cal_data;
@@ -829,6 +830,9 @@ void all_buttons_monitor_task(void *pvParameter)
     // 用于检测SELECT和START按键同时按下的计时
     TickType_t press_start_time = 0;
     bool calibration_triggered = false;
+    
+    // 记录上一次的ikey状态
+    static bool last_ikey_state = false;
 
     for (;;)
     {
@@ -893,22 +897,17 @@ void all_buttons_monitor_task(void *pvParameter)
         }
         gamepad_report_buffer[6] = other_button_value;
 
-        uint8_t ikey_value = 0;
         if(other_bits & IKEY_BTN_PRESSED)
-        {
-            ikey_value = 1;
-        }
-        if (ikey_value == 1)
         {
             ikey_buffer[0] = 0x23; // IKEY 按下
             ikey_buffer[1] = 0x02;
+            can_send_ikey = true;
         }
         else
         {
             ikey_buffer[0] = 0x00; // IKEY 松开
             ikey_buffer[1] = 0x00;
         }
-
 
 
 
@@ -992,7 +991,12 @@ void gamepad_packet_send_task(void *pvParameters)
 #endif
 
             esp_hidd_send_gamepad_report(hid_conn_id);
-            esp_hidd_send_ikey_report(hid_conn_id);
+            if(can_send_ikey)
+            {
+                esp_hidd_send_ikey_report(hid_conn_id);
+                if(ikey_buffer[0] == 0 && ikey_buffer[1] == 0)can_send_ikey = false;
+            }
+            
         }
         else
         {
