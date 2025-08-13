@@ -33,6 +33,7 @@
 
 // todo:遗忘上一次连接的设备
 // todo:优化发包速度
+// todo：添加定时器唤醒
 #define HID_TASK_TAG "TASKinfo"
 // adc多通道均值缓冲区
 // 结构（channel 对应索引）：
@@ -213,8 +214,8 @@ void SLEEP(void)
     // 不要做这些操作，直接关机即可。这些操作的导致的延时后果不确定
     // esp_bluedroid_disable();
     // esp_bluedroid_deinit();
-    // esp_bt_controller_disable();
-    // esp_bt_controller_deinit();
+    esp_bt_controller_disable();
+    esp_bt_controller_deinit();
     // 关闭adc
     // adc_continuous_deinit(ADC_init_handle);
 
@@ -231,15 +232,22 @@ void SLEEP(void)
 
         gpio_set_level(GPIO_OUTPUT_POWER_KEEP_IO, 0);
     }
+    vTaskDelay(100);
 
     // 配置HOME按键为唤醒源，检测上升沿唤醒
     esp_sleep_enable_ext0_wakeup(GPIO_INPUT_HOME_BTN, 1); // 1表示高电平唤醒
-    // 进入深度睡眠
+    // 半小时后自动唤醒，如果此时唤醒没有成功，说明已经完全关机（未在充电），如果唤醒成功，则尝试重新进入睡眠模式？
+    // esp_sleep_enable_timer_wakeup(1800LL * 1000000LL);
+    esp_sleep_enable_timer_wakeup(30LL * 1000000LL);
+
+    // ESP_LOGW("SLEEP", "深度睡眠中");
+    // vTaskDelay(200);
     esp_deep_sleep_start();
 }
 
 // -------------------------------------------------------------------- TASK -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 // 关机任务
+
 void shutdown_task(void *pvParameter)
 {
     for (;;)
@@ -248,7 +256,7 @@ void shutdown_task(void *pvParameter)
         if (xSemaphoreTake(shutdown_semaphore, portMAX_DELAY) == pdTRUE)
         {
             ESP_LOGI("SHUTDOWN", "Shutdown signal received");
-            // 假如一直按住，则松开才执行后面的操作
+            // 等待松开
             while (gpio_get_level(GPIO_INPUT_HOME_BTN) == BUTTON_HOME_PRESSED)
             {
                 current_device_state = DEVICE_STATE_SLEEP;
@@ -616,24 +624,47 @@ void adc_aver_send_task(void *pvParameters)
             // 左扳机所在的通道是all_avg[4]对应gamepad_report_buffer[8]
             // ESP_LOGI("Trigger", "%d     %d", all_avg[4],all_avg[5]);
 
-            if (all_avg[4] > 1489)
+            if (all_avg[4] > 1331)
             {
                 gamepad_report_buffer[8] = 0;
             }
             else
             {
-                gamepad_report_buffer[8] = 255 - (all_avg[4] * 255 / 1489);
+                gamepad_report_buffer[8] = 255 - (all_avg[4] * 255 / 1331);
             }
 
             // 右扳机all_avg[5]对应gamepad_report_buffer[7]
-            if (all_avg[5] > 1489)
+            if (all_avg[5] > 1331)
             {
                 gamepad_report_buffer[7] = 0;
             }
             else
             {
-                gamepad_report_buffer[7] = 255 - (all_avg[5] * 255 / 1489);
+                gamepad_report_buffer[7] = 255 - (all_avg[5] * 255 / 1331);
             }
+
+            // 处理十字键
+            // uint32_t adc_value = all_avg[7];
+            // if (adc_value < 530) {
+            //     gamepad_report_buffer[4] = 0x01; // 上右
+            // } else if (adc_value < 700) {
+            //     gamepad_report_buffer[4] = 0x00; // 右上
+            // } else if (adc_value < 2000) {
+            //     gamepad_report_buffer[4] = 0x02; // 十字右
+            // } else if (adc_value < 2400) {
+            //     gamepad_report_buffer[4] = 0x03; // 右下
+            // } else if (adc_value < 2900) {
+            //     gamepad_report_buffer[4] = 0x06; // 十字左
+            // } else if (adc_value < 3200) {
+            //     gamepad_report_buffer[4] = 0x05; // 左下
+            // } else if (adc_value < 3600) {
+            //     gamepad_report_buffer[4] = 0x04; // 十字下
+            // } else {
+            //     gamepad_report_buffer[4] = 0x07; // 左上（或全按）
+            // }
+
+
+
         }
         vTaskDelay(pdMS_TO_TICKS(30));
     }
@@ -847,7 +878,28 @@ void all_buttons_monitor_task(void *pvParameter)
         //          (xyab_bits & XYAB_KEY_B_PRESSED) ? "1" : "0");
 
         // 读取其他按键事件组状态
+        uint8_t other_button_value = 0;
         EventBits_t other_bits = xEventGroupGetBits(other_button_event_group);
+        if (other_bits & SELECT_BTN_PRESSED)
+        {
+            other_button_value |= 0x04; // X 按下
+        }
+        if (other_bits & START_BTN_PRESSED)
+        {
+            other_button_value |= 0x08; // Y 按下
+        }
+        if (other_bits & LEFT_JOYSTICK_BTN_PRESSED)
+        {
+            other_button_value |= 0x20; // A 按下
+        }
+        if (other_bits & RIGHT_JOYSTICK_BTN_PRESSED)
+        {
+            other_button_value |= 0x40; // B 按下
+        }
+        gamepad_report_buffer[6] = other_button_value;
+
+
+
 
         // 未进入 calibration 模式才执行
         if (js_calibration_running == false)
