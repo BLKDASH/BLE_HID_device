@@ -101,8 +101,8 @@ void app_main(void)
 
             // LED任务
             
-            xTaskCreatePinnedToCore(blink_task, "blink_task", 4096, NULL, 5, NULL, 1);
-            xTaskCreatePinnedToCore(LED_flash_task, "LED_flash_task", 4096, NULL, 5, NULL, 1);
+            xTaskCreatePinnedToCore(blink_task, "blink_task", 4096, NULL, 6, NULL, 1);
+            xTaskCreatePinnedToCore(LED_flash_task, "LED_flash_task", 4096, NULL, 6, NULL, 1);
             // 先闪灯，让用户以为开机了
             while (gpio_get_level(GPIO_INPUT_HOME_BTN) == BUTTON_HOME_PRESSED)
             {
@@ -698,7 +698,17 @@ void adc_aver_send_task(void *pvParameters)
                 dpad_value = 0xff;
             }
 
-            gamepad_report_buffer[4] = dpad_value;
+            // DPAD防抖处理
+            static uint8_t dpad_history[3] = {0xff, 0xff, 0xff}; // 初始化历史记录
+            static uint8_t dpad_index = 0; // 当前写入位置
+            
+            // 更新历史记录
+            dpad_history[dpad_index] = dpad_value;
+            dpad_index = (dpad_index + 1) % 3;
+            
+            if ((dpad_history[0] == dpad_history[1]) && (dpad_history[1] == dpad_history[2])) {
+                gamepad_report_buffer[4] = dpad_history[0];
+            }
         }
         vTaskDelay(pdMS_TO_TICKS(10));
     }
@@ -727,8 +737,8 @@ void joystick_calibration_task(void *pvParameter)
             current_device_state = DEVICE_STATE_CALI_RING;
 
             // 初始化最大最小值
-            uint32_t max_values[4] = {0, 0, 0, 0};             // 通道0,1,2,3的最大值
-            uint32_t min_values[4] = {4095, 4095, 4095, 4095}; // 通道0,1,2,3的最小值
+            uint32_t max_values[4] = {0, 0, 0, 0};
+            uint32_t min_values[4] = {4095, 4095, 4095, 4095};
 
             uint32_t all_avg[8];
             uint32_t start_time = xTaskGetTickCount();
