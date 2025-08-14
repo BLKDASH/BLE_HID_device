@@ -306,13 +306,11 @@ void blink_task(void *pvParameter)
         case DEVICE_STATE_DISCONNECTED:
             // 慢闪 (500ms间隔)
             uint8_t red = led_on_off ? 15 : 0;
-            uint8_t green = 0;
-            uint8_t blue = 0;
-
-            setLED(0, led_on_off ? red : 0, green, blue);
-            setLED(1, led_on_off ? 0 : red, green, blue);
-            setLED(2, led_on_off ? red : 0, green, blue);
-            setLED(3, led_on_off ? 0 : red, green, blue);
+            setLED(0, led_on_off ? red : 0, 0, 0);
+            for(int i = 1; i < 4; i++)
+            {
+                setLED(i, 0, 0, 0);
+            }
 
             led_on_off = !led_on_off;
             vTaskDelay(pdMS_TO_TICKS(500));
