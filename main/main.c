@@ -85,9 +85,6 @@ void app_main(void)
             // 创建多通道平均缓冲区，长度为10
             mcb = mcb_init(10);
             init_all(); // 初始化除了HOME按键之外的外设
-
-            // stop_adc_sampling();
-
             // 读取开机次数
             uint64_t boot_count;
             esp_err_t err = nvs_get_boot_count(&boot_count);
@@ -97,41 +94,36 @@ void app_main(void)
             }
 
             calibration_semaphore = xSemaphoreCreateBinary();
-            read_joystick_calibration_data(0, &left_joystick_cal_data);  // 左摇杆
-            read_joystick_calibration_data(1, &right_joystick_cal_data); // 右摇杆
+            led_flash_semaphore = xSemaphoreCreateBinary();
+            shutdown_semaphore = xSemaphoreCreateBinary();
+            // 读取校准值
+            read_joystick_calibration_data(0, &left_joystick_cal_data);
+            read_joystick_calibration_data(1, &right_joystick_cal_data);
 
             // LED任务
-            led_flash_semaphore = xSemaphoreCreateBinary();
+            
             xTaskCreatePinnedToCore(blink_task, "blink_task", 4096, NULL, 5, NULL, 1);
             xTaskCreatePinnedToCore(LED_flash_task, "LED_flash_task", 4096, NULL, 5, NULL, 1);
             // 先闪灯，让用户以为开机了
             while (gpio_get_level(GPIO_INPUT_HOME_BTN) == BUTTON_HOME_PRESSED)
             {
                 vTaskDelay(pdMS_TO_TICKS(100));
-            } // 让出时间给LED任务} // 等待按键释放
-            ESP_LOGI("main", "register home button--");
-            // 创建关机任务
-            shutdown_semaphore = xSemaphoreCreateBinary();
+            } // 让出时间给LED任务
             setHomeButton(); // 释放后再注册home按键长按
             xTaskCreatePinnedToCore(shutdown_task, "shutdown_task", 2048, NULL, 7, NULL, 1);
 
-            // 创建摇杆校准任务
+            // 摇杆校准任务
             xTaskCreatePinnedToCore(joystick_calibration_task, "calibration_task", 8192, NULL, 10, NULL, 1);
 
-            // 创建XYAB按键状态监控任务
+            // XYAB按键状态监控任务
             xTaskCreatePinnedToCore(all_buttons_monitor_task, "xyab_button_monitor", 2048, NULL, 7, NULL, 1);
-
-            // （排查这里的缓存读取错误）
-            //  高优先级保证实时性
-            // 启动ADC采样
 
             xTaskCreatePinnedToCore(adc_read_task, "adc_read_task", 8192, NULL, 7, NULL, 1);
             // 可以是低优先级，反正每次处理的都是最新数据
             xTaskCreatePinnedToCore(adc_aver_send_task, "adc_aver_send_task", 2048, NULL, 6, NULL, 1);
             // 模拟手柄任务
             xTaskCreatePinnedToCore(gamepad_packet_send_task, "gamepad_packet_send_task", 4096, NULL, 8, NULL, 1);
-            
-            // 添加连接超时检测任务
+            // 连接超时检测任务
             xTaskCreatePinnedToCore(connection_timeout_task, "connection_timeout_task", 2048, NULL, 5, NULL, 1);
             
             // 使命完成，删除自己
@@ -440,11 +432,6 @@ void adc_read_task(void *pvParameters)
     uint8_t result[EXAMPLE_READ_LEN];
     memset(result, 0, EXAMPLE_READ_LEN);
 
-    // 用于追踪每个通道的数据写入位置
-    static uint8_t writeIndex[ADC_CHANNEL_COUNT] = {0};
-    // 用于追踪每个通道的数据计数
-    static uint16_t count[ADC_CHANNEL_COUNT] = {0};
-
     // 记录上一次的sec_conn状态
     bool last_sec_conn_state = false;
 
@@ -472,7 +459,6 @@ void adc_read_task(void *pvParameters)
         }
 
         // 从DMA缓冲区读取数据
-        // esp_err_t ret = ESP_ERR_TIMEOUT;
         if (adc_running)
         {
             esp_err_t ret = adc_continuous_read(handle, result, EXAMPLE_READ_LEN, &ret_num, 0);
@@ -487,22 +473,7 @@ void adc_read_task(void *pvParameters)
 
                     if (chan < ADC_CHANNEL_COUNT)
                     {
-                        // if(chan == ADC_CHANNEL_RIGHT_LEFT_RIGHT){ESP_LOGI("ADCraw","%d",data);}
-                        // 将数据写入对应通道的数组
-                        resultAvr[chan][writeIndex[chan]] = data;
-                        writeIndex[chan]++;
-                        if (writeIndex[chan] >= AVERAGE_LEN)
-                        {
-                            writeIndex[chan] = 0;
-                        }
-
-                        // 更新计数
-                        if (count[chan] < AVERAGE_LEN)
-                        {
-                            count[chan]++;
-                        }
-
-                        // 如果启用了多通道缓冲区，也将数据添加到mcb中
+                        // 推入 MCB 中
                         if (mcb != NULL)
                         {
                             mcb_push(mcb, chan, data);
@@ -512,7 +483,6 @@ void adc_read_task(void *pvParameters)
             }
             else if (ret == ESP_ERR_TIMEOUT)
             {
-                // 超时，继续循环
                 vTaskDelay(pdMS_TO_TICKS(10));
             }
         }
@@ -542,16 +512,13 @@ static int32_t safe_divide(int32_t numerator, int32_t denominator, int32_t defau
 // 摇杆值映射到 0~255 范围（中心对应128）
 static uint8_t map_joystick(int32_t raw, int32_t center, int32_t min, int32_t max)
 {
-    int32_t offset = raw - center; // 计算相对于中心的偏移（可正可负）
-    int32_t deadzone = 25;         // 死区范围
-
-    // 如果在死区内，返回中心值128
+    int32_t offset = raw - center;
+    int32_t deadzone = 25;
     if (offset >= -deadzone && offset <= deadzone)
     {
         return 128;
     }
-
-    // 调整偏移量，排除死区影响
+    // 调整偏移量
     if (offset > 0)
     {
         offset -= deadzone;
@@ -561,38 +528,31 @@ static uint8_t map_joystick(int32_t raw, int32_t center, int32_t min, int32_t ma
         offset += deadzone;
     }
 
-    // 调整有效范围
-    int32_t range_pos = max - center - deadzone; // 中心到最大值的有效范围（正向）
-    int32_t range_neg = center - min - deadzone; // 中心到最小值的有效范围（负向）
+    int32_t range_pos = max - center - deadzone;
+    int32_t range_neg = center - min - deadzone;
 
     int32_t scaled;
     if (offset >= 0)
     {
-        // 正向偏移：映射到 128~255
         scaled = 128 + safe_divide(offset * 127, range_pos, 127);
     }
     else
     {
-        // 负向偏移：映射到 0~128（取绝对值计算）
         scaled = 128 - safe_divide((-offset) * 128, range_neg, 128);
     }
 
-    return (uint8_t)clamp(scaled, 0, 255); // 确保结果在 0~255 范围内
+    return (uint8_t)clamp(scaled, 0, 255);
 }
 
 // 反向映射，适用于x 轴
 static uint8_t map_anti_joystick(int32_t raw, int32_t center, int32_t min, int32_t max)
 {
-    int32_t offset = raw - center; // 计算相对于中心的偏移（可正可负）
-    int32_t deadzone = 25;         // 死区范围
-
-    // 如果在死区内，返回中心值128
+    int32_t offset = raw - center;
+    int32_t deadzone = 25;
     if (offset >= -deadzone && offset <= deadzone)
     {
         return 128;
     }
-
-    // 调整偏移量，排除死区影响
     if (offset > 0)
     {
         offset -= deadzone;
@@ -601,24 +561,20 @@ static uint8_t map_anti_joystick(int32_t raw, int32_t center, int32_t min, int32
     {
         offset += deadzone;
     }
-
-    // 调整有效范围
-    int32_t range_pos = max - center - deadzone; // 中心到最大值的有效范围（正向）
-    int32_t range_neg = center - min - deadzone; // 中心到最小值的有效范围（负向）
+    int32_t range_pos = max - center - deadzone;
+    int32_t range_neg = center - min - deadzone;
 
     int32_t scaled;
     if (offset <= 0)
     {
-        // 负向偏移：映射到 128~255
         scaled = 128 + safe_divide((-offset) * 127, range_neg, 127);
     }
     else
     {
-        // 正向偏移：映射到 0~128（取绝对值计算）
         scaled = 128 - safe_divide((offset) * 128, range_pos, 128);
     }
 
-    return (uint8_t)clamp(scaled, 0, 255); // 确保结果在 0~255 范围内
+    return (uint8_t)clamp(scaled, 0, 255);
 }
 
 // 摇杆校准数据
@@ -748,7 +704,7 @@ void adc_aver_send_task(void *pvParameters)
 
             gamepad_report_buffer[4] = dpad_value;
         }
-        vTaskDelay(pdMS_TO_TICKS(25));
+        vTaskDelay(pdMS_TO_TICKS(10));
     }
 }
 
@@ -895,7 +851,7 @@ void all_buttons_monitor_task(void *pvParameter)
     for (;;)
     {
         // 等待100ms
-        vTaskDelay(pdMS_TO_TICKS(50));
+        vTaskDelay(pdMS_TO_TICKS(15));
         uint8_t xyab_button_value = 0;
         // 读取XYAB按键事件组状态
         EventBits_t xyab_bits = xEventGroupGetBits(xyab_button_event_group);
@@ -1034,7 +990,7 @@ void gamepad_packet_send_task(void *pvParameters)
     {
         if (sec_conn && current_device_state == DEVICE_STATE_CONNECTED)
         {
-            vTaskDelay(pdMS_TO_TICKS(50));
+            vTaskDelay(pdMS_TO_TICKS(20));
 
             // 打印游戏手柄报告缓冲区内容
 #ifdef GAMEPAD_DEBUG_MODE

@@ -233,21 +233,7 @@ static void continuous_adc_init(adc_channel_t *channel, uint8_t channel_num, adc
     *out_handle = handle;
 }
 
-uint8_t resultAvr[ADC_CHANNEL_COUNT][AVERAGE_LEN] = {0};
-static adc_continuous_handle_t convert_adc_values(uint8_t arr[][AVERAGE_LEN], int rows)
-{
-    // 清空数组，使用cc填充
-    for (int i = 0; i < rows; i++)
-    {
-        memset(arr[i], 0xcc, AVERAGE_LEN);
-    }
 
-    adc_continuous_handle_t handle = NULL;
-    // 初始化8个通道
-    continuous_adc_init(channel, sizeof(channel) / sizeof(adc_channel_t), &handle);
-
-    return handle;
-}
 
 // 添加全局变量来跟踪ADC是否正在运行
 extern bool adc_running;
@@ -258,7 +244,7 @@ esp_err_t start_adc_sampling(void)
     if (ADC_init_handle == NULL)
     {
         // 初始化ADC
-        ADC_init_handle = convert_adc_values(resultAvr, ADC_CHANNEL_COUNT);
+        continuous_adc_init(channel, sizeof(channel) / sizeof(adc_channel_t), &ADC_init_handle);
     }
     if (ADC_init_handle != NULL)
     {
@@ -271,7 +257,7 @@ esp_err_t start_adc_sampling(void)
         return err;
     }
 
-    return ESP_FAIL;
+    return ESP_OK;
 }
 
 // 停止ADC采集
@@ -313,59 +299,6 @@ esp_err_t deinit_adc(void)
         return err;
     }
 
-    return ESP_OK;
-}
-
-// 添加函数用于读取ADC电压值
-esp_err_t read_adc_voltage(adc_channel_t channel, int *voltage)
-{
-    if (!adc1_cali_handle) {
-        return ESP_ERR_INVALID_STATE;
-    }
-
-    int raw_value = 0;
-    esp_err_t ret = ESP_OK;
-    
-    // 注意：这个函数适用于oneshot模式，对于continuous模式，我们从resultAvr数组获取数据
-    // 这里提供一个示例函数，实际使用中可能需要根据具体需求修改
-    return ESP_ERR_NOT_SUPPORTED;
-}
-
-// 获取经过校准的ADC值（从已采集的数据中）
-esp_err_t get_calibrated_adc_data(adc_channel_t channel, uint32_t *calibrated_value)
-{
-    // 获取平均值
-    uint32_t sum = 0;
-    uint32_t count = 0;
-    
-    // 计算resultAvr中有效数据的数量和总和
-    for (int i = 0; i < AVERAGE_LEN; i++) {
-        // 检查是否是有效数据（非0xcc）
-        if (resultAvr[channel][i] != 0xcc) {
-            sum += resultAvr[channel][i];
-            count++;
-        }
-    }
-    
-    if (count == 0) {
-        return ESP_ERR_NOT_FOUND;
-    }
-    
-    uint32_t raw_value = sum / count;
-    
-    // 如果校准已启用，则使用校准值
-    if (adc_calibration_enabled && adc1_cali_handle) {
-        int voltage_mv = 0;
-        esp_err_t ret = adc_cali_raw_to_voltage(adc1_cali_handle, raw_value, &voltage_mv);
-        if (ret == ESP_OK) {
-            // 将电压值转换回等效的ADC值（假设参考电压为3.3V）
-            *calibrated_value = (uint32_t)(voltage_mv * 4095.0 / 3300.0);
-            return ESP_OK;
-        }
-    }
-    
-    // 如果没有校准，返回原始值
-    *calibrated_value = raw_value;
     return ESP_OK;
 }
 
@@ -1068,7 +1001,7 @@ void init_all(void)
     }
     // init_adc();
     init_gpio();
-    ADC_init_handle = convert_adc_values(resultAvr, ADC_CHANNEL_COUNT);
+    ESP_ERROR_CHECK(start_adc_sampling());
     if (ESP_OK == ble_init())
     {
         ble_sec_config();

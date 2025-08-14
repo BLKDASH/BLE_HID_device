@@ -47,14 +47,10 @@ esp_err_t flashLED(void);
 // ADC校准句柄
 extern adc_cali_handle_t adc1_cali_handle;
 
-// 新增ADC采样控制函数
+// ADC采样控制函数
 esp_err_t start_adc_sampling(void);
 esp_err_t stop_adc_sampling(void);
 esp_err_t deinit_adc(void);
-
-// 新增ADC校准相关函数
-esp_err_t read_adc_voltage(adc_channel_t channel, int *voltage);
-esp_err_t get_calibrated_adc_data(adc_channel_t channel, uint32_t *calibrated_value);
 
 // ADC配置
 #define EXAMPLE_ADC_UNIT ADC_UNIT_1
@@ -73,7 +69,6 @@ esp_err_t get_calibrated_adc_data(adc_channel_t channel, uint32_t *calibrated_va
 #define EXAMPLE_READ_LEN 256
 #define AVERAGE_LEN 10
 
-extern uint8_t resultAvr[ADC_CHANNEL_COUNT][AVERAGE_LEN];
 extern adc_continuous_handle_t ADC_init_handle;
 
 // Define GPIOs
