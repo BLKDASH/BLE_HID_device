@@ -32,8 +32,8 @@
 #define GAMEPAD_DEBUG_MODE
 
 // todo:遗忘上一次连接的设备
-// todo:优化发包速度
-// todo：添加定时器唤醒
+// todo:添加电池广播
+// todo:添加扳机校准（最高电压）
 #define HID_TASK_TAG "TASKinfo"
 // adc多通道均值缓冲区
 // 结构（channel 对应索引）：
@@ -57,7 +57,7 @@ SemaphoreHandle_t calibration_semaphore = NULL;
 bool led_running = false;
 bool adc_running = false;
 bool js_calibration_running = false;
-bool can_send_ikey = false;
+static bool can_send_ikey = false;
 
 // 摇杆校准数据
 joystick_calibration_data_t left_joystick_cal_data;
@@ -536,16 +536,16 @@ static int32_t safe_divide(int32_t numerator, int32_t denominator, int32_t defau
     return numerator / denominator;
 }
 
-// 摇杆值映射到 0~255 范围（中心对应127左右）
+// 摇杆值映射到 0~255 范围（中心对应128）
 static uint8_t map_joystick(int32_t raw, int32_t center, int32_t min, int32_t max)
 {
     int32_t offset = raw - center; // 计算相对于中心的偏移（可正可负）
-    int32_t deadzone = 50;         // 死区范围
+    int32_t deadzone = 25;         // 死区范围
 
-    // 如果在死区内，返回中心值127
+    // 如果在死区内，返回中心值128
     if (offset >= -deadzone && offset <= deadzone)
     {
-        return 127;
+        return 128;
     }
 
     // 调整偏移量，排除死区影响
@@ -565,13 +565,54 @@ static uint8_t map_joystick(int32_t raw, int32_t center, int32_t min, int32_t ma
     int32_t scaled;
     if (offset >= 0)
     {
-        // 正向偏移：映射到 127~255
+        // 正向偏移：映射到 128~255
         scaled = 128 + safe_divide(offset * 127, range_pos, 127);
     }
     else
     {
-        // 负向偏移：映射到 0~127（取绝对值计算）
+        // 负向偏移：映射到 0~128（取绝对值计算）
         scaled = 128 - safe_divide((-offset) * 128, range_neg, 128);
+    }
+
+    return (uint8_t)clamp(scaled, 0, 255); // 确保结果在 0~255 范围内
+}
+
+// 反向映射，适用于x 轴
+static uint8_t map_anti_joystick(int32_t raw, int32_t center, int32_t min, int32_t max)
+{
+    int32_t offset = raw - center; // 计算相对于中心的偏移（可正可负）
+    int32_t deadzone = 25;         // 死区范围
+
+    // 如果在死区内，返回中心值128
+    if (offset >= -deadzone && offset <= deadzone)
+    {
+        return 128;
+    }
+
+    // 调整偏移量，排除死区影响
+    if (offset > 0)
+    {
+        offset -= deadzone;
+    }
+    else
+    {
+        offset += deadzone;
+    }
+
+    // 调整有效范围
+    int32_t range_pos = max - center - deadzone; // 中心到最大值的有效范围（正向）
+    int32_t range_neg = center - min - deadzone; // 中心到最小值的有效范围（负向）
+
+    int32_t scaled;
+    if (offset <= 0)
+    {
+        // 负向偏移：映射到 128~255
+        scaled = 128 + safe_divide((-offset) * 127, range_neg, 127);
+    }
+    else
+    {
+        // 正向偏移：映射到 0~128（取绝对值计算）
+        scaled = 128 - safe_divide((offset) * 128, range_pos, 128);
     }
 
     return (uint8_t)clamp(scaled, 0, 255); // 确保结果在 0~255 范围内
@@ -589,8 +630,6 @@ void adc_aver_send_task(void *pvParameters)
         if (js_calibration_running != true)
         {
             mcb_get_all_averages(mcb, all_avg);
-            
-            
 
             // for (int i = 0; i < 8; i++)
             // {
@@ -608,10 +647,10 @@ void adc_aver_send_task(void *pvParameters)
                                                     right_joystick_cal_data.max_y);
 
             // 右摇杆 X 轴（注意此处minmax反向）
-            gamepad_report_buffer[2] = 255 - map_joystick(all_avg[1],
-                                                          right_joystick_cal_data.center_x,
-                                                          right_joystick_cal_data.min_x,
-                                                          right_joystick_cal_data.max_x);
+            gamepad_report_buffer[2] = map_anti_joystick(all_avg[1],
+                                                         right_joystick_cal_data.center_x,
+                                                         right_joystick_cal_data.min_x,
+                                                         right_joystick_cal_data.max_x);
 
             // 左摇杆 Y 轴
             gamepad_report_buffer[1] = map_joystick(all_avg[2],
@@ -620,79 +659,95 @@ void adc_aver_send_task(void *pvParameters)
                                                     left_joystick_cal_data.max_y);
 
             // 左摇杆 X 轴（注意此处minmax反向）
-            gamepad_report_buffer[0] = 255 - map_joystick(all_avg[3],
-                                                          left_joystick_cal_data.center_x,
-                                                          left_joystick_cal_data.min_x,
-                                                          left_joystick_cal_data.max_x);
+            gamepad_report_buffer[0] = map_anti_joystick(all_avg[3],
+                                                         left_joystick_cal_data.center_x,
+                                                         left_joystick_cal_data.min_x,
+                                                         left_joystick_cal_data.max_x);
 
             // 处理扳机值 - 将ADC原始值(0-4095)映射到(255-0)
             // 左扳机所在的通道是all_avg[4]对应gamepad_report_buffer[8]
             // ESP_LOGI("Trigger", "%d     %d", all_avg[4],all_avg[5]);
 
-            if (all_avg[4] > 1215)
+            if (all_avg[4] > left_joystick_cal_data.trigger)
             {
                 gamepad_report_buffer[8] = 0;
             }
             else
             {
-                gamepad_report_buffer[8] = 255 - (all_avg[4] * 255 / 1215);
+                gamepad_report_buffer[8] = 255 - (all_avg[4] * 255 / left_joystick_cal_data.trigger);
             }
 
             // 右扳机all_avg[5]对应gamepad_report_buffer[7]
-            if (all_avg[5] > 1215)
+            if (all_avg[5] > right_joystick_cal_data.trigger)
             {
                 gamepad_report_buffer[7] = 0;
             }
             else
             {
-                gamepad_report_buffer[7] = 255 - (all_avg[5] * 255 / 1215);
+                gamepad_report_buffer[7] = 255 - (all_avg[5] * 255 / right_joystick_cal_data.trigger);
             }
 
             // 处理十字键
             uint32_t dpad_adc_value = all_avg[7];
             uint8_t dpad_value = 0x00; // 默认无按键状态
-                
+
             // 根据电压值判断十字键状态
-            if (dpad_adc_value >= (DPAD_NONE - CONFIDENCE_RANGE) && dpad_adc_value <= (DPAD_NONE + CONFIDENCE_RANGE)) {
+            if (dpad_adc_value >= (DPAD_NONE - CONFIDENCE_RANGE) && dpad_adc_value <= (DPAD_NONE + CONFIDENCE_RANGE))
+            {
                 // 无按键
                 dpad_value = 0xff;
-            } else if (dpad_adc_value >= (DPAD_UP - CONFIDENCE_RANGE) && dpad_adc_value <= (DPAD_UP + CONFIDENCE_RANGE)) {
+            }
+            else if (dpad_adc_value >= (DPAD_UP - CONFIDENCE_RANGE) && dpad_adc_value <= (DPAD_UP + CONFIDENCE_RANGE))
+            {
                 // 上
                 dpad_value = 0x00;
-            } else if (dpad_adc_value >= (DPAD_DOWN - CONFIDENCE_RANGE) && dpad_adc_value <= (DPAD_DOWN + CONFIDENCE_RANGE)) {
+            }
+            else if (dpad_adc_value >= (DPAD_DOWN - CONFIDENCE_RANGE) && dpad_adc_value <= (DPAD_DOWN + CONFIDENCE_RANGE))
+            {
                 // 下
                 dpad_value = 0x04;
-            } else if (dpad_adc_value >= (DPAD_LEFT - CONFIDENCE_RANGE) && dpad_adc_value <= (DPAD_LEFT + CONFIDENCE_RANGE)) {
+            }
+            else if (dpad_adc_value >= (DPAD_LEFT - CONFIDENCE_RANGE) && dpad_adc_value <= (DPAD_LEFT + CONFIDENCE_RANGE))
+            {
                 // 左
                 dpad_value = 0x06;
-            } else if (dpad_adc_value >= (DPAD_RIGHT - CONFIDENCE_RANGE) && dpad_adc_value <= (DPAD_RIGHT + CONFIDENCE_RANGE)) {
+            }
+            else if (dpad_adc_value >= (DPAD_RIGHT - CONFIDENCE_RANGE) && dpad_adc_value <= (DPAD_RIGHT + CONFIDENCE_RANGE))
+            {
                 // 右
                 dpad_value = 0x02;
-            } else if (dpad_adc_value >= (DPAD_UP_LEFT - CONFIDENCE_RANGE) && dpad_adc_value <= (DPAD_UP_LEFT + CONFIDENCE_RANGE)) {
+            }
+            else if (dpad_adc_value >= (DPAD_UP_LEFT - CONFIDENCE_RANGE) && dpad_adc_value <= (DPAD_UP_LEFT + CONFIDENCE_RANGE))
+            {
                 // 上左
                 dpad_value = 0x07; // UP | LEFT
-            } else if (dpad_adc_value >= (DPAD_UP_RIGHT - CONFIDENCE_RANGE) && dpad_adc_value <= (DPAD_UP_RIGHT + CONFIDENCE_RANGE)) {
+            }
+            else if (dpad_adc_value >= (DPAD_UP_RIGHT - CONFIDENCE_RANGE) && dpad_adc_value <= (DPAD_UP_RIGHT + CONFIDENCE_RANGE))
+            {
                 // 上右
                 dpad_value = 0x01; // UP | RIGHT
-            } else if (dpad_adc_value >= (DPAD_DOWN_LEFT - CONFIDENCE_RANGE) && dpad_adc_value <= (DPAD_DOWN_LEFT + CONFIDENCE_RANGE)) {
+            }
+            else if (dpad_adc_value >= (DPAD_DOWN_LEFT - CONFIDENCE_RANGE) && dpad_adc_value <= (DPAD_DOWN_LEFT + CONFIDENCE_RANGE))
+            {
                 // 下左
                 dpad_value = 0x05; // DOWN | LEFT
-            } else if (dpad_adc_value >= (DPAD_DOWN_RIGHT - CONFIDENCE_RANGE) && dpad_adc_value <= (DPAD_DOWN_RIGHT + CONFIDENCE_RANGE)) {
+            }
+            else if (dpad_adc_value >= (DPAD_DOWN_RIGHT - CONFIDENCE_RANGE) && dpad_adc_value <= (DPAD_DOWN_RIGHT + CONFIDENCE_RANGE))
+            {
                 // 下右
                 dpad_value = 0x03; // DOWN | RIGHT
-            } else {
+            }
+            else
+            {
                 // 无法识别的值，保持默认无按键状态
                 dpad_value = 0xff;
             }
-            
-            gamepad_report_buffer[4] = dpad_value;
 
+            gamepad_report_buffer[4] = dpad_value;
         }
         vTaskDelay(pdMS_TO_TICKS(25));
     }
 }
-
-
 
 void joystick_calibration_task(void *pvParameter)
 {
@@ -770,8 +825,8 @@ void joystick_calibration_task(void *pvParameter)
             vTaskDelay(pdMS_TO_TICKS(3000));
             // 等待用户松手
             // 获取平均值作为中心点
-            uint32_t center_sum[4] = {0, 0, 0, 0}; // 用于累加各通道值
-            uint32_t center_count = 0;             // 采样次数
+            uint32_t center_sum[6] = {0, 0, 0, 0, 0, 0}; // 用于累加各通道值
+            uint32_t center_count = 0;                   // 采样次数
 
             start_time = xTaskGetTickCount();
             duration_ticks = pdMS_TO_TICKS(3000); // 3秒
@@ -780,7 +835,7 @@ void joystick_calibration_task(void *pvParameter)
                 mcb_get_all_averages(mcb, all_avg);
 
                 // 累加各通道值
-                for (int i = 0; i < 4; i++)
+                for (int i = 0; i < 6; i++)
                 {
                     center_sum[i] += all_avg[i];
                 }
@@ -804,14 +859,17 @@ void joystick_calibration_task(void *pvParameter)
                 // all_avg[3] 对应左摇杆X轴 -> center_x
                 left_joystick_cal_data.center_x = center_sum[3] / center_count;
 
+                left_joystick_cal_data.trigger = center_sum[4] / center_count;
+                right_joystick_cal_data.trigger = center_sum[5] / center_count;
+
                 // 更新存储到NVS中的校准数据
                 store_joystick_calibration_data(1, &right_joystick_cal_data); // 右摇杆ID=1
                 store_joystick_calibration_data(0, &left_joystick_cal_data);  // 左摇杆ID=0
 
-                ESP_LOGI("CALIBRATION", "右摇杆中心点: X=%lu, Y=%lu",
-                         right_joystick_cal_data.center_x, right_joystick_cal_data.center_y);
-                ESP_LOGI("CALIBRATION", "左摇杆中心点: X=%lu, Y=%lu",
-                         left_joystick_cal_data.center_x, left_joystick_cal_data.center_y);
+                ESP_LOGI("CALIBRATION", "右摇杆中心点: X=%lu, Y=%lu, trigger=%lu",
+                         right_joystick_cal_data.center_x, right_joystick_cal_data.center_y, right_joystick_cal_data.trigger);
+                ESP_LOGI("CALIBRATION", "左摇杆中心点: X=%lu, Y=%lu, trigger=%lu",
+                         left_joystick_cal_data.center_x, left_joystick_cal_data.center_y, left_joystick_cal_data.trigger);
             }
 
             current_device_state = DEVICE_STATE_SLEEP;
@@ -830,9 +888,6 @@ void all_buttons_monitor_task(void *pvParameter)
     // 用于检测SELECT和START按键同时按下的计时
     TickType_t press_start_time = 0;
     bool calibration_triggered = false;
-    
-    // 记录上一次的ikey状态
-    static bool last_ikey_state = false;
 
     for (;;)
     {
@@ -897,7 +952,7 @@ void all_buttons_monitor_task(void *pvParameter)
         }
         gamepad_report_buffer[6] = other_button_value;
 
-        if(other_bits & IKEY_BTN_PRESSED)
+        if (other_bits & IKEY_BTN_PRESSED)
         {
             ikey_buffer[0] = 0x23; // IKEY 按下
             ikey_buffer[1] = 0x02;
@@ -908,8 +963,6 @@ void all_buttons_monitor_task(void *pvParameter)
             ikey_buffer[0] = 0x00; // IKEY 松开
             ikey_buffer[1] = 0x00;
         }
-
-
 
         // 未进入 calibration 模式才执行
         if (js_calibration_running == false)
@@ -971,7 +1024,6 @@ void update_buttons_packet()
     // 根据按键状态更新 xyab_button_value
 }
 
-
 void gamepad_packet_send_task(void *pvParameters)
 {
 
@@ -991,12 +1043,12 @@ void gamepad_packet_send_task(void *pvParameters)
 #endif
 
             esp_hidd_send_gamepad_report(hid_conn_id);
-            if(can_send_ikey)
+            if (can_send_ikey)
             {
                 esp_hidd_send_ikey_report(hid_conn_id);
-                if(ikey_buffer[0] == 0 && ikey_buffer[1] == 0)can_send_ikey = false;
+                if (ikey_buffer[0] == 0 && ikey_buffer[1] == 0)
+                    can_send_ikey = false;
             }
-            
         }
         else
         {

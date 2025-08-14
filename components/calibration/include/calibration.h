@@ -11,6 +11,7 @@ typedef struct {
     uint32_t max_x;     // 最大X值
     uint32_t min_y;     // 最小Y值
     uint32_t max_y;     // 最大Y值
+    uint32_t trigger;   // 扳机值
 } joystick_calibration_data_t;
 
 
