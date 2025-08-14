@@ -789,12 +789,12 @@ static uint8_t raw_scan_rsp_data[] = {
 static esp_ble_adv_params_t hidd_adv_params = {
     .adv_int_min = 0x20, // 设置广播间隔的最小和最大值
     .adv_int_max = 0x30,
-    .adv_type = ADV_TYPE_IND,              // 广播类型为可连接的无定向广播
-    .own_addr_type = BLE_ADDR_TYPE_PUBLIC, // 使用固定地址广播（设备蓝牙MAC地址）
+    .adv_type = ADV_TYPE_IND,
+    .own_addr_type = BLE_ADDR_TYPE_PUBLIC,
     //.peer_addr            =
     //.peer_addr_type       =
-    .channel_map = ADV_CHNL_ALL,                            // 广播频道为所有频道（37、38、39）
-    .adv_filter_policy = ADV_FILTER_ALLOW_SCAN_ANY_CON_ANY, // 广播过滤策略：不过滤
+    .channel_map = ADV_CHNL_ALL,
+    .adv_filter_policy = ADV_FILTER_ALLOW_SCAN_ANY_CON_ANY,
 };
 
 // GATT回调
@@ -958,11 +958,8 @@ esp_err_t ble_init(void)
     {
         ESP_LOGE("bleInit", "HID init failed");
     }
-
-    // 注册GAP事件回调函数，当 BLE GAP 层发生某些事件（例如连接、断开连接、扫描结果等）时，系统会调用 gap_event_handler 函数，并将相应的事件信息传递给它
-    // 传入了函数指针，用于自定义gap event的回调函数
+    // 注册回调
     esp_ble_gap_register_callback(gap_event_handler);
-    // 使用GATT注册HID设备事件回调函数
     esp_hidd_register_callbacks(hidd_event_callback);
 
     return ESP_OK;
@@ -971,13 +968,11 @@ esp_err_t ble_init(void)
 // 配置蓝牙安全参数
 esp_err_t ble_sec_config(void)
 {
-    /* 安全参数配置*/
     esp_ble_auth_req_t auth_req = ESP_LE_AUTH_BOND;                // 认证后与对端设备绑定（保存配对信息，便于以后快速连接）
     esp_ble_io_cap_t iocap = ESP_IO_CAP_NONE;                      // 表示设备没有输入和输出能力，无法通过按键、显示等方式进行交互认证
     uint8_t key_size = 16;                                         // 密钥长度
     uint8_t init_key = ESP_BLE_ENC_KEY_MASK | ESP_BLE_ID_KEY_MASK; // 加密密钥（用于数据加密）与身份密钥（用于设备身份识别）。
     uint8_t rsp_key = ESP_BLE_ENC_KEY_MASK | ESP_BLE_ID_KEY_MASK;
-    /* 设置安全参数*/
     // 没有IO，因此无需响应
     esp_ble_gap_set_security_param(ESP_BLE_SM_AUTHEN_REQ_MODE, &auth_req, sizeof(uint8_t));
     esp_ble_gap_set_security_param(ESP_BLE_SM_IOCAP_MODE, &iocap, sizeof(uint8_t));
@@ -998,7 +993,6 @@ void init_all(void)
     {
         ESP_LOGI("init", "ws1812 Init OK");
     }
-    // init_adc();
     init_gpio();
     continuous_adc_init(channel, sizeof(channel) / sizeof(adc_channel_t), &ADC_init_handle);
     if (ESP_OK == ble_init())
