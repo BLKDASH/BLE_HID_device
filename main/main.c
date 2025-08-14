@@ -33,7 +33,6 @@
 
 // todo:遗忘上一次连接的设备
 // todo:添加电池广播
-// todo:添加扳机校准（最高电压）
 #define HID_TASK_TAG "TASKinfo"
 // adc多通道均值缓冲区
 // 结构（channel 对应索引）：
@@ -131,13 +130,17 @@ void app_main(void)
             xTaskCreatePinnedToCore(adc_aver_send_task, "adc_aver_send_task", 2048, NULL, 6, NULL, 1);
             // 模拟手柄任务
             xTaskCreatePinnedToCore(gamepad_packet_send_task, "gamepad_packet_send_task", 4096, NULL, 8, NULL, 1);
+            
+            // 添加连接超时检测任务
+            xTaskCreatePinnedToCore(connection_timeout_task, "connection_timeout_task", 2048, NULL, 5, NULL, 1);
+            
             // 使命完成，删除自己
             vTaskDelete(NULL);
         }
         else
         {
             ESP_LOGI("STARTUP", "startup fail");
-            vTaskDelay(pdMS_TO_TICKS(500));
+            vTaskDelay(pdMS_TO_TICKS(100));
             SLEEP();
         }
     }
@@ -239,7 +242,7 @@ void SLEEP(void)
     esp_sleep_enable_ext0_wakeup(GPIO_INPUT_HOME_BTN, 1); // 1表示高电平唤醒
     // 半小时后自动唤醒，如果此时唤醒没有成功，说明已经完全关机（未在充电），如果唤醒成功，则尝试重新进入睡眠模式？
     // esp_sleep_enable_timer_wakeup(1800LL * 1000000LL);
-    esp_sleep_enable_timer_wakeup(30LL * 1000000LL);
+    // esp_sleep_enable_timer_wakeup(30LL * 1000000LL);
 
     // ESP_LOGW("SLEEP", "深度睡眠中");
     // vTaskDelay(200);
@@ -1055,5 +1058,36 @@ void gamepad_packet_send_task(void *pvParameters)
             vTaskDelay(pdMS_TO_TICKS(1000));
             ESP_LOGI(HID_TASK_TAG, "Waiting for connection...");
         }
+    }
+}
+
+void connection_timeout_task(void *pvParameters)
+{
+    // 设置5分钟超时时间 (5 * 60 * 1000 ms)
+    const uint32_t CONNECTION_TIMEOUT_MS = 5 * 60 * 1000;
+    uint32_t start_time = xTaskGetTickCount();
+    
+    ESP_LOGI("CONNECTION_TIMEOUT", "Connection timeout task started, will timeout in %lu ms", CONNECTION_TIMEOUT_MS);
+    
+    for (;;) {
+        // 检查是否已经连接
+        if (sec_conn) {
+            // 如果已经连接，重置 start time
+            ESP_LOGI("CONNECTION_TIMEOUT", "Device connected, reset start time");
+            // vTaskDelete(NULL);
+            start_time = xTaskGetTickCount();
+        }
+        
+        // 检查是否超时 (5分钟)
+        if ((xTaskGetTickCount() - start_time) >= pdMS_TO_TICKS(CONNECTION_TIMEOUT_MS)) {
+            ESP_LOGW("CONNECTION_TIMEOUT", "Connection timeout, initiating shutdown");
+            // 触发关机
+            xSemaphoreGive(shutdown_semaphore);
+            // 退出任务
+            vTaskDelete(NULL);
+        }
+        
+        // 每60秒检查一次
+        vTaskDelay(pdMS_TO_TICKS(60000));
     }
 }

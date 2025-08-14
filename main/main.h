@@ -26,6 +26,7 @@ void gamepad_packet_send_task(void *pvParameters);
 void joystick_calibration_task(void *pvParameter);
 void all_buttons_monitor_task(void *pvParameter);
 void update_buttons_packet(void);
+void connection_timeout_task(void *pvParameters);
 
 // 全局变量声明
 extern bool led_running;
