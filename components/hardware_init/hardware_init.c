@@ -44,6 +44,7 @@ EventGroupHandle_t other_button_event_group = NULL;
 static const char *TAG = "hardware_init";
 static led_strip_handle_t configure_led(void)
 {
+    // RMT 模式
     // led_strip_config_t strip_config = {
     //     .strip_gpio_num = LED_STRIP_BLINK_GPIO,                      // The GPIO of ws2812_input
     //     .max_leds = LED_STRIP_LED_NUMBERS,                           // The number of LEDs
@@ -65,7 +66,6 @@ static led_strip_handle_t configure_led(void)
     // ESP_LOGI(TAG, "Created LED strip object with RMT backend");
 
     // SPI 模式
-    // LED strip general initialization, according to your led board design
     led_strip_config_t strip_config = {
         .strip_gpio_num = LED_STRIP_BLINK_GPIO, // The GPIO that connected to the LED strip's data line
         .max_leds = LED_STRIP_LED_NUMBERS,      // The number of LEDs in the strip,
@@ -83,22 +83,21 @@ static led_strip_handle_t configure_led(void)
             .invert_out = false, // don't invert the output signal
         }};
 
-    // LED strip backend configuration: SPI
+
     led_strip_spi_config_t spi_config = {
-        .clk_src = SPI_CLK_SRC_DEFAULT, // different clock source can lead to different power consumption
-        .spi_bus = SPI2_HOST,           // SPI bus ID
+        .clk_src = SPI_CLK_SRC_DEFAULT,
+        .spi_bus = SPI2_HOST, 
         .flags = {
-            .with_dma = false, // Using DMA can improve performance and help drive more LEDs
+            .with_dma = false,
         }};
 
-    // LED Strip object handle
+
     led_strip_handle_t led_strip;
     ESP_ERROR_CHECK(led_strip_new_spi_device(&strip_config, &spi_config, &led_strip));
     ESP_LOGI(TAG, "Created LED strip object with SPI backend");
     return led_strip;
 }
 
-// 如果是多个led一起动，那么此处性能可以优化
 esp_err_t setLED(uint8_t index, uint8_t red, uint8_t green, uint8_t blue)
 {
     esp_err_t err;
@@ -128,13 +127,13 @@ esp_err_t flashLED(void)
 // ADC ----------------------------------------------------------------------------------------------
 
 adc_continuous_handle_t ADC_init_handle = NULL;
-// 添加ADC校准句柄
+// ADC校准句柄
 adc_cali_handle_t adc1_cali_handle = NULL;
 static bool adc_calibration_enabled = false;
 
 static adc_channel_t channel[8] = {ADC_CHANNEL_RIGHT_UP_DOWN, ADC_CHANNEL_RIGHT_LEFT_RIGHT, ADC_CHANNEL_LEFT_UP_DOWN, ADC_CHANNEL_LEFT_LEFT_RIGHT, ADC_CHANNEL_LEFT_TRIGGER, ADC_CHANNEL_RIGHT_TRIGGER, ADC_CHANNEL_BATTERY, ADC_CHANNEL_DPAD};
 
-// 添加ADC校准初始化函数
+// ADC校准初始化函数
 static bool adc_calibration_init(adc_unit_t unit, adc_atten_t atten, adc_cali_handle_t *out_handle)
 {
     adc_cali_handle_t handle = NULL;
@@ -183,17 +182,17 @@ static bool adc_calibration_init(adc_unit_t unit, adc_atten_t atten, adc_cali_ha
     return calibrated;
 }
 
-// 添加ADC校准去初始化函数
-static void adc_calibration_deinit(adc_cali_handle_t handle)
-{
-#if ADC_CALI_SCHEME_CURVE_FITTING_SUPPORTED
-    ESP_LOGI(TAG, "deregister %s calibration scheme", "Curve Fitting");
-    ESP_ERROR_CHECK(adc_cali_delete_scheme_curve_fitting(handle));
-#elif ADC_CALI_SCHEME_LINE_FITTING_SUPPORTED
-    ESP_LOGI(TAG, "deregister %s calibration scheme", "Line Fitting");
-    ESP_ERROR_CHECK(adc_cali_delete_scheme_line_fitting(handle));
-#endif
-}
+// ADC校准去初始化函数
+// static void adc_calibration_deinit(adc_cali_handle_t handle)
+// {
+// #if ADC_CALI_SCHEME_CURVE_FITTING_SUPPORTED
+//     ESP_LOGI(TAG, "deregister %s calibration scheme", "Curve Fitting");
+//     ESP_ERROR_CHECK(adc_cali_delete_scheme_curve_fitting(handle));
+// #elif ADC_CALI_SCHEME_LINE_FITTING_SUPPORTED
+//     ESP_LOGI(TAG, "deregister %s calibration scheme", "Line Fitting");
+//     ESP_ERROR_CHECK(adc_cali_delete_scheme_line_fitting(handle));
+// #endif
+// }
 
 static void continuous_adc_init(adc_channel_t *channel, uint8_t channel_num, adc_continuous_handle_t *out_handle)
 {
@@ -235,10 +234,10 @@ static void continuous_adc_init(adc_channel_t *channel, uint8_t channel_num, adc
 
 
 
-// 添加全局变量来跟踪ADC是否正在运行
+
 extern bool adc_running;
 
-// 添加函数用于启动ADC采集
+// 启动ADC采集
 esp_err_t start_adc_sampling(void)
 {
     if (ADC_init_handle == NULL)
@@ -289,12 +288,12 @@ esp_err_t deinit_adc(void)
         ADC_init_handle = NULL;
         adc_running = false;
         
-        // 反初始化ADC校准
-        if (adc_calibration_enabled && adc1_cali_handle) {
-            adc_calibration_deinit(adc1_cali_handle);
-            adc1_cali_handle = NULL;
-            adc_calibration_enabled = false;
-        }
+        // // 反初始化ADC校准
+        // if (adc_calibration_enabled && adc1_cali_handle) {
+        //     adc_calibration_deinit(adc1_cali_handle);
+        //     adc1_cali_handle = NULL;
+        //     adc_calibration_enabled = false;
+        // }
         
         return err;
     }
@@ -513,7 +512,7 @@ static void windows_btn_released_cb(void *arg, void *usr_data)
     }
 }
 
-// GPIO初始化
+// button初始化
 static void init_gpio(void)
 {
     // 创建XYAB按键事件组
@@ -1001,7 +1000,7 @@ void init_all(void)
     }
     // init_adc();
     init_gpio();
-    ESP_ERROR_CHECK(start_adc_sampling());
+    continuous_adc_init(channel, sizeof(channel) / sizeof(adc_channel_t), &ADC_init_handle);
     if (ESP_OK == ble_init())
     {
         ble_sec_config();

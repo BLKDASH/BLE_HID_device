@@ -29,7 +29,6 @@
 #include "processing.h"
 #include "calibration.h"
 
-#define GAMEPAD_DEBUG_MODE
 
 // todo:遗忘上一次连接的设备
 // todo:添加电池广播
@@ -78,13 +77,13 @@ void app_main(void)
     while (1)
     {
         ESP_LOGW("main", "Into MAIN while");
-        if (ESP_OK == START_UP()) // DEBUG模式下，始终返回ESP_OK
+        if (ESP_OK == START_UP())
         {
             ESP_LOGI("main", "START_UP OK");
 
             // 创建多通道平均缓冲区，长度为10
             mcb = mcb_init(10);
-            init_all(); // 初始化除了HOME按键之外的外设
+            init_all(); // 初始化外设
             // 读取开机次数
             uint64_t boot_count;
             esp_err_t err = nvs_get_boot_count(&boot_count);
@@ -234,7 +233,6 @@ void SLEEP(void)
     esp_sleep_enable_ext0_wakeup(GPIO_INPUT_HOME_BTN, 1); // 1表示高电平唤醒
     // 半小时后自动唤醒，如果此时唤醒没有成功，说明已经完全关机（未在充电），如果唤醒成功，则尝试重新进入睡眠模式？
     // esp_sleep_enable_timer_wakeup(1800LL * 1000000LL);
-    // esp_sleep_enable_timer_wakeup(30LL * 1000000LL);
 
     // ESP_LOGW("SLEEP", "深度睡眠中");
     // vTaskDelay(200);
@@ -993,13 +991,11 @@ void gamepad_packet_send_task(void *pvParameters)
             vTaskDelay(pdMS_TO_TICKS(20));
 
             // 打印游戏手柄报告缓冲区内容
-#ifdef GAMEPAD_DEBUG_MODE
             // for (int i = 0; i < HID_GAMEPAD_STICK_IN_RPT_LEN; i++)
             // {
             //     printf("%d ", gamepad_report_buffer[i]);
             // }
             // printf("\r\n");
-#endif
 
             esp_hidd_send_gamepad_report(hid_conn_id);
             if (can_send_ikey)
