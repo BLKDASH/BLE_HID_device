@@ -5,8 +5,6 @@
 #include "esp_adc/adc_continuous.h"
 #include "esp_adc/adc_cali.h"
 #include "esp_adc/adc_cali_scheme.h"
-// #include "driver/adc.h"
-// #include "esp_adc_cal.h"
 
 extern led_strip_handle_t led_strip;
 
@@ -39,10 +37,6 @@ esp_err_t flashLED(void);
 #define DPAD_DOWN_LEFT 480
 #define DPAD_NONE 1200
 #define CONFIDENCE_RANGE 30
-// ADC functions
-// void init_adc(void);
-// int read_adc_channel_voltage(adc_channel_t channel);
-// void read_and_log_adc_values(void);
 
 // ADC校准句柄
 extern adc_cali_handle_t adc1_cali_handle;

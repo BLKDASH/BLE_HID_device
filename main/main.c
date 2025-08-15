@@ -629,9 +629,8 @@ void adc_aver_send_task(void *pvParameters)
                 gamepad_report_buffer[7] = 255 - (all_avg[5] * 255 / right_joystick_cal_data.trigger);
             }
 
-            // 处理十字键
             uint32_t dpad_adc_value = all_avg[7];
-            uint8_t dpad_value = 0x00; // 默认无按键状态
+            uint8_t dpad_value = 0x00;
 
             // 根据电压值判断十字键状态
             if (dpad_adc_value >= (DPAD_NONE - CONFIDENCE_RANGE) && dpad_adc_value <= (DPAD_NONE + CONFIDENCE_RANGE))
@@ -965,16 +964,6 @@ void all_buttons_monitor_task(void *pvParameter)
     }
 }
 
-// 暂时没有用到
-void update_buttons_packet()
-{
-    // 初始化 gamepad_report_buffer[5] 为 0
-
-    // 读取XYAB按键事件组状态
-    // EventBits_t xyab_bits = xEventGroupGetBits(xyab_button_event_group);
-
-    // 根据按键状态更新 xyab_button_value
-}
 
 void gamepad_packet_send_task(void *pvParameters)
 {
