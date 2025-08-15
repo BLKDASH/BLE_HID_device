@@ -99,19 +99,20 @@ void app_main(void)
             read_joystick_calibration_data(0, &left_joystick_cal_data);
             read_joystick_calibration_data(1, &right_joystick_cal_data);
 
-            xTaskCreatePinnedToCore(blink_task, "blink_task", 4096, NULL, 6, NULL, 1);
-            xTaskCreatePinnedToCore(LED_flash_task, "LED_flash_task", 4096, NULL, 6, NULL, 1);
+            xTaskCreatePinnedToCore(LED_flash_task, "LED_flash_task", 4096, NULL, 2, NULL, 1);
+            xTaskCreatePinnedToCore(blink_task, "blink_task", 4096, NULL, 2, NULL, 1);
+            
             // 先闪灯，让用户以为开机了
             while (gpio_get_level(GPIO_INPUT_HOME_BTN) == BUTTON_HOME_PRESSED){vTaskDelay(pdMS_TO_TICKS(100));} // 等待释放，让出时间给LED任务
             setHomeButton();
 
-            xTaskCreatePinnedToCore(shutdown_task, "shutdown_task", 2048, NULL, 7, NULL, 1);
-            xTaskCreatePinnedToCore(joystick_calibration_task, "calibration_task", 8192, NULL, 10, NULL, 1);
-            xTaskCreatePinnedToCore(all_buttons_monitor_task, "xyab_button_monitor", 2048, NULL, 7, NULL, 1);
-            xTaskCreatePinnedToCore(adc_read_task, "adc_read_task", 8192, NULL, 7, NULL, 1);
-            xTaskCreatePinnedToCore(adc_aver_send_task, "adc_aver_send_task", 2048, NULL, 6, NULL, 1);
-            xTaskCreatePinnedToCore(gamepad_packet_send_task, "gamepad_packet_send_task", 4096, NULL, 8, NULL, 1);
-            xTaskCreatePinnedToCore(connection_timeout_task, "connection_timeout_task", 2048, NULL, 5, NULL, 1);
+            xTaskCreatePinnedToCore(shutdown_task, "shutdown_task", 2048, NULL, 1, NULL, 1);
+            xTaskCreatePinnedToCore(joystick_calibration_task, "calibration_task", 8192, NULL, 4, NULL, 1);
+            xTaskCreatePinnedToCore(all_buttons_monitor_task, "xyab_button_monitor", 2048, NULL, 3, NULL, 1);
+            xTaskCreatePinnedToCore(adc_read_task, "adc_read_task", 8192, NULL, 3, NULL, 1);
+            xTaskCreatePinnedToCore(adc_aver_send_task, "adc_aver_send_task", 2048, NULL, 2, NULL, 1);
+            xTaskCreatePinnedToCore(gamepad_packet_send_task, "gamepad_packet_send_task", 4096, NULL, 4, NULL, 1);
+            xTaskCreatePinnedToCore(connection_timeout_task, "connection_timeout_task", 2048, NULL, 1, NULL, 1);
             
             vTaskDelete(NULL);
         }
@@ -708,6 +709,8 @@ void joystick_calibration_task(void *pvParameter)
         {
             sec_conn = false;
             // 失能蓝牙
+            // 先改变LED状态，等待去初始化再自动改变LED会有延迟
+            current_device_state = DEVICE_STATE_DISCONNECTED;
             esp_bluedroid_disable();
             esp_bluedroid_deinit();
             esp_bt_controller_disable();
