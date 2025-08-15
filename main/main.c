@@ -104,13 +104,9 @@ void app_main(void)
             xTaskCreatePinnedToCore(blink_task, "blink_task", 4096, NULL, 6, NULL, 1);
             xTaskCreatePinnedToCore(LED_flash_task, "LED_flash_task", 4096, NULL, 6, NULL, 1);
             // 先闪灯，让用户以为开机了
-            while (gpio_get_level(GPIO_INPUT_HOME_BTN) == BUTTON_HOME_PRESSED)
-            {
-                vTaskDelay(pdMS_TO_TICKS(100));
-            } // 让出时间给LED任务
+            while (gpio_get_level(GPIO_INPUT_HOME_BTN) == BUTTON_HOME_PRESSED){vTaskDelay(pdMS_TO_TICKS(100));} // 让出时间给LED任务
             setHomeButton(); // 释放后再注册home按键长按
             xTaskCreatePinnedToCore(shutdown_task, "shutdown_task", 2048, NULL, 7, NULL, 1);
-
             // 摇杆校准任务
             xTaskCreatePinnedToCore(joystick_calibration_task, "calibration_task", 8192, NULL, 10, NULL, 1);
 
@@ -125,7 +121,6 @@ void app_main(void)
             // 连接超时检测任务
             xTaskCreatePinnedToCore(connection_timeout_task, "connection_timeout_task", 2048, NULL, 5, NULL, 1);
             
-            // 使命完成，删除自己
             vTaskDelete(NULL);
         }
         else
