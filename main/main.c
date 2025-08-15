@@ -99,26 +99,18 @@ void app_main(void)
             read_joystick_calibration_data(0, &left_joystick_cal_data);
             read_joystick_calibration_data(1, &right_joystick_cal_data);
 
-            // LED任务
-            
             xTaskCreatePinnedToCore(blink_task, "blink_task", 4096, NULL, 6, NULL, 1);
             xTaskCreatePinnedToCore(LED_flash_task, "LED_flash_task", 4096, NULL, 6, NULL, 1);
             // 先闪灯，让用户以为开机了
-            while (gpio_get_level(GPIO_INPUT_HOME_BTN) == BUTTON_HOME_PRESSED){vTaskDelay(pdMS_TO_TICKS(100));} // 让出时间给LED任务
-            setHomeButton(); // 释放后再注册home按键长按
+            while (gpio_get_level(GPIO_INPUT_HOME_BTN) == BUTTON_HOME_PRESSED){vTaskDelay(pdMS_TO_TICKS(100));} // 等待释放，让出时间给LED任务
+            setHomeButton();
+
             xTaskCreatePinnedToCore(shutdown_task, "shutdown_task", 2048, NULL, 7, NULL, 1);
-            // 摇杆校准任务
             xTaskCreatePinnedToCore(joystick_calibration_task, "calibration_task", 8192, NULL, 10, NULL, 1);
-
-            // XYAB按键状态监控任务
             xTaskCreatePinnedToCore(all_buttons_monitor_task, "xyab_button_monitor", 2048, NULL, 7, NULL, 1);
-
             xTaskCreatePinnedToCore(adc_read_task, "adc_read_task", 8192, NULL, 7, NULL, 1);
-            // 可以是低优先级，反正每次处理的都是最新数据
             xTaskCreatePinnedToCore(adc_aver_send_task, "adc_aver_send_task", 2048, NULL, 6, NULL, 1);
-            // 模拟手柄任务
             xTaskCreatePinnedToCore(gamepad_packet_send_task, "gamepad_packet_send_task", 4096, NULL, 8, NULL, 1);
-            // 连接超时检测任务
             xTaskCreatePinnedToCore(connection_timeout_task, "connection_timeout_task", 2048, NULL, 5, NULL, 1);
             
             vTaskDelete(NULL);
