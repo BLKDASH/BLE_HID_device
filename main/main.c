@@ -262,17 +262,18 @@ void blink_task(void *pvParameter)
     led_running = true;
     while (led_running)
     {
-        switch (current_device_state)
+        // 分支预测
+        if(current_device_state == DEVICE_STATE_INIT)
         {
-        case DEVICE_STATE_INIT:
             setLED(0, 0, led_on_off ? 10 : 0, led_on_off ? 10 : 0);
             setLED(1, 0, 0, 0);
             setLED(2, 0, 0, 0);
             setLED(3, 0, 0, 0);
             led_on_off = !led_on_off;
             vTaskDelay(pdMS_TO_TICKS(300));
-            break;
-
+        }
+        switch (current_device_state)
+        {
         case DEVICE_STATE_ADVERTISING:
             setLED(0, 0, 0, led_on_off ? 15 : 0);
             setLED(1, 0, 0, led_on_off ? 0 : 15);
@@ -574,12 +575,12 @@ void adc_aver_send_task(void *pvParameters)
         {
             mcb_get_all_averages(mcb, all_avg);
 
-            // for (int i = 0; i < 8; i++)
-            // {
-            //     //esp_err_t ret = adc_cali_raw_to_voltage(adc1_cali_handle, all_avg[i], &voltage_mv);
-            //     printf("[%d]=%ld ", i, all_avg[i]);
-            // }
-            // printf("\n");
+            for (int i = 0; i < 8; i++)
+            {
+                //esp_err_t ret = adc_cali_raw_to_voltage(adc1_cali_handle, all_avg[i], &voltage_mv);
+                printf("[%d]=%ld ", i, all_avg[i]);
+            }
+            printf("\n");
 
             // 此处可以直接认为，平均后的值为 ADC 的原始数据
 
