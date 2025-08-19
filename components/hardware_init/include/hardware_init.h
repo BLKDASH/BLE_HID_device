@@ -27,14 +27,14 @@ esp_err_t flashLED(void);
 #define ADC_CHANNEL_BATTERY ADC_CHANNEL_6          // 电池电压 (GPIO34)
 #define ADC_CHANNEL_DPAD ADC_CHANNEL_7             // 十字键 (GPIO35)
 
-#define DPAD_UP 1067
-#define DPAD_RIGHT 960
-#define DPAD_LEFT 800
-#define DPAD_DOWN 600
-#define DPAD_UP_RIGHT 857
-#define DPAD_DOWN_RIGHT 533
-#define DPAD_UP_LEFT 738
-#define DPAD_DOWN_LEFT 480
+#define DPAD_UP 600
+#define DPAD_RIGHT 800
+#define DPAD_LEFT 960
+#define DPAD_DOWN 1080
+#define DPAD_UP_RIGHT 490
+#define DPAD_DOWN_RIGHT 750
+#define DPAD_UP_LEFT 545
+#define DPAD_DOWN_LEFT 886
 #define DPAD_NONE 1200
 #define CONFIDENCE_RANGE 30
 
