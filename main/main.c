@@ -52,9 +52,9 @@ SemaphoreHandle_t shutdown_semaphore = NULL;
 // 校准信号量
 SemaphoreHandle_t calibration_semaphore = NULL;
 
-bool led_running = false;
-bool adc_running = false;
-bool js_calibration_running = false;
+volatile bool led_running = false;
+volatile bool adc_running = false;
+volatile bool js_calibration_running = false;
 static bool can_send_ikey = false;
 
 // 摇杆校准数据
@@ -219,8 +219,8 @@ void SLEEP(void)
 
     // 配置HOME按键为唤醒源，检测上升沿唤醒
     esp_sleep_enable_ext0_wakeup(GPIO_INPUT_HOME_BTN, 1); // 1表示高电平唤醒
-    // 半小时后自动唤醒，如果此时唤醒没有成功，说明已经完全关机（未在充电），如果唤醒成功，则尝试重新进入睡眠模式？
-    // esp_sleep_enable_timer_wakeup(1800LL * 1000000LL);
+    // 30s后自动唤醒，如果此时唤醒没有成功，说明已经完全关机（未在充电），如果唤醒成功，则尝试重新进入睡眠模式？
+    esp_sleep_enable_timer_wakeup(30LL * 1000000LL);
 
     // ESP_LOGW("SLEEP", "深度睡眠中");
     // vTaskDelay(200);

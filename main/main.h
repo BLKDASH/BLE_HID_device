@@ -4,8 +4,10 @@
 
 #define gamePadMode 1
 
-extern bool led_running;
-extern bool adc_running;
+
+extern volatile bool led_running;
+extern volatile bool adc_running;
+extern volatile bool js_calibration_running;
 
 esp_err_t ble_init(void);
 esp_err_t ble_sec_config(void);

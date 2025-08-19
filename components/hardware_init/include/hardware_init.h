@@ -98,7 +98,7 @@ extern adc_continuous_handle_t ADC_init_handle;
 #define BUTTON_HOME_RELEASED 0
 
 extern uint16_t hid_conn_id;
-extern bool sec_conn;
+extern volatile bool sec_conn;
 esp_err_t ble_init(void);
 esp_err_t ble_sec_config(void);
 
