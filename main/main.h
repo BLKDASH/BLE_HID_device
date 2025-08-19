@@ -4,12 +4,13 @@
 
 #define gamePadMode 1
 
-// 函数声明
+extern bool led_running;
+extern bool adc_running;
+
 esp_err_t ble_init(void);
 esp_err_t ble_sec_config(void);
 
 void SLEEP(void);
-// void START_FAIL(void);
 esp_err_t setHomeButton(void);
 esp_err_t START_UP(void);
 
@@ -25,11 +26,10 @@ void adc_aver_send_task(void *pvParameters);
 void gamepad_packet_send_task(void *pvParameters);
 void joystick_calibration_task(void *pvParameter);
 void all_buttons_monitor_task(void *pvParameter);
-void update_buttons_packet(void);
+void connection_timeout_task(void *pvParameters);
 
-// 全局变量声明
-extern bool led_running;
-extern bool adc_running;
+
+
 
 
 #endif

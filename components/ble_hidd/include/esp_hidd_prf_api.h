@@ -6,10 +6,11 @@
 #include "esp_err.h"
 
 #define HID_GAMEPAD_STICK_IN_RPT_LEN 10
+#define HID_IKEY_RPT_LEN 2
 
 // 声明全局游戏手柄报告缓冲区
 extern volatile uint8_t gamepad_report_buffer[HID_GAMEPAD_STICK_IN_RPT_LEN];
-
+extern volatile uint8_t ikey_buffer[HID_IKEY_RPT_LEN];
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -108,59 +109,23 @@ typedef union {
 } esp_hidd_cb_param_t;
 
 
-/**
- * @brief HID device event callback function type
- * @param event : Event type
- * @param param : Point to callback parameter, currently is union type
- */
+
 typedef void (*esp_hidd_event_cb_t) (esp_hidd_cb_event_t event, esp_hidd_cb_param_t *param);
 
 
-
-/**
- *
- * @brief           This function is called to receive hid device callback event
- *
- * @param[in]    callbacks: callback functions
- *
- * @return         ESP_OK - success, other - failed
- *
- */
 esp_err_t esp_hidd_register_callbacks(esp_hidd_event_cb_t callbacks);
 
-/**
- *
- * @brief           This function is called to initialize hid device profile
- *
- * @return          ESP_OK - success, other - failed
- *
- */
+
 esp_err_t esp_hidd_profile_init(void);
 
-/**
- *
- * @brief           This function is called to de-initialize hid device profile
- *
- * @return          ESP_OK - success, other - failed
- *
- */
+
 esp_err_t esp_hidd_profile_deinit(void);
 
-/**
- *
- * @brief           Get hidd profile version
- *
- * @return          Most 8bit significant is Great version, Least 8bit is Sub version
- *
- */
 
-void esp_hidd_send_consumer_value(uint16_t conn_id, uint8_t key_cmd, bool key_pressed);
-
-void esp_hidd_send_keyboard_value(uint16_t conn_id, key_mask_t special_key_mask, uint8_t *keyboard_cmd, uint8_t num_key);
-
-void esp_hidd_send_mouse_value(uint16_t conn_id, uint8_t mouse_button, int8_t mickeys_x, int8_t mickeys_y);
 
 void esp_hidd_send_gamepad_report(uint16_t conn_id);
+
+void esp_hidd_send_ikey_report(uint16_t conn_id);
 
 
 

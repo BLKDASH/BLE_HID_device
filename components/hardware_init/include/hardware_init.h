@@ -3,8 +3,8 @@
 
 #include "led_strip.h"
 #include "esp_adc/adc_continuous.h"
-// #include "driver/adc.h"
-// #include "esp_adc_cal.h"
+#include "esp_adc/adc_cali.h"
+#include "esp_adc/adc_cali_scheme.h"
 
 extern led_strip_handle_t led_strip;
 
@@ -27,12 +27,21 @@ esp_err_t flashLED(void);
 #define ADC_CHANNEL_BATTERY ADC_CHANNEL_6          // 电池电压 (GPIO34)
 #define ADC_CHANNEL_DPAD ADC_CHANNEL_7             // 十字键 (GPIO35)
 
-// ADC functions
-// void init_adc(void);
-// int read_adc_channel_voltage(adc_channel_t channel);
-// void read_and_log_adc_values(void);
+#define DPAD_UP 1067
+#define DPAD_RIGHT 960
+#define DPAD_LEFT 800
+#define DPAD_DOWN 600
+#define DPAD_UP_RIGHT 857
+#define DPAD_DOWN_RIGHT 533
+#define DPAD_UP_LEFT 738
+#define DPAD_DOWN_LEFT 480
+#define DPAD_NONE 1200
+#define CONFIDENCE_RANGE 30
 
-// 新增ADC采样控制函数
+// ADC校准句柄
+extern adc_cali_handle_t adc1_cali_handle;
+
+// ADC采样控制函数
 esp_err_t start_adc_sampling(void);
 esp_err_t stop_adc_sampling(void);
 esp_err_t deinit_adc(void);
@@ -42,7 +51,7 @@ esp_err_t deinit_adc(void);
 #define _EXAMPLE_ADC_UNIT_STR(unit) #unit
 #define EXAMPLE_ADC_UNIT_STR(unit) _EXAMPLE_ADC_UNIT_STR(unit)
 #define EXAMPLE_ADC_CONV_MODE ADC_CONV_SINGLE_UNIT_1
-#define EXAMPLE_ADC_ATTEN ADC_ATTEN_DB_12
+#define EXAMPLE_ADC_ATTEN ADC_ATTEN_DB_2_5
 #define EXAMPLE_ADC_BIT_WIDTH SOC_ADC_DIGI_MAX_BITWIDTH
 
 // 设置输出格式类型和获取通道/数据的宏
@@ -54,7 +63,6 @@ esp_err_t deinit_adc(void);
 #define EXAMPLE_READ_LEN 256
 #define AVERAGE_LEN 10
 
-extern uint8_t resultAvr[ADC_CHANNEL_COUNT][AVERAGE_LEN];
 extern adc_continuous_handle_t ADC_init_handle;
 
 // Define GPIOs
@@ -72,20 +80,17 @@ extern adc_continuous_handle_t ADC_init_handle;
 #define GPIO_INPUT_LEFT_SHOULDER_BTN 23  // 左肩键
 #define GPIO_INPUT_RIGHT_SHOULDER_BTN 18 // 右肩键
 // 超薄按键
-#define GPIO_INPUT_SELECT_BTN 4   // SELECT按键
-#define GPIO_INPUT_START_BTN 2    // START按键
+#define GPIO_INPUT_SELECT_BTN 4 // SELECT按键
+#define GPIO_INPUT_START_BTN 2  // START按键
 
 #define GPIO_INPUT_IKEY_BTN 0     // IKEY按键
 #define GPIO_INPUT_IOS_BTN 21     // IOS按键
 #define GPIO_INPUT_WINDOWS_BTN 22 // Windows按键
 
-
-
 #define GPIO_INPUT_ANDROID_BTN 4 // Android按键
-#define GPIO_INPUT_HOME_BTN 13    // HOME按键，开关机检测按键
+#define GPIO_INPUT_HOME_BTN 13   // HOME按键，开关机检测按键
 
 #define GPIO_OUTPUT_POWER_KEEP_IO 5
-
 
 #define BUTTON_PRESSED 0
 #define BUTTON_RELEASED 1
@@ -103,37 +108,38 @@ extern EventGroupHandle_t xyab_button_event_group;
 extern EventGroupHandle_t other_button_event_group;
 
 // XYAB按键事件位定义
-#define XYAB_KEY_X_PRESSED    (1 << 0)
-#define XYAB_KEY_Y_PRESSED    (1 << 1)
-#define XYAB_KEY_A_PRESSED    (1 << 2)
-#define XYAB_KEY_B_PRESSED    (1 << 3)
-#define LEFT_SHOULDER_BTN_PRESSED    (1 << 4)
-#define RIGHT_SHOULDER_BTN_PRESSED   (1 << 5)
+#define XYAB_KEY_X_PRESSED (1 << 0)
+#define XYAB_KEY_Y_PRESSED (1 << 1)
+#define XYAB_KEY_A_PRESSED (1 << 2)
+#define XYAB_KEY_B_PRESSED (1 << 3)
+#define LEFT_SHOULDER_BTN_PRESSED (1 << 4)
+#define RIGHT_SHOULDER_BTN_PRESSED (1 << 5)
 
 // 其他按键事件位定义
-#define LEFT_JOYSTICK_BTN_PRESSED    (1 << 0)
-#define RIGHT_JOYSTICK_BTN_PRESSED   (1 << 1)
-#define SELECT_BTN_PRESSED           (1 << 2)
-#define START_BTN_PRESSED            (1 << 3)
-#define IKEY_BTN_PRESSED             (1 << 4)
-#define IOS_BTN_PRESSED              (1 << 5)
-#define WINDOWS_BTN_PRESSED          (1 << 6)
+#define LEFT_JOYSTICK_BTN_PRESSED (1 << 0)
+#define RIGHT_JOYSTICK_BTN_PRESSED (1 << 1)
+#define SELECT_BTN_PRESSED (1 << 2)
+#define START_BTN_PRESSED (1 << 3)
+#define IKEY_BTN_PRESSED (1 << 4)
+#define IOS_BTN_PRESSED (1 << 5)
+#define WINDOWS_BTN_PRESSED (1 << 6)
 
-typedef enum {
-    DEVICE_STATE_INIT,           // 初始化状态
-    DEVICE_STATE_ADVERTISING,    // 广播中
-    DEVICE_STATE_CONNECTING,     // 连接中
-    DEVICE_STATE_CONNECTED,      // 已连接
-    DEVICE_STATE_DISCONNECTING,  // 断开连接中
-    DEVICE_STATE_DISCONNECTED,   // 已断开连接
-    DEVICE_STATE_ERROR,          // 错误状态
-    DEVICE_STATE_SLEEP,          // 睡眠状态
-    DEVICE_STATE_CALI_START,     // 校准状态
-    DEVICE_STATE_CALI_RING,      // 转圈校准中
-    DEVICE_STATE_CALI_DONE,      // 校准完成
+typedef enum
+{
+    DEVICE_STATE_INIT,          // 初始化状态
+    DEVICE_STATE_ADVERTISING,   // 广播中
+    DEVICE_STATE_CONNECTING,    // 连接中
+    DEVICE_STATE_CONNECTED,     // 已连接
+    DEVICE_STATE_DISCONNECTING, // 断开连接中
+    DEVICE_STATE_DISCONNECTED,  // 已断开连接
+    DEVICE_STATE_ERROR,         // 错误状态
+    DEVICE_STATE_SLEEP,         // 睡眠状态
+    DEVICE_STATE_CALI_START,    // 校准状态
+    DEVICE_STATE_CALI_RING,     // 转圈校准中
+    DEVICE_STATE_CALI_DONE,     // 校准完成
 
 } device_state_t;
-extern volatile device_state_t current_device_state; 
+extern volatile device_state_t current_device_state;
 void init_all(void);
 
 #endif

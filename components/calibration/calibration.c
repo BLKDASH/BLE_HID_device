@@ -263,6 +263,18 @@ esp_err_t store_joystick_calibration_data(uint8_t joystick_id, const joystick_ca
         return err;
     }
 
+    // 存储扳机值
+    char trigger_key[30];
+    snprintf(trigger_key, sizeof(trigger_key), "%s_trigger", base_key);
+
+    err = nvs_set_u32(handle, trigger_key, cal_data->trigger);
+    if (err != ESP_OK)
+    {
+        ESP_LOGE(TAG, "存储%s失败: %s", trigger_key, esp_err_to_name(err));
+        nvs_close(handle);
+        return err;
+    }
+
     // 提交更改
     err = nvs_commit(handle);
     if (err != ESP_OK)
@@ -299,8 +311,9 @@ esp_err_t read_joystick_calibration_data(uint8_t joystick_id, joystick_calibrati
             out_data->center_y = 600;
             out_data->min_x = 0;
             out_data->min_y = 0;
-            out_data->max_x = 1400;
-            out_data->max_y = 1400;
+            out_data->max_x = 1215;
+            out_data->max_y = 1215;
+            out_data->trigger = 0;  // 默认trigger值
             ESP_LOGW(TAG, "摇杆%d尚未校准，使用默认值", joystick_id);
         }
         return err;
@@ -376,13 +389,25 @@ esp_err_t read_joystick_calibration_data(uint8_t joystick_id, joystick_calibrati
         return err;
     }
 
+    // 读取扳机值
+    char trigger_key[30];
+    snprintf(trigger_key, sizeof(trigger_key), "%s_trigger", base_key);
+
+    err = nvs_get_u32(handle, trigger_key, &out_data->trigger);
+    if (err != ESP_OK && err != ESP_ERR_NVS_NOT_FOUND)
+    {
+        ESP_LOGE(TAG, "读取%s失败: %s", trigger_key, esp_err_to_name(err));
+        nvs_close(handle);
+        return err;
+    }
+
     ESP_LOGI(TAG, "读取摇杆%d校准数据成功", joystick_id);
 
     nvs_close(handle);
     
     // 打印校准数据
-    ESP_LOGI(TAG, "摇杆%d校准数据: center_x=%lu, center_y=%lu, min_x=%lu, min_y=%lu, max_x=%lu, max_y=%lu", 
+    ESP_LOGI(TAG, "摇杆%d校准数据: center_x=%lu, center_y=%lu, min_x=%lu, min_y=%lu, max_x=%lu, max_y=%lu, trigger=%lu", 
              joystick_id, out_data->center_x, out_data->center_y, 
-             out_data->min_x, out_data->min_y, out_data->max_x, out_data->max_y);
+             out_data->min_x, out_data->min_y, out_data->max_x, out_data->max_y, out_data->trigger);
     return ESP_OK;
 }

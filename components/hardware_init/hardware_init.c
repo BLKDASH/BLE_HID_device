@@ -44,6 +44,7 @@ EventGroupHandle_t other_button_event_group = NULL;
 static const char *TAG = "hardware_init";
 static led_strip_handle_t configure_led(void)
 {
+    // RMT 模式
     // led_strip_config_t strip_config = {
     //     .strip_gpio_num = LED_STRIP_BLINK_GPIO,                      // The GPIO of ws2812_input
     //     .max_leds = LED_STRIP_LED_NUMBERS,                           // The number of LEDs
@@ -65,7 +66,6 @@ static led_strip_handle_t configure_led(void)
     // ESP_LOGI(TAG, "Created LED strip object with RMT backend");
 
     // SPI 模式
-    // LED strip general initialization, according to your led board design
     led_strip_config_t strip_config = {
         .strip_gpio_num = LED_STRIP_BLINK_GPIO, // The GPIO that connected to the LED strip's data line
         .max_leds = LED_STRIP_LED_NUMBERS,      // The number of LEDs in the strip,
@@ -83,22 +83,21 @@ static led_strip_handle_t configure_led(void)
             .invert_out = false, // don't invert the output signal
         }};
 
-    // LED strip backend configuration: SPI
+
     led_strip_spi_config_t spi_config = {
-        .clk_src = SPI_CLK_SRC_DEFAULT, // different clock source can lead to different power consumption
-        .spi_bus = SPI2_HOST,           // SPI bus ID
+        .clk_src = SPI_CLK_SRC_DEFAULT,
+        .spi_bus = SPI2_HOST, 
         .flags = {
-            .with_dma = false, // Using DMA can improve performance and help drive more LEDs
+            .with_dma = false,
         }};
 
-    // LED Strip object handle
+
     led_strip_handle_t led_strip;
     ESP_ERROR_CHECK(led_strip_new_spi_device(&strip_config, &spi_config, &led_strip));
     ESP_LOGI(TAG, "Created LED strip object with SPI backend");
     return led_strip;
 }
 
-// 如果是多个led一起动，那么此处性能可以优化
 esp_err_t setLED(uint8_t index, uint8_t red, uint8_t green, uint8_t blue)
 {
     esp_err_t err;
@@ -128,8 +127,72 @@ esp_err_t flashLED(void)
 // ADC ----------------------------------------------------------------------------------------------
 
 adc_continuous_handle_t ADC_init_handle = NULL;
+// ADC校准句柄
+adc_cali_handle_t adc1_cali_handle = NULL;
+static bool adc_calibration_enabled = false;
 
 static adc_channel_t channel[8] = {ADC_CHANNEL_RIGHT_UP_DOWN, ADC_CHANNEL_RIGHT_LEFT_RIGHT, ADC_CHANNEL_LEFT_UP_DOWN, ADC_CHANNEL_LEFT_LEFT_RIGHT, ADC_CHANNEL_LEFT_TRIGGER, ADC_CHANNEL_RIGHT_TRIGGER, ADC_CHANNEL_BATTERY, ADC_CHANNEL_DPAD};
+
+// ADC校准初始化函数
+static bool adc_calibration_init(adc_unit_t unit, adc_atten_t atten, adc_cali_handle_t *out_handle)
+{
+    adc_cali_handle_t handle = NULL;
+    esp_err_t ret = ESP_FAIL;
+    bool calibrated = false;
+
+#if ADC_CALI_SCHEME_CURVE_FITTING_SUPPORTED
+    if (!calibrated) {
+        ESP_LOGI(TAG, "calibration scheme version is %s", "Curve Fitting");
+        adc_cali_curve_fitting_config_t cali_config = {
+            .unit_id = unit,
+            .atten = atten,
+            .bitwidth = EXAMPLE_ADC_BIT_WIDTH,
+        };
+        ret = adc_cali_create_scheme_curve_fitting(&cali_config, &handle);
+        if (ret == ESP_OK) {
+            calibrated = true;
+        }
+    }
+#endif
+
+#if ADC_CALI_SCHEME_LINE_FITTING_SUPPORTED
+    if (!calibrated) {
+        ESP_LOGI(TAG, "calibration scheme version is %s", "Line Fitting");
+        adc_cali_line_fitting_config_t cali_config = {
+            .unit_id = unit,
+            .atten = atten,
+            .bitwidth = EXAMPLE_ADC_BIT_WIDTH,
+        };
+        ret = adc_cali_create_scheme_line_fitting(&cali_config, &handle);
+        if (ret == ESP_OK) {
+            calibrated = true;
+        }
+    }
+#endif
+
+    *out_handle = handle;
+    if (ret == ESP_OK) {
+        ESP_LOGI(TAG, "ADC Calibration Success");
+    } else if (ret == ESP_ERR_NOT_SUPPORTED || !calibrated) {
+        ESP_LOGW(TAG, "eFuse not burnt, skip software calibration");
+    } else {
+        ESP_LOGE(TAG, "Invalid arg or no memory");
+    }
+
+    return calibrated;
+}
+
+// ADC校准去初始化函数
+// static void adc_calibration_deinit(adc_cali_handle_t handle)
+// {
+// #if ADC_CALI_SCHEME_CURVE_FITTING_SUPPORTED
+//     ESP_LOGI(TAG, "deregister %s calibration scheme", "Curve Fitting");
+//     ESP_ERROR_CHECK(adc_cali_delete_scheme_curve_fitting(handle));
+// #elif ADC_CALI_SCHEME_LINE_FITTING_SUPPORTED
+//     ESP_LOGI(TAG, "deregister %s calibration scheme", "Line Fitting");
+//     ESP_ERROR_CHECK(adc_cali_delete_scheme_line_fitting(handle));
+// #endif
+// }
 
 static void continuous_adc_init(adc_channel_t *channel, uint8_t channel_num, adc_continuous_handle_t *out_handle)
 {
@@ -163,35 +226,24 @@ static void continuous_adc_init(adc_channel_t *channel, uint8_t channel_num, adc
     dig_cfg.adc_pattern = adc_pattern;
     ESP_ERROR_CHECK(adc_continuous_config(handle, &dig_cfg));
 
+    // 初始化ADC校准
+    adc_calibration_enabled = adc_calibration_init(EXAMPLE_ADC_UNIT, EXAMPLE_ADC_ATTEN, &adc1_cali_handle);
+
     *out_handle = handle;
 }
 
-uint8_t resultAvr[ADC_CHANNEL_COUNT][AVERAGE_LEN] = {0};
-static adc_continuous_handle_t convert_adc_values(uint8_t arr[][AVERAGE_LEN], int rows)
-{
-    // 清空数组，使用cc填充
-    for (int i = 0; i < rows; i++)
-    {
-        memset(arr[i], 0xcc, AVERAGE_LEN);
-    }
 
-    adc_continuous_handle_t handle = NULL;
-    // 初始化8个通道
-    continuous_adc_init(channel, sizeof(channel) / sizeof(adc_channel_t), &handle);
 
-    return handle;
-}
 
-// 添加全局变量来跟踪ADC是否正在运行
 extern bool adc_running;
 
-// 添加函数用于启动ADC采集
+// 启动ADC采集
 esp_err_t start_adc_sampling(void)
 {
     if (ADC_init_handle == NULL)
     {
         // 初始化ADC
-        ADC_init_handle = convert_adc_values(resultAvr, ADC_CHANNEL_COUNT);
+        continuous_adc_init(channel, sizeof(channel) / sizeof(adc_channel_t), &ADC_init_handle);
     }
     if (ADC_init_handle != NULL)
     {
@@ -204,7 +256,7 @@ esp_err_t start_adc_sampling(void)
         return err;
     }
 
-    return ESP_FAIL;
+    return ESP_OK;
 }
 
 // 停止ADC采集
@@ -235,6 +287,14 @@ esp_err_t deinit_adc(void)
         esp_err_t err = adc_continuous_deinit(ADC_init_handle);
         ADC_init_handle = NULL;
         adc_running = false;
+        
+        // // 反初始化ADC校准
+        // if (adc_calibration_enabled && adc1_cali_handle) {
+        //     adc_calibration_deinit(adc1_cali_handle);
+        //     adc1_cali_handle = NULL;
+        //     adc_calibration_enabled = false;
+        // }
+        
         return err;
     }
 
@@ -452,7 +512,7 @@ static void windows_btn_released_cb(void *arg, void *usr_data)
     }
 }
 
-// GPIO初始化
+// button初始化
 static void init_gpio(void)
 {
     // 创建XYAB按键事件组
@@ -729,12 +789,12 @@ static uint8_t raw_scan_rsp_data[] = {
 static esp_ble_adv_params_t hidd_adv_params = {
     .adv_int_min = 0x20, // 设置广播间隔的最小和最大值
     .adv_int_max = 0x30,
-    .adv_type = ADV_TYPE_IND,              // 广播类型为可连接的无定向广播
-    .own_addr_type = BLE_ADDR_TYPE_PUBLIC, // 使用固定地址广播（设备蓝牙MAC地址）
+    .adv_type = ADV_TYPE_IND,
+    .own_addr_type = BLE_ADDR_TYPE_PUBLIC,
     //.peer_addr            =
     //.peer_addr_type       =
-    .channel_map = ADV_CHNL_ALL,                            // 广播频道为所有频道（37、38、39）
-    .adv_filter_policy = ADV_FILTER_ALLOW_SCAN_ANY_CON_ANY, // 广播过滤策略：不过滤
+    .channel_map = ADV_CHNL_ALL,
+    .adv_filter_policy = ADV_FILTER_ALLOW_SCAN_ANY_CON_ANY,
 };
 
 // GATT回调
@@ -898,11 +958,8 @@ esp_err_t ble_init(void)
     {
         ESP_LOGE("bleInit", "HID init failed");
     }
-
-    // 注册GAP事件回调函数，当 BLE GAP 层发生某些事件（例如连接、断开连接、扫描结果等）时，系统会调用 gap_event_handler 函数，并将相应的事件信息传递给它
-    // 传入了函数指针，用于自定义gap event的回调函数
+    // 注册回调
     esp_ble_gap_register_callback(gap_event_handler);
-    // 使用GATT注册HID设备事件回调函数
     esp_hidd_register_callbacks(hidd_event_callback);
 
     return ESP_OK;
@@ -911,13 +968,11 @@ esp_err_t ble_init(void)
 // 配置蓝牙安全参数
 esp_err_t ble_sec_config(void)
 {
-    /* 安全参数配置*/
     esp_ble_auth_req_t auth_req = ESP_LE_AUTH_BOND;                // 认证后与对端设备绑定（保存配对信息，便于以后快速连接）
     esp_ble_io_cap_t iocap = ESP_IO_CAP_NONE;                      // 表示设备没有输入和输出能力，无法通过按键、显示等方式进行交互认证
     uint8_t key_size = 16;                                         // 密钥长度
     uint8_t init_key = ESP_BLE_ENC_KEY_MASK | ESP_BLE_ID_KEY_MASK; // 加密密钥（用于数据加密）与身份密钥（用于设备身份识别）。
     uint8_t rsp_key = ESP_BLE_ENC_KEY_MASK | ESP_BLE_ID_KEY_MASK;
-    /* 设置安全参数*/
     // 没有IO，因此无需响应
     esp_ble_gap_set_security_param(ESP_BLE_SM_AUTHEN_REQ_MODE, &auth_req, sizeof(uint8_t));
     esp_ble_gap_set_security_param(ESP_BLE_SM_IOCAP_MODE, &iocap, sizeof(uint8_t));
@@ -938,9 +993,8 @@ void init_all(void)
     {
         ESP_LOGI("init", "ws1812 Init OK");
     }
-    // init_adc();
     init_gpio();
-    ADC_init_handle = convert_adc_values(resultAvr, ADC_CHANNEL_COUNT);
+    continuous_adc_init(channel, sizeof(channel) / sizeof(adc_channel_t), &ADC_init_handle);
     if (ESP_OK == ble_init())
     {
         ble_sec_config();

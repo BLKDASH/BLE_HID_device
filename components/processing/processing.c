@@ -86,9 +86,11 @@ uint32_t mcb_get_average(MultiChannelBuffer *mcb, uint8_t channel) {
 // 获取所有通道的平均值数组
 void mcb_get_all_averages(MultiChannelBuffer *mcb, uint32_t averages[8]) {
     if (!mcb || !averages) return;
+    int voltage_mv = 0;
     
     for (uint8_t i = 0; i < 8; i++) {
-        averages[i] = mcb_get_average(mcb, i);
+        adc_cali_raw_to_voltage(adc1_cali_handle, mcb_get_average(mcb, i), &voltage_mv);
+        averages[i] = voltage_mv;
     }
 }
 
