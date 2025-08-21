@@ -104,8 +104,7 @@ void app_main(void)
             
             // 先闪灯，让用户以为开机了
             while (gpio_get_level(GPIO_INPUT_HOME_BTN) == BUTTON_HOME_PRESSED){vTaskDelay(pdMS_TO_TICKS(100));} // 等待释放，让出时间给LED任务
-            setHomeButton();
-
+            
             xTaskCreatePinnedToCore(shutdown_task, "shutdown_task", 2048, NULL, 1, NULL, 1);
             xTaskCreatePinnedToCore(joystick_calibration_task, "calibration_task", 8192, NULL, 4, NULL, 1);
             xTaskCreatePinnedToCore(all_buttons_monitor_task, "xyab_button_monitor", 2048, NULL, 3, NULL, 1);
@@ -113,6 +112,7 @@ void app_main(void)
             xTaskCreatePinnedToCore(adc_aver_send_task, "adc_aver_send_task", 2048, NULL, 2, NULL, 1);
             xTaskCreatePinnedToCore(gamepad_packet_send_task, "gamepad_packet_send_task", 4096, NULL, 4, NULL, 1);
             xTaskCreatePinnedToCore(connection_timeout_task, "connection_timeout_task", 2048, NULL, 1, NULL, 1);
+            setHomeButton();
             
             vTaskDelete(NULL);
         }
