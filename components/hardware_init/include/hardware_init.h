@@ -27,14 +27,14 @@ esp_err_t flashLED(void);
 #define ADC_CHANNEL_BATTERY ADC_CHANNEL_6          // 电池电压 (GPIO34)
 #define ADC_CHANNEL_DPAD ADC_CHANNEL_7             // 十字键 (GPIO35)
 
-#define DPAD_UP 1067
-#define DPAD_RIGHT 960
-#define DPAD_LEFT 800
-#define DPAD_DOWN 600
-#define DPAD_UP_RIGHT 857
-#define DPAD_DOWN_RIGHT 533
-#define DPAD_UP_LEFT 738
-#define DPAD_DOWN_LEFT 480
+#define DPAD_UP 600
+#define DPAD_RIGHT 800
+#define DPAD_LEFT 960
+#define DPAD_DOWN 1080
+#define DPAD_UP_RIGHT 490
+#define DPAD_DOWN_RIGHT 750
+#define DPAD_UP_LEFT 545
+#define DPAD_DOWN_LEFT 886
 #define DPAD_NONE 1200
 #define CONFIDENCE_RANGE 30
 
@@ -81,13 +81,13 @@ extern adc_continuous_handle_t ADC_init_handle;
 #define GPIO_INPUT_RIGHT_SHOULDER_BTN 18 // 右肩键
 // 超薄按键
 #define GPIO_INPUT_SELECT_BTN 4 // SELECT按键
-#define GPIO_INPUT_START_BTN 2  // START按键
+#define GPIO_INPUT_START_BTN 22  // START按键
 
 #define GPIO_INPUT_IKEY_BTN 0     // IKEY按键
 #define GPIO_INPUT_IOS_BTN 21     // IOS按键
-#define GPIO_INPUT_WINDOWS_BTN 22 // Windows按键
+#define GPIO_INPUT_WINDOWS_BTN 2 // Windows按键
 
-#define GPIO_INPUT_ANDROID_BTN 4 // Android按键
+#define GPIO_INPUT_ANDROID_BTN 3 // Android按键
 #define GPIO_INPUT_HOME_BTN 13   // HOME按键，开关机检测按键
 
 #define GPIO_OUTPUT_POWER_KEEP_IO 5
@@ -98,7 +98,7 @@ extern adc_continuous_handle_t ADC_init_handle;
 #define BUTTON_HOME_RELEASED 0
 
 extern uint16_t hid_conn_id;
-extern bool sec_conn;
+extern volatile bool sec_conn;
 esp_err_t ble_init(void);
 esp_err_t ble_sec_config(void);
 

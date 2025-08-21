@@ -313,7 +313,7 @@ esp_err_t read_joystick_calibration_data(uint8_t joystick_id, joystick_calibrati
             out_data->min_y = 0;
             out_data->max_x = 1215;
             out_data->max_y = 1215;
-            out_data->trigger = 0;  // 默认trigger值
+            out_data->trigger = 1215;  // 默认trigger值
             ESP_LOGW(TAG, "摇杆%d尚未校准，使用默认值", joystick_id);
         }
         return err;

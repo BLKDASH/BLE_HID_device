@@ -767,7 +767,7 @@ static void init_gpio(void)
 #define HID_BLE_TAG "BLEinfo"
 #define HIDD_DEVICE_NAME "ESP32GamePad"
 uint16_t hid_conn_id = 0;
-bool sec_conn = false;
+volatile bool sec_conn = false;
 
 // 原始广播数据包
 static uint8_t hidd_adv_data_raw[] = {

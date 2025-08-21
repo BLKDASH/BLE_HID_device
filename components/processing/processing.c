@@ -5,8 +5,7 @@
 #include "main.h"
 #include "esp_log.h"
 
-// 添加全局变量声明
-extern bool sec_conn;
+
 extern MultiChannelBuffer *mcb;
 
 // static const char *TAG = "processing";
