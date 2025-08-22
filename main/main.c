@@ -58,8 +58,8 @@ volatile bool js_calibration_running = false;
 static bool can_send_ikey = false;
 
 // 摇杆校准数据
-joystick_calibration_data_t left_joystick_cal_data;
-joystick_calibration_data_t right_joystick_cal_data;
+static joystick_calibration_data_t left_joystick_cal_data;
+static joystick_calibration_data_t right_joystick_cal_data;
 
 void app_main(void)
 {
