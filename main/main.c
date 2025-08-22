@@ -587,26 +587,26 @@ void adc_aver_send_task(void *pvParameters)
             // 右摇杆 Y 轴
             gamepad_report_buffer[3] = map_joystick(all_avg[0],
                                                     right_joystick_cal_data.center_y,
-                                                    right_joystick_cal_data.min_y,
-                                                    right_joystick_cal_data.max_y);
+                                                    right_joystick_cal_data.min_y+CONFIDENCE_RANGE,
+                                                    right_joystick_cal_data.max_y-CONFIDENCE_RANGE);
 
             // 右摇杆 X 轴（注意此处minmax反向）
             gamepad_report_buffer[2] = map_anti_joystick(all_avg[1],
                                                          right_joystick_cal_data.center_x,
-                                                         right_joystick_cal_data.min_x,
-                                                         right_joystick_cal_data.max_x);
+                                                         right_joystick_cal_data.min_x+CONFIDENCE_RANGE,
+                                                         right_joystick_cal_data.max_x-CONFIDENCE_RANGE);
 
             // 左摇杆 Y 轴
             gamepad_report_buffer[1] = map_joystick(all_avg[2],
                                                     left_joystick_cal_data.center_y,
-                                                    left_joystick_cal_data.min_y,
-                                                    left_joystick_cal_data.max_y);
+                                                    left_joystick_cal_data.min_y+CONFIDENCE_RANGE,
+                                                    left_joystick_cal_data.max_y-CONFIDENCE_RANGE);
 
             // 左摇杆 X 轴（注意此处minmax反向）
             gamepad_report_buffer[0] = map_anti_joystick(all_avg[3],
                                                          left_joystick_cal_data.center_x,
-                                                         left_joystick_cal_data.min_x,
-                                                         left_joystick_cal_data.max_x);
+                                                         left_joystick_cal_data.min_x+CONFIDENCE_RANGE,
+                                                         left_joystick_cal_data.max_x-CONFIDENCE_RANGE);
 
             // 处理扳机值 - 将ADC原始值(0-4095)映射到(255-0)
             // 左扳机所在的通道是all_avg[4]对应gamepad_report_buffer[8]
