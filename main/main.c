@@ -32,6 +32,9 @@
 
 // todo:遗忘上一次连接的设备
 // todo:添加电池广播
+// todo:完善遥摇杆校准程序
+// todo:修改RGB为LED
+// todo:按住右侧按键开机后进入调试模式
 #define HID_TASK_TAG "TASKinfo"
 // adc多通道均值缓冲区
 // 结构（channel 对应索引）：
@@ -219,8 +222,8 @@ void SLEEP(void)
 
     // 配置HOME按键为唤醒源，检测上升沿唤醒
     esp_sleep_enable_ext0_wakeup(GPIO_INPUT_HOME_BTN, 1); // 1表示高电平唤醒
-    // 30s后自动唤醒，如果此时唤醒没有成功，说明已经完全关机（未在充电），如果唤醒成功，则尝试重新进入睡眠模式？
-    esp_sleep_enable_timer_wakeup(30LL * 1000000LL);
+    // 300s后自动唤醒，如果此时唤醒没有成功，说明已经完全关机（未在充电），如果唤醒成功，则尝试重新进入睡眠模式？
+    esp_sleep_enable_timer_wakeup(300LL * 1000000LL);
 
     // ESP_LOGW("SLEEP", "深度睡眠中");
     // vTaskDelay(200);
@@ -419,15 +422,16 @@ void adc_read_task(void *pvParameters)
 
     // 记录上一次的sec_conn状态
     bool last_sec_conn_state = false;
-
+    UBaseType_t uxOriginalPriority = uxTaskPriorityGet(NULL);
     for (;;)
     {
         // 该判断只在非校准模式下有效
         if (js_calibration_running == false)
-        // 只有在sec_conn状态发生变化时才调用start/stop函数
+        // 只有在sec_conn状态发生变化时才调用start/stop函数，同时提升为最大优先级，保证其它任务不会影响启停过程
         {
             if (sec_conn != last_sec_conn_state)
             {
+                vTaskPrioritySet(NULL, configMAX_PRIORITIES - 1);
                 if (sec_conn)
                 {
                     // 连上了再开始初始化
@@ -440,6 +444,8 @@ void adc_read_task(void *pvParameters)
                     stop_adc_sampling();
                 }
                 last_sec_conn_state = sec_conn;
+                // 恢复原始优先级
+                vTaskPrioritySet(NULL, uxOriginalPriority);
             }
         }
 
